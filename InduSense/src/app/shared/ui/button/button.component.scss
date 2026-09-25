@@ -1,0 +1,105 @@
+:host {
+  --btn-h: 32px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--btn-h);
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+:host(.btn--sm) {
+  --btn-h: 28px;
+
+  padding: 0 var(--space-2);
+}
+
+:host(.btn--lg) {
+  --btn-h: 36px;
+
+  padding: 0 var(--space-2);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+}
+
+:host(.btn--primary) {
+  background: var(--accent-blue);
+  color: #fff;
+
+  &:hover:not(:disabled, [aria-disabled='true']) {
+    background: var(--accent-blue-hover);
+  }
+}
+
+:host(.btn--secondary) {
+  background: var(--bg-card);
+  border-color: var(--border-light);
+  color: var(--text-primary);
+
+  &:hover:not(:disabled, [aria-disabled='true']) {
+    background: var(--bg-card-hover);
+  }
+}
+
+:host(.btn--ghost) {
+  color: var(--text-secondary);
+
+  &:hover:not(:disabled, [aria-disabled='true']) {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+  }
+}
+
+:host(.btn--plain) {
+  color: var(--text-primary);
+
+  &:hover:not(:disabled, [aria-disabled='true']) {
+    background: var(--bg-card-hover);
+  }
+}
+
+:host(.btn--icon) {
+  width: var(--btn-h);
+  padding: 0;
+  border-radius: 50%;
+  color: var(--text-secondary);
+
+  &:hover:not(:disabled, [aria-disabled='true']) {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+  }
+}
+
+:host(:disabled),
+:host([aria-disabled='true']) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn__spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin 0.7s linear infinite;
+}
+
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

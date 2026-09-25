@@ -1,0 +1,147 @@
+<app-widget-card
+  [heading]="heading()"
+  [hasData]="hasData()"
+  [loading]="loading()"
+  [error]="error()"
+  [padded]="false"
+  emptyHeading="No assets yet"
+  emptyMessage="Machines added to this plant will appear here."
+  (retry)="retry.emit()"
+>
+  <ng-template widgetSkeleton>
+    <div class="fleet__skeleton">
+      @for (row of skeletonRows; track row) {
+        <app-skeleton height="32px" />
+      }
+    </div>
+  </ng-template>
+
+  <ng-template widgetContent>
+    <div
+      class="fleet__scroll"
+      role="region"
+      tabindex="0"
+      [attr.aria-label]="heading() + ' table'"
+      [attr.aria-busy]="loading() ? 'true' : null"
+    >
+      <table class="fleet" [class.fleet--busy]="loading()">
+        <caption class="sr-only">
+          {{
+            heading()
+          }}: page
+          {{
+            page()
+          }}
+          of
+          {{
+            pageCount()
+          }}
+        </caption>
+        <thead>
+          <tr>
+            @for (col of visibleColumns(); track col.key) {
+              <th scope="col" [class]="'col-' + col.key" [attr.aria-sort]="ariaSort(col.key)">
+                @if (col.sortable) {
+                  <button type="button" class="fleet__sort" (click)="toggleSort(col.key)">
+                    {{ col.label }}
+                    <app-icon
+                      class="fleet__sort-icon"
+                      [name]="
+                        ariaSort(col.key) === 'ascending'
+                          ? 'chevron-up'
+                          : ariaSort(col.key) === 'descending'
+                            ? 'chevron-down'
+                            : 'arrow-up-down'
+                      "
+                      [size]="12"
+                    />
+                  </button>
+                } @else {
+                  <span [class.sr-only]="col.srOnly">{{ col.label }}</span>
+                }
+              </th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.id) {
+            <tr>
+              @for (col of visibleColumns(); track col.key) {
+                <td [class]="'col-' + col.key">
+                  @switch (col.key) {
+                    @case ('image') {
+                      <span class="fleet__asset" aria-hidden="true">
+                        <app-icon name="settings" [size]="16" />
+                      </span>
+                    }
+                    @case ('name') {
+                      <span class="fleet__name">{{ row.name }}</span>
+                      <span class="fleet__code">{{ row.code }}</span>
+                    }
+                    @case ('status') {
+                      <app-status-pill
+                        [label]="statusLabel(row.status)"
+                        [tone]="statusTone(row.status)"
+                      />
+                    }
+                    @case ('updatedAt') {
+                      <span class="fleet__time">
+                        <app-icon name="clock" [size]="14" />
+                        {{ formatDateTime(row.updatedAt) }}
+                      </span>
+                    }
+                    @case ('connection') {
+                      <app-status-pill
+                        dot
+                        [label]="connectionLabel[row.connection]"
+                        [tone]="connectionTone(row.connection)"
+                      />
+                    }
+                    @case ('location') {
+                      {{ row.location }}
+                    }
+                    @case ('area') {
+                      {{ row.area ?? '—' }}
+                    }
+                    @case ('gateway') {
+                      {{ row.gateway ?? '—' }}
+                    }
+                  }
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <footer class="fleet__footer">
+      <span class="fleet__total">Total: {{ fleet()!.total }} records</span>
+      <nav class="fleet__pager" [attr.aria-label]="heading() + ' pages'">
+        <button
+          appButton
+          variant="ghost"
+          size="sm"
+          type="button"
+          [disabled]="page() <= 1 || loading()"
+          (click)="goTo(page() - 1)"
+        >
+          <app-icon name="chevron-left" [size]="14" />
+          Prev
+        </button>
+        <span class="fleet__page" aria-live="polite">{{ page() }} of {{ pageCount() }}</span>
+        <button
+          appButton
+          variant="ghost"
+          size="sm"
+          type="button"
+          [disabled]="page() >= pageCount() || loading()"
+          (click)="goTo(page() + 1)"
+        >
+          Next
+          <app-icon name="chevron-right" [size]="14" />
+        </button>
+      </nav>
+    </footer>
+  </ng-template>
+</app-widget-card>

@@ -1,0 +1,30 @@
+<nav class="sidebar" aria-label="Main">
+  <ul class="sidebar__list">
+    @for (item of items(); track item.path) {
+      <li>
+        <ng-container *ngTemplateOutlet="link; context: { $implicit: item }" />
+      </li>
+    }
+  </ul>
+  <div class="sidebar__pinned">
+    <ng-container *ngTemplateOutlet="link; context: { $implicit: pinned }" />
+  </div>
+</nav>
+
+<ng-template #link let-item>
+  <a
+    class="nav-item"
+    routerLinkActive="nav-item--active"
+    ariaCurrentWhenActive="page"
+    [routerLink]="item.path"
+    [attr.title]="item.label"
+  >
+    <span class="nav-item__icon">
+      <app-icon [name]="item.icon" [size]="20" />
+      @if (item.hasChildren) {
+        <app-icon name="chevron-right" class="nav-item__chevron" [size]="10" [strokeWidth]="3" />
+      }
+    </span>
+    <span class="nav-item__label">{{ item.label }}</span>
+  </a>
+</ng-template>

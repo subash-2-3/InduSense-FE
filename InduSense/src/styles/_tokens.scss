@@ -1,0 +1,84 @@
+// InduSense Cyber-Industrial theme tokens. Single source of truth for colors and layout metrics.
+// Charts read these at runtime through ChartThemeService (ECharts cannot resolve CSS variables).
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces & Backgrounds */
+  --bg-app: #0b0f19;
+  --bg-sidebar: #090d16;
+  --bg-topbar: #0f172a;
+  --bg-card: #111827;
+  --bg-card-hover: #1e293b;
+  --bg-popover: #0f172a;
+  --border-card: #1f293d;
+  --border-light: #334155;
+
+  /* Typography colors */
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #8190a6; // >= 4.5:1 on every surface incl. card hover (Phase 5 contrast audit)
+
+  /* Accent & telemetry status colors */
+  --accent-cyan: #06b6d4;
+  --accent-cyan-soft: rgb(6 182 212 / 15%);
+  --accent-blue: #2563eb;
+  --accent-blue-hover: #1d4ed8;
+  --accent-orange: #f97316;
+  --status-running: #10b981;
+  --status-warning: #f59e0b;
+  --status-stopped: #64748b;
+  --status-fault: #ef4444;
+
+  /* Fonts */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+
+  /* Type scale */
+  --fs-2xs: 10px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --fs-2xl: 28px;
+  --fs-3xl: 32px;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --lh-tight: 1.2;
+  --lh-base: 1.5;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Shape & elevation */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-card: 8px;
+  --radius-pill: 999px;
+  --shadow-popover: 0 12px 32px rgb(0 0 0 / 45%);
+
+  /* Motion */
+  --transition-fast: 120ms ease;
+  --transition-base: 200ms ease;
+
+  /* Layout */
+  --topbar-h: 52px;
+  --toolbar-h: 48px;
+  --sidebar-w: 68px;
+  --gap-grid: 12px;
+
+  /* Stacking */
+  --z-sidebar: 20;
+  --z-topbar: 30;
+  --z-dropdown: 50;
+  --z-overlay: 60;
+}

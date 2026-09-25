@@ -1,0 +1,56 @@
+@use '../widget-chart';
+
+.gauge {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  min-height: 0;
+}
+
+.chart {
+  min-height: 110px;
+}
+
+.gauge__scale {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 100%;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.gauge__readout {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.gauge__icon {
+  align-self: center;
+  color: var(--accent-cyan);
+}
+
+.gauge__value {
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+}
+
+.gauge__unit {
+  color: var(--text-secondary);
+  font-size: var(--fs-md);
+}
+
+.gauge__range {
+  color: var(--status-warning);
+  font-size: var(--fs-xs);
+}
+
+.gauge__time {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}

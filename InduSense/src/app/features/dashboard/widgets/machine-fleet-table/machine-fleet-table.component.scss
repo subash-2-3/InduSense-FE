@@ -1,0 +1,164 @@
+@use 'mixins' as m;
+
+:host {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+app-widget-card {
+  flex: 1 1 auto;
+}
+
+.fleet__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+// The table scrolls inside the card (both axes); the page never scrolls sideways.
+.fleet__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+
+  &:focus-visible {
+    outline-offset: -2px;
+  }
+}
+
+.fleet {
+  width: 100%;
+  min-width: 880px;
+  font-size: var(--fs-sm);
+  transition: opacity var(--transition-base);
+
+  th,
+  td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--border-card);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-weight: var(--fw-medium);
+  }
+
+  tbody tr:hover {
+    background: var(--bg-card-hover);
+  }
+}
+
+.fleet--busy {
+  opacity: 0.55;
+}
+
+.col-image {
+  width: 56px;
+  padding-left: var(--space-4) !important;
+}
+
+.fleet__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: inherit;
+
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+
+.fleet__sort-icon {
+  opacity: 0.8;
+}
+
+.fleet__asset {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-card-hover);
+  color: var(--text-secondary);
+}
+
+.fleet__name {
+  display: block;
+  color: var(--text-primary);
+  font-weight: var(--fw-medium);
+}
+
+.fleet__code {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.fleet__time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.fleet__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--border-card);
+}
+
+.fleet__total {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.fleet__pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.fleet__page {
+  @include m.tabular;
+
+  min-width: 56px;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+// Export PDF: print the whole current page of rows, wrapped to the paper width.
+@media print {
+  .fleet__scroll {
+    overflow: visible;
+  }
+
+  .fleet {
+    min-width: 0;
+    font-size: var(--fs-2xs);
+
+    th,
+    td {
+      position: static;
+      padding: var(--space-1) 6px;
+      white-space: normal;
+    }
+  }
+
+  .fleet__pager {
+    display: none;
+  }
+}

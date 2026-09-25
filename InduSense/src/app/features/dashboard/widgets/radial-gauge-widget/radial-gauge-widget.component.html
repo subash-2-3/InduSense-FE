@@ -1,0 +1,32 @@
+<app-widget-card
+  [heading]="heading()"
+  [hasData]="hasData()"
+  [loading]="loading()"
+  [error]="error()"
+  emptyHeading="No reading yet"
+  emptyMessage="Waiting for the first value."
+  (retry)="retry.emit()"
+>
+  <ng-template widgetContent>
+    <div class="gauge" role="img" [attr.aria-label]="summary()">
+      <div class="chart" [appEchart]="options()" (sizeChange)="size.set($event)"></div>
+      <div class="gauge__scale" aria-hidden="true" [style.width.px]="arcWidth()">
+        <span>{{ format(scale().min) }}</span>
+        <span>{{ format(scale().max) }}</span>
+      </div>
+      <div class="gauge__readout" aria-hidden="true">
+        <app-icon name="lightbulb" [size]="18" class="gauge__icon" />
+        <span class="gauge__value">{{ readout() }}</span>
+        <span class="gauge__unit">{{ unit() }}</span>
+      </div>
+      @if (range() !== 'within') {
+        <p class="gauge__range" aria-hidden="true">
+          {{ range() === 'below' ? 'Below' : 'Above' }} range
+        </p>
+      }
+      @if (readingTime(); as time) {
+        <p class="gauge__time" aria-hidden="true">{{ time }}</p>
+      }
+    </div>
+  </ng-template>
+</app-widget-card>

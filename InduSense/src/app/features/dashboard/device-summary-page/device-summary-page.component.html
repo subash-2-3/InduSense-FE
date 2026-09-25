@@ -1,0 +1,122 @@
+<div class="page">
+  <app-dashboard-toolbar
+    [dashboards]="dashboards"
+    [activeId]="activeDashboard"
+    [refreshing]="store.refreshing()"
+    [lastUpdated]="store.lastUpdated()"
+    (refresh)="store.refresh()"
+  />
+
+  @if (!config.production) {
+    <nav class="dev-scenarios" aria-label="Preview scenarios" data-print-hide>
+      <span class="dev-scenarios__label">Preview data:</span>
+      @for (s of scenarios; track s) {
+        <a
+          class="dev-scenarios__link"
+          routerLink="."
+          [queryParams]="{ scenario: s === 'normal' ? null : s }"
+          [class.dev-scenarios__link--active]="activeScenario() === s"
+          [attr.aria-current]="activeScenario() === s ? 'true' : null"
+          >{{ s }}</a
+        >
+      }
+    </nav>
+  }
+
+  <div class="grid">
+    <div class="grid__kpis">
+      @if (can().devices) {
+        <app-kpi-metric-card
+          heading="Devices"
+          subtitle="Devices count"
+          icon="router"
+          [kpi]="store.deviceCount().data"
+          [loading]="store.deviceCount().loading"
+          [error]="store.deviceCount().error"
+          (retry)="store.refresh()"
+        />
+      } @else {
+        <app-no-access-card heading="Devices" compact />
+      }
+      @if (can().devices) {
+        <app-kpi-metric-card
+          heading="Device Types"
+          subtitle="Types count"
+          icon="package"
+          [kpi]="store.deviceTypeCount().data"
+          [loading]="store.deviceTypeCount().loading"
+          [error]="store.deviceTypeCount().error"
+          (retry)="store.refresh()"
+        />
+      } @else {
+        <app-no-access-card heading="Device Types" compact />
+      }
+    </div>
+    @if (can().devices) {
+      <app-pie-chart-widget
+        class="grid__pie"
+        heading="Device Count by type"
+        emptyMessage="No devices have been registered yet."
+        [slices]="store.devicesByType().data"
+        [loading]="store.devicesByType().loading"
+        [error]="store.devicesByType().error"
+        (retry)="store.refresh()"
+      />
+    } @else {
+      <app-no-access-card class="grid__pie" heading="Device Count by type" />
+    }
+    @if (can().devices) {
+      <app-donut-status-widget
+        class="grid__donut"
+        heading="Device By Connection status"
+        emptyMessage="No devices have been registered yet."
+        [slices]="store.devicesByConnection().data"
+        [loading]="store.devicesByConnection().loading"
+        [error]="store.devicesByConnection().error"
+        (retry)="store.refresh()"
+      />
+    } @else {
+      <app-no-access-card class="grid__donut" heading="Device By Connection status" />
+    }
+    @if (can().devices) {
+      <app-column-bar-widget
+        class="grid__bar"
+        heading="Devices by Connection type and Status"
+        emptyMessage="No devices have been registered yet."
+        [data]="store.devicesBySource().data"
+        [loading]="store.devicesBySource().loading"
+        [error]="store.devicesBySource().error"
+        (retry)="store.refresh()"
+      />
+    } @else {
+      <app-no-access-card class="grid__bar" heading="Devices by Connection type and Status" />
+    }
+    @if (can().machines) {
+      <app-machine-fleet-table
+        class="grid__table"
+        heading="OEE"
+        [fleet]="store.fleet().data"
+        [loading]="store.fleet().loading"
+        [error]="store.fleet().error"
+        (pageChange)="store.setFleetPage($event)"
+        (retry)="store.refresh()"
+      />
+    } @else {
+      <app-no-access-card class="grid__table" heading="OEE" />
+    }
+    @if (can().telemetry) {
+      <app-radial-gauge-widget
+        class="grid__gauge"
+        [heading]="config.gauge.label"
+        [min]="config.gauge.min"
+        [max]="config.gauge.max"
+        [gauge]="store.gauge().data"
+        [loading]="store.gauge().loading"
+        [error]="store.gauge().error"
+        (retry)="store.refresh()"
+      />
+    } @else {
+      <app-no-access-card class="grid__gauge" [heading]="config.gauge.label" />
+    }
+  </div>
+</div>

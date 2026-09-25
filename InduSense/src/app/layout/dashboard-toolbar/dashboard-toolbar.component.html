@@ -1,0 +1,73 @@
+<div class="toolbar">
+  <div class="toolbar__start">
+    <h1 class="toolbar__title">
+      <app-dropdown-menu
+        triggerVariant="plain"
+        triggerSize="lg"
+        [items]="switcherItems()"
+        [triggerLabel]="'Switch dashboard, current: ' + activeName()"
+        (itemSelect)="onDashboardSelect($event)"
+      >
+        {{ activeName() }}
+      </app-dropdown-menu>
+    </h1>
+
+    <button
+      appButton
+      variant="icon"
+      type="button"
+      class="refresh"
+      aria-label="Refresh dashboard"
+      data-print-hide
+      [class.refresh--spinning]="refreshing()"
+      [attr.aria-busy]="refreshing() ? 'true' : null"
+      (click)="onRefresh()"
+    >
+      <app-icon name="refresh" [size]="16" />
+    </button>
+    <span class="toolbar__updated" aria-live="off">{{ updatedText() }}</span>
+  </div>
+
+  <div class="toolbar__end" data-print-hide>
+    <a appButton variant="ghost" size="sm" routerLink="/help" aria-label="Help">
+      <app-icon name="help-circle" [size]="16" />
+      <span class="toolbar__label">Help</span>
+    </a>
+
+    @if (fullscreen.supported) {
+      <button
+        appButton
+        variant="icon"
+        type="button"
+        [attr.aria-label]="fullscreen.isFullscreen() ? 'Exit fullscreen' : 'Enter fullscreen'"
+        [attr.aria-pressed]="fullscreen.isFullscreen()"
+        (click)="fullscreen.toggle()"
+      >
+        <app-icon [name]="fullscreen.isFullscreen() ? 'minimize' : 'maximize'" [size]="16" />
+      </button>
+    }
+
+    <app-dropdown-menu
+      align="end"
+      triggerSize="sm"
+      [items]="actionItems"
+      (itemSelect)="onAction($event)"
+    >
+      Actions
+    </app-dropdown-menu>
+
+    <button
+      appButton
+      variant="primary"
+      size="sm"
+      type="button"
+      aria-disabled="true"
+      title="Coming soon"
+      aria-describedby="add-dashboard-hint"
+    >
+      <app-icon name="plus" [size]="14" />
+      <span class="toolbar__label">Add Dashboard</span>
+    </button>
+    <span id="add-dashboard-hint" class="sr-only">Coming soon</span>
+  </div>
+</div>

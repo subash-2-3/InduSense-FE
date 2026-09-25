@@ -1,1 +1,6 @@
-/* You can add global styles to this file, and also import other style files */
+// Global styles. Component styles live next to their components.
+@use 'styles/tokens';
+@use 'styles/reset';
+@use 'styles/typography';
+@use 'styles/utilities';
+@use 'styles/print';

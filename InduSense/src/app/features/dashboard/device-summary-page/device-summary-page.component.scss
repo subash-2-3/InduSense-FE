@@ -1,0 +1,115 @@
+// Widget grid (plan Section 3): desktop 3 columns, tablet 2, mobile 1.
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.dev-scenarios {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-top: calc(-1 * var(--space-1));
+  font-size: var(--fs-xs);
+}
+
+.dev-scenarios__label {
+  color: var(--text-muted);
+}
+
+.dev-scenarios__link {
+  padding: 2px var(--space-2);
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+
+.dev-scenarios__link--active {
+  border-style: solid;
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: 260px 300px 380px;
+  grid-template-areas:
+    'kpis pie donut'
+    'bar bar bar'
+    'table table gauge';
+  gap: var(--gap-grid);
+}
+
+.grid__kpis {
+  display: grid;
+  grid-area: kpis;
+  grid-template-rows: 1fr 1fr;
+  gap: var(--gap-grid);
+  min-height: 0;
+}
+
+.grid__pie {
+  grid-area: pie;
+}
+
+.grid__donut {
+  grid-area: donut;
+}
+
+.grid__bar {
+  grid-area: bar;
+}
+
+.grid__table {
+  grid-area: table;
+}
+
+.grid__gauge {
+  grid-area: gauge;
+}
+
+@media (width < 1280px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: 260px 280px 300px 420px;
+    grid-template-areas:
+      'kpis pie'
+      'donut gauge'
+      'bar bar'
+      'table table';
+  }
+}
+
+@media (width < 768px) {
+  .page {
+    padding: 0 var(--space-3) var(--space-3);
+  }
+
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 260px 300px 300px 320px 480px 280px;
+    grid-template-areas: 'kpis' 'pie' 'donut' 'bar' 'table' 'gauge';
+  }
+}
+
+@media print {
+  .page {
+    padding: 0;
+  }
+
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: 240px 280px auto;
+    grid-template-areas:
+      'kpis pie donut'
+      'bar bar bar'
+      'table table gauge';
+  }
+}
