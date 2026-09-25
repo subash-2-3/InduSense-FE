@@ -1,0 +1,21 @@
+// "Export PDF" uses window.print(): keep the dark theme and hide app chrome marked with data-print-hide.
+@media print {
+  @page {
+    size: landscape;
+    margin: 10mm;
+  }
+
+  html,
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  app-card {
+    break-inside: avoid;
+  }
+}

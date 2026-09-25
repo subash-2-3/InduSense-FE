@@ -1,0 +1,24 @@
+// Shared mixins for component stylesheets: `@use 'mixins' as m;` (resolved via stylePreprocessorOptions).
+// Emits no CSS on its own.
+
+@mixin surface {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-card);
+}
+
+@mixin truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@mixin tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@mixin focus-ring {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}

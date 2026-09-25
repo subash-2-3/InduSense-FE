@@ -1,0 +1,24 @@
+<a class="skip-link" href="#main-content">Skip to main content</a>
+
+<app-header
+  class="layout__header"
+  data-print-hide
+  [section]="section()"
+  [navOpen]="navOpen()"
+  (navToggle)="toggleNav()"
+/>
+
+<app-sidebar
+  id="app-sidebar"
+  class="layout__sidebar"
+  data-print-hide
+  [class.layout__sidebar--open]="navOpen()"
+/>
+
+@if (navOpen()) {
+  <div class="layout__backdrop" aria-hidden="true" (click)="closeNav()"></div>
+}
+
+<main id="main-content" class="layout__main" tabindex="-1">
+  <router-outlet />
+</main>

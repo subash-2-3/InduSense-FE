@@ -1,0 +1,74 @@
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--text-primary);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+
+h1 {
+  font-size: var(--fs-xl);
+}
+
+h2,
+h3 {
+  font-size: var(--fs-md);
+}
+
+h4,
+h5,
+h6 {
+  font-size: var(--fs-sm);
+}
+
+.text-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-2xs {
+  font-size: var(--fs-2xs);
+}
+
+.text-sm {
+  font-size: var(--fs-sm);
+}
+
+.text-lg {
+  font-size: var(--fs-lg);
+}
+
+.fw-medium {
+  font-weight: var(--fw-medium);
+}
+
+.fw-semibold {
+  font-weight: var(--fw-semibold);
+}
+
+.fw-bold {
+  font-weight: var(--fw-bold);
+}
+
+.link {
+  color: var(--accent-cyan);
+
+  &:hover {
+    text-decoration: underline;
+  }
+}

@@ -1,0 +1,82 @@
+<header class="topbar">
+  <button
+    appButton
+    variant="icon"
+    type="button"
+    class="topbar__nav-toggle"
+    aria-controls="app-sidebar"
+    [attr.aria-expanded]="navOpen()"
+    [attr.aria-label]="navOpen() ? 'Close navigation' : 'Open navigation'"
+    (click)="navToggle.emit()"
+  >
+    <app-icon [name]="navOpen() ? 'x' : 'menu'" [size]="20" />
+  </button>
+
+  <a class="brand" routerLink="/dashboard" aria-label="InduSense home">
+    <span class="brand__mark" aria-hidden="true">IS</span>
+    <span class="brand__name">InduSense</span>
+  </a>
+
+  @if (section()) {
+    <span class="topbar__divider" aria-hidden="true"></span>
+    <span class="topbar__section">{{ section() }}</span>
+  }
+
+  <div class="topbar__spacer"></div>
+
+  @if (user(); as u) {
+    <div class="company" [attr.title]="u.companyName + ' (' + u.companyCode + ')'">
+      <app-icon name="building" [size]="16" />
+      <span class="company__name">{{ u.companyName }}</span>
+      <span class="company__code">{{ u.companyCode }}</span>
+    </div>
+  }
+
+  <div class="topbar__tools">
+    @if (searchOpen()) {
+      <input
+        #searchInput
+        type="search"
+        class="search"
+        placeholder="Search (coming soon)"
+        aria-label="Search"
+        (keydown.escape)="closeSearch()"
+      />
+    }
+    <button
+      appButton
+      variant="icon"
+      type="button"
+      aria-label="Search"
+      [attr.aria-expanded]="searchOpen()"
+      (click)="toggleSearch()"
+    >
+      <app-icon name="search" />
+    </button>
+    <a appButton variant="icon" routerLink="/settings" aria-label="Settings">
+      <app-icon name="settings" />
+    </a>
+
+    @if (user(); as u) {
+      <app-dropdown-menu
+        align="end"
+        triggerVariant="plain"
+        [items]="userMenu"
+        [triggerLabel]="'Account menu for ' + u.name"
+        (itemSelect)="onUserMenu($event)"
+      >
+        <span class="avatar" aria-hidden="true">{{ avatarText() }}</span>
+        <div menuHeader class="user-card">
+          <span class="avatar avatar--lg" aria-hidden="true">{{ avatarText() }}</span>
+          <div class="user-card__text">
+            <p class="user-card__name">{{ u.name }}</p>
+            <p class="user-card__meta">{{ u.email }}</p>
+            <p class="user-card__meta">{{ u.role }} · {{ u.companyCode }}</p>
+          </div>
+        </div>
+      </app-dropdown-menu>
+    } @else {
+      <a appButton variant="primary" size="sm" routerLink="/login">Sign in</a>
+    }
+  </div>
+</header>

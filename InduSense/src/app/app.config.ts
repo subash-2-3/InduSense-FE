@@ -1,12 +1,42 @@
-import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { provideRouter } from '@angular/router';
+import {
+  provideHttpClient,
+  withFetch,
+  withInterceptors,
+  withNoXsrfProtection,
+} from '@angular/common/http';
+import {
+  ApplicationConfig,
+  inject,
+  provideAppInitializer,
+  provideBrowserGlobalErrorListeners,
+} from '@angular/core';
+import { provideClientHydration, withEventReplay } from '@angular/platform-browser';
+import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
 
 import { routes } from './app.routes';
-import { provideClientHydration, withEventReplay } from '@angular/platform-browser';
+import { apiCredentialsInterceptor } from './core/api/api-credentials.interceptor';
+import { authInterceptor } from './core/auth/auth.interceptor';
+import { AuthService } from './core/auth/auth.service';
+import { csrfInterceptor } from './core/auth/csrf.interceptor';
 
+// Zoneless change detection is the Angular 21 default (zone.js is not installed).
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    provideRouter(routes), provideClientHydration(withEventReplay())
-  ]
+    provideRouter(
+      routes,
+      withComponentInputBinding(),
+      withInMemoryScrolling({ scrollPositionRestoration: 'top' }),
+    ),
+    provideClientHydration(withEventReplay()),
+    // Order matters: the CSRF interceptor runs after the auth interceptor, so a request replayed
+    // after a session refresh carries the rotated CSRF token. Angular's own XSRF support is off.
+    provideHttpClient(
+      withFetch(),
+      withInterceptors([apiCredentialsInterceptor, authInterceptor, csrfInterceptor]),
+      withNoXsrfProtection(),
+    ),
+    // Is there a session (HttpOnly cookies)? Resolved before the first navigation; browser only.
+    provideAppInitializer(() => inject(AuthService).restoreSession()),
+  ],
 };

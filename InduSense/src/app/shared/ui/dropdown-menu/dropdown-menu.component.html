@@ -1,0 +1,65 @@
+<button
+  #trigger
+  appButton
+  type="button"
+  class="menu-trigger"
+  aria-haspopup="menu"
+  [variant]="triggerVariant()"
+  [size]="triggerSize()"
+  [attr.id]="triggerId"
+  [attr.aria-expanded]="isOpen()"
+  [attr.aria-controls]="isOpen() ? menuId : null"
+  [attr.aria-label]="triggerLabel() || null"
+  (click)="toggle()"
+  (keydown)="onTriggerKeydown($event)"
+>
+  <ng-content />
+  @if (showChevron()) {
+    <app-icon
+      name="chevron-down"
+      class="menu-chevron"
+      [class.menu-chevron--open]="isOpen()"
+      [size]="14"
+    />
+  }
+</button>
+
+@if (isOpen()) {
+  <div
+    class="menu-panel"
+    role="menu"
+    [class.menu-panel--end]="align() === 'end'"
+    [attr.id]="menuId"
+    [attr.aria-labelledby]="triggerId"
+    (keydown)="onMenuKeydown($event)"
+  >
+    <ng-content select="[menuHeader]" />
+    @for (item of items(); track item.id) {
+      @if (item.separatorBefore) {
+        <div class="menu-separator" role="separator"></div>
+      }
+      <button
+        #menuItem
+        type="button"
+        tabindex="-1"
+        class="menu-item"
+        [attr.role]="item.checked === undefined ? 'menuitem' : 'menuitemradio'"
+        [attr.aria-checked]="item.checked === undefined ? null : item.checked"
+        [class.menu-item--danger]="item.danger"
+        [disabled]="item.disabled"
+        (click)="select(item)"
+      >
+        @if (item.icon) {
+          <app-icon [name]="item.icon" [size]="16" />
+        }
+        <span class="menu-item__label">{{ item.label }}</span>
+        @if (item.hint) {
+          <span class="menu-item__hint">{{ item.hint }}</span>
+        }
+        @if (item.checked) {
+          <app-icon name="check" class="menu-item__check" [size]="16" />
+        }
+      </button>
+    }
+  </div>
+}
