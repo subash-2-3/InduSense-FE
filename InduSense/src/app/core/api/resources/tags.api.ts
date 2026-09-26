@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 
-import { Tag, TagFilters } from '../../models';
+import { Tag, TagCreate, TagFilters, TagUpdate } from '../../models';
 import { Page, PageParams } from '../api-envelope';
 import { ApiService } from '../api.service';
 
@@ -30,6 +30,14 @@ export class TagsApi {
 
   get(id: number): Observable<Tag> {
     return this.api.get<Tag>(`/tags/${id}`);
+  }
+
+  create(body: TagCreate): Observable<Tag> {
+    return this.api.post<Tag>('/tags', body);
+  }
+
+  update(id: number, body: TagUpdate): Observable<Tag> {
+    return this.api.patch<Tag>(`/tags/${id}`, body);
   }
 
   /** The active tag with this name (optionally on one device), or null. */

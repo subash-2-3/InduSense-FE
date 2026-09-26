@@ -4,3 +4,6 @@ export * from './device';
 export * from './location';
 export * from './telemetry';
 export * from './user';
+export * from './dashboard';
+export * from './report';
+export * from './admin';

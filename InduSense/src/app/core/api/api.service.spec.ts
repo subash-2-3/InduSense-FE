@@ -157,6 +157,34 @@ describe('ApiService', () => {
     http.expectOne('/api/v1/auth/logout').flush(null, { status: 204, statusText: 'No Content' });
     expect(await noContent).toBeUndefined();
   });
+
+  it('patches, puts and deletes resources', async () => {
+    const patched = firstValueFrom(api.patch<{ id: number }>('/devices/1', { name: 'New' }));
+    const patchReq = http.expectOne('/api/v1/devices/1');
+    expect(patchReq.request.method).toBe('PATCH');
+    patchReq.flush({ success: true, data: { id: 1 } });
+    expect(await patched).toEqual({ id: 1 });
+
+    const putted = firstValueFrom(api.put<{ id: number }>('/machines/1/tag-mappings', {}));
+    const putReq = http.expectOne('/api/v1/machines/1/tag-mappings');
+    expect(putReq.request.method).toBe('PUT');
+    putReq.flush({ success: true, data: { id: 1 } });
+    expect(await putted).toEqual({ id: 1 });
+
+    const deleted = firstValueFrom(api.delete<void>('/devices/1'));
+    const delReq = http.expectOne('/api/v1/devices/1');
+    expect(delReq.request.method).toBe('DELETE');
+    delReq.flush(null, { status: 204, statusText: 'No Content' });
+    expect(await deleted).toBeUndefined();
+  });
+
+  it('gets raw envelopes without unwrapping', async () => {
+    const raw = firstValueFrom(api.getRaw<{ success: boolean; data: string }>('/custom'));
+    const req = http.expectOne('/api/v1/custom');
+    expect(req.request.method).toBe('GET');
+    req.flush({ success: true, data: 'custom-data' });
+    expect(await raw).toEqual({ success: true, data: 'custom-data' });
+  });
 });
 
 describe('toHttpParams', () => {

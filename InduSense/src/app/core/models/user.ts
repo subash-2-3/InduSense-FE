@@ -1,7 +1,15 @@
 import { IsoDateTime } from './common';
 
-/** `CurrentUserResponse` from `GET /auth/me` (InduSense-BE `app/schemas/user.py`). */
-export interface CurrentUser {
+export interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+  refresh_expires_in: number;
+}
+
+/** `UserResponse` (InduSense-BE `app/schemas/user.py`). */
+export interface User {
   id: number;
   company_id: number;
   email: string;
@@ -14,6 +22,10 @@ export interface CurrentUser {
   roles: string[];
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
+}
+
+/** `CurrentUserResponse` from `GET /auth/me` (InduSense-BE `app/schemas/user.py`). */
+export interface CurrentUser extends User {
   company_code: string;
   company_name: string;
   /** e.g. `devices:view`, `telemetry:view`. */
@@ -26,5 +38,3 @@ export interface LoginRequest {
   email: string;
   password: string;
 }
-
-// No token types: authentication uses HttpOnly cookies (Phase 7), so tokens never reach the app.

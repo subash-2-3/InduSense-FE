@@ -84,6 +84,13 @@ export class ApiService {
     );
   }
 
+  /** `GET` the entire envelope response (e.g. for reports with data and pagination). */
+  getRaw<T>(path: string, params?: QueryParams): Observable<T> {
+    return this.http.get<T>(this.url(path), { params: toHttpParams(params) }).pipe(
+      catchError(toApiError),
+    );
+  }
+
   /**
    * Every item of a list: fetches the first page, then the remaining pages in parallel, and
    * returns the items in server order.
@@ -133,6 +140,30 @@ export class ApiService {
   /** `POST` and return `data`; resolves to `undefined` for `204 No Content`. */
   post<T>(path: string, body: unknown = {}): Observable<T> {
     return this.http.post<DataResponse<T> | null>(this.url(path), body).pipe(
+      map((response) => response?.data as T),
+      catchError(toApiError),
+    );
+  }
+
+  /** `PATCH` and return `data`; resolves to `undefined` for `204 No Content`. */
+  patch<T>(path: string, body: unknown = {}): Observable<T> {
+    return this.http.patch<DataResponse<T> | null>(this.url(path), body).pipe(
+      map((response) => response?.data as T),
+      catchError(toApiError),
+    );
+  }
+
+  /** `PUT` and return `data`; resolves to `undefined` for `204 No Content`. */
+  put<T>(path: string, body: unknown = {}): Observable<T> {
+    return this.http.put<DataResponse<T> | null>(this.url(path), body).pipe(
+      map((response) => response?.data as T),
+      catchError(toApiError),
+    );
+  }
+
+  /** `DELETE` and return `data` (or void for `204 No Content`). */
+  delete<T = void>(path: string): Observable<T> {
+    return this.http.delete<DataResponse<T> | null>(this.url(path)).pipe(
       map((response) => response?.data as T),
       catchError(toApiError),
     );

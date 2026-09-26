@@ -23,6 +23,27 @@ export interface Device {
   updated_at: IsoDateTime;
 }
 
+export interface DeviceCreate {
+  external_id: string;
+  company_id?: number | null;
+  gateway_id?: number | null;
+  name?: string | null;
+  device_type?: string | null;
+  source?: string | null;
+  ip_address?: string | null;
+  location?: string | null;
+}
+
+export interface DeviceUpdate {
+  company_id?: number | null;
+  gateway_id?: number | null;
+  name?: string | null;
+  device_type?: string | null;
+  ip_address?: string | null;
+  location?: string | null;
+  is_active?: boolean | null;
+}
+
 export interface DeviceFilters {
   gateway_id?: number;
   is_active?: boolean;
@@ -32,6 +53,36 @@ export interface DeviceFilters {
   unassigned?: boolean;
   /** Matches external id, name or location. */
   search?: string;
+}
+
+/** `DeviceConnectionResponse`. */
+export interface DeviceConnection {
+  id: number;
+  device_id: number;
+  protocol: string;
+  host: string | null;
+  port: number | null;
+  settings: Record<string, string | number | boolean | null> | null;
+  secret_ref: string | null;
+  is_active: boolean;
+  created_at: IsoDateTime;
+  updated_at: IsoDateTime;
+}
+
+export interface DeviceConnectionCreate {
+  protocol: string;
+  host?: string | null;
+  port?: number | null;
+  settings?: Record<string, string | number | boolean | null> | null;
+  secret_ref?: string | null;
+}
+
+export interface DeviceConnectionUpdate {
+  host?: string | null;
+  port?: number | null;
+  settings?: Record<string, string | number | boolean | null> | null;
+  secret_ref?: string | null;
+  is_active?: boolean | null;
 }
 
 /** `TagResponse`. */
@@ -51,6 +102,27 @@ export interface Tag {
   register_address: string | null;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
+}
+
+export interface TagCreate {
+  device_id: number;
+  tag_name: string;
+  display_name?: string | null;
+  data_type?: string | null;
+  unit?: string | null;
+  category?: string | null;
+  is_counter?: boolean;
+  is_cumulative?: boolean;
+}
+
+export interface TagUpdate {
+  display_name?: string | null;
+  data_type?: string | null;
+  unit?: string | null;
+  category?: string | null;
+  is_counter?: boolean | null;
+  is_cumulative?: boolean | null;
+  is_active?: boolean | null;
 }
 
 export interface TagFilters {

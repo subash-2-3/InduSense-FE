@@ -9,7 +9,7 @@ import {
   StackedBarVm,
   StatusSliceVm,
 } from '../models/dashboard.vm';
-import { MockDashboardDataSource } from './mock-dashboard.data-source';
+import { ApiDashboardDataSource } from './api-dashboard.data-source';
 import { WidgetResult } from './widget-result';
 
 export type { WidgetResult } from './widget-result';
@@ -31,8 +31,7 @@ export interface DashboardQuery {
 }
 
 /**
- * Where the Device Summary gets its data. UI Track: MockDashboardDataSource (default).
- * Phase 8 provides ApiDashboardDataSource for this token; widgets and the store stay unchanged.
+ * Where the Device Summary gets its data. Production default: ApiDashboardDataSource.
  */
 export interface DashboardDataSource {
   /** All widgets. Emits once and completes; per-widget failures are reported in the snapshot. */
@@ -43,5 +42,5 @@ export interface DashboardDataSource {
 
 export const DASHBOARD_DATA_SOURCE = new InjectionToken<DashboardDataSource>(
   'DASHBOARD_DATA_SOURCE',
-  { providedIn: 'root', factory: () => inject(MockDashboardDataSource) },
+  { providedIn: 'root', factory: () => inject(ApiDashboardDataSource) },
 );

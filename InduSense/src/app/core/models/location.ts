@@ -14,6 +14,22 @@ export interface Plant {
   updated_at: IsoDateTime;
 }
 
+export interface PlantCreate {
+  company_id?: number | null;
+  code: string;
+  name: string;
+  address?: string | null;
+  timezone?: string | null;
+}
+
+export interface PlantUpdate {
+  code?: string;
+  name?: string;
+  address?: string | null;
+  timezone?: string | null;
+  is_active?: boolean | null;
+}
+
 /** `AreaResponse`. */
 export interface Area {
   id: number;
@@ -25,6 +41,20 @@ export interface Area {
   is_active: boolean;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
+}
+
+export interface AreaCreate {
+  plant_id: number;
+  code: string;
+  name: string;
+  description?: string | null;
+}
+
+export interface AreaUpdate {
+  code?: string;
+  name?: string;
+  description?: string | null;
+  is_active?: boolean | null;
 }
 
 export interface PlantFilters {

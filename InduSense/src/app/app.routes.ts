@@ -38,15 +38,49 @@ export const routes: Routes = [
             (m) => m.DeviceSummaryPageComponent,
           ),
       },
-      comingSoon('devices', 'Devices', 'router'),
-      comingSoon('assets', 'Assets', 'lightbulb'),
-      comingSoon('locations', 'Locations', 'map-pin'),
+      {
+        path: 'devices',
+        title: 'Devices · InduSense',
+        data: { section: 'Devices' },
+        loadComponent: () =>
+          import('./features/devices/devices-page.component').then((m) => m.DevicesPageComponent),
+      },
+      {
+        path: 'assets',
+        title: 'Assets · InduSense',
+        data: { section: 'Assets' },
+        loadComponent: () =>
+          import('./features/assets/assets-page.component').then((m) => m.AssetsPageComponent),
+      },
+      {
+        path: 'locations',
+        title: 'Locations · InduSense',
+        data: { section: 'Locations' },
+        loadComponent: () =>
+          import('./features/locations/locations-page.component').then(
+            (m) => m.LocationsPageComponent,
+          ),
+      },
       comingSoon('maps', 'Maps', 'map'),
-      comingSoon('reports', 'Reports', 'line-chart'),
+      {
+        path: 'reports',
+        title: 'Reports · InduSense',
+        data: { section: 'Reports' },
+        loadComponent: () =>
+          import('./features/reports/reports-page.component').then((m) => m.ReportsPageComponent),
+      },
       comingSoon('alarms', 'Alarms', 'bell'),
       comingSoon('more', 'More', 'more-horizontal'),
       comingSoon('quick-start', 'Quick Start', 'wand'),
-      comingSoon('settings', 'Settings', 'settings'),
+      {
+        path: 'settings',
+        title: 'Settings · InduSense',
+        data: { section: 'Settings' },
+        loadComponent: () =>
+          import('./features/settings/settings-page.component').then(
+            (m) => m.SettingsPageComponent,
+          ),
+      },
       comingSoon('help', 'Help', 'help-circle'),
     ],
   },

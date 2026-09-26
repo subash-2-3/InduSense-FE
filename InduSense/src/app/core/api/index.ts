@@ -7,3 +7,6 @@ export * from './resources/locations.api';
 export * from './resources/plant-assets.api';
 export * from './resources/tags.api';
 export * from './resources/telemetry.api';
+export * from './resources/dashboards.api';
+export * from './resources/reports.api';
+export * from './resources/admin.api';

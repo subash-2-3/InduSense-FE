@@ -11,6 +11,7 @@ import { APP_CONFIG } from '../config/app-config';
 import { authInterceptor } from './auth.interceptor';
 import { AuthService, displayUserOf } from './auth.service';
 import { fakeUser } from './testing';
+import { TokenStorageService } from './token-storage.service';
 
 const API = '/api/v1';
 const unauthorized = { status: 401, statusText: 'Unauthorized' };
@@ -19,6 +20,7 @@ const authError = { success: false, code: 'AUTHENTICATION_REQUIRED', message: 'N
 describe('AuthService', () => {
   let auth: AuthService;
   let http: HttpTestingController;
+  let tokens: TokenStorageService;
 
   function setup(platform: 'browser' | 'server' = 'browser') {
     TestBed.configureTestingModule({
@@ -32,46 +34,68 @@ describe('AuthService', () => {
     });
     auth = TestBed.inject(AuthService);
     http = TestBed.inject(HttpTestingController);
+    tokens = TestBed.inject(TokenStorageService);
+    tokens.clearTokens();
   }
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    tokens?.clearTokens();
+    http.verify();
+  });
 
   describe('restoreSession', () => {
-    it('signs in from an existing session cookie', async () => {
+    it('signs in when stored access token is valid', async () => {
       setup();
+      tokens.setTokens('valid-access', 'valid-refresh');
       expect(auth.status()).toBe('unknown');
       const done = auth.restoreSession();
-      http.expectOne(`${API}/auth/me`).flush({ success: true, data: fakeUser() });
+      const meReq = http.expectOne(`${API}/auth/me`);
+      expect(meReq.request.headers.get('Authorization')).toBe('Bearer valid-access');
+      meReq.flush({ success: true, data: fakeUser() });
       await done;
       expect(auth.status()).toBe('authenticated');
       expect(auth.hasPermission('devices:view')).toBe(true);
     });
 
-    it('refreshes an expired session once, then signs in', async () => {
+    it('refreshes an expired token once, then signs in', async () => {
       setup();
+      tokens.setTokens('expired-access', 'valid-refresh');
       const done = auth.restoreSession();
       http.expectOne(`${API}/auth/me`).flush(authError, unauthorized);
-      http.expectOne(`${API}/auth/session/refresh`).flush({ success: true, data: {} });
-      http.expectOne(`${API}/auth/me`).flush({ success: true, data: fakeUser() });
+      const refreshReq = http.expectOne(`${API}/auth/refresh`);
+      expect(refreshReq.request.method).toBe('POST');
+      expect(refreshReq.request.body).toEqual({ refresh_token: 'valid-refresh' });
+      refreshReq.flush({
+        success: true,
+        data: {
+          access_token: 'new-access',
+          refresh_token: 'new-refresh',
+          token_type: 'bearer',
+          expires_in: 900,
+          refresh_expires_in: 604800,
+        },
+      });
+      const replayedMe = http.expectOne(`${API}/auth/me`);
+      expect(replayedMe.request.headers.get('Authorization')).toBe('Bearer new-access');
+      replayedMe.flush({ success: true, data: fakeUser() });
       await done;
       expect(auth.isAuthenticated()).toBe(true);
+      expect(tokens.getAccessToken()).toBe('new-access');
     });
 
-    it('ends up signed out without navigating when there is no session', async () => {
+    it('ends up signed out without navigating when there are no stored tokens', async () => {
       setup();
       const navigate = vi.spyOn(TestBed.inject(Router), 'navigate');
       const done = auth.restoreSession();
-      http.expectOne(`${API}/auth/me`).flush(authError, unauthorized);
-      http
-        .expectOne(`${API}/auth/session/refresh`)
-        .flush({ success: false, code: 'INVALID_REFRESH_TOKEN', message: 'No active session' }, unauthorized);
       await done;
       expect(auth.status()).toBe('anonymous');
       expect(navigate).not.toHaveBeenCalled();
+      http.expectNone(`${API}/auth/me`);
     });
 
     it('treats an unreachable server as signed out', async () => {
       setup();
+      tokens.setTokens('some-access', 'some-refresh');
       const done = auth.restoreSession();
       http.expectOne(`${API}/auth/me`).error(new ProgressEvent('error'), { status: 0 });
       await done;
@@ -85,23 +109,38 @@ describe('AuthService', () => {
     });
   });
 
-  it('logs in through the session endpoint and loads the user', async () => {
+  it('logs in through POST /auth/login and stores tokens and loads the user', async () => {
     setup();
     const result = firstValueFrom(auth.login({ email: 'a@b.com', password: 'secret' }));
-    const create = http.expectOne(`${API}/auth/session`);
-    expect(create.request.method).toBe('POST');
-    expect(create.request.body).toEqual({ email: 'a@b.com', password: 'secret' });
-    create.flush({ success: true, data: { expires_in: 1800, refresh_expires_in: 604800 } });
-    http.expectOne(`${API}/auth/me`).flush({ success: true, data: fakeUser({ email: 'a@b.com' }) });
+    const loginReq = http.expectOne(`${API}/auth/login`);
+    expect(loginReq.request.method).toBe('POST');
+    expect(loginReq.request.body).toEqual({ email: 'a@b.com', password: 'secret' });
+    loginReq.flush({
+      success: true,
+      data: {
+        access_token: 'tok-access',
+        refresh_token: 'tok-refresh',
+        token_type: 'bearer',
+        expires_in: 900,
+        refresh_expires_in: 604800,
+      },
+    });
+
+    const meReq = http.expectOne(`${API}/auth/me`);
+    expect(meReq.request.headers.get('Authorization')).toBe('Bearer tok-access');
+    meReq.flush({ success: true, data: fakeUser({ email: 'a@b.com' }) });
+
     expect((await result).email).toBe('a@b.com');
     expect(auth.displayUser()?.email).toBe('a@b.com');
+    expect(tokens.getAccessToken()).toBe('tok-access');
+    expect(tokens.getRefreshToken()).toBe('tok-refresh');
   });
 
   it('reports wrong credentials as an ApiError without retrying', async () => {
     setup();
     const result = firstValueFrom(auth.login({ email: 'a@b.com', password: 'x' }));
     http
-      .expectOne(`${API}/auth/session`)
+      .expectOne(`${API}/auth/login`)
       .flush({ success: false, code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' }, unauthorized);
     const error = (await result.catch((e: unknown) => e)) as ApiError;
     expect(error.code).toBe('INVALID_CREDENTIALS');
@@ -113,7 +152,7 @@ describe('AuthService', () => {
     try {
       setup();
       const result = firstValueFrom(auth.login({ email: 'a@b.com', password: 'secret' }));
-      http.expectOne(`${API}/auth/session`);
+      http.expectOne(`${API}/auth/login`);
 
       vi.advanceTimersByTime(15_000);
 
@@ -124,34 +163,57 @@ describe('AuthService', () => {
     }
   });
 
-  it('logs out on the server and locally, even if the server call fails', async () => {
+  it('logs out on the server and clears tokens, even if the server call fails', async () => {
     setup();
+    tokens.setTokens('access-123', 'refresh-456');
     const restore = auth.restoreSession();
     http.expectOne(`${API}/auth/me`).flush({ success: true, data: fakeUser() });
     await restore;
 
     const done = firstValueFrom(auth.logout(true));
-    const req = http.expectOne(`${API}/auth/session/logout`);
-    expect(req.request.body).toEqual({ all_sessions: true });
+    const req = http.expectOne(`${API}/auth/logout`);
+    expect(req.request.body).toEqual({ refresh_token: 'refresh-456', all_sessions: true });
     req.flush(null, { status: 500, statusText: 'Server Error' });
     await done;
     expect(auth.status()).toBe('anonymous');
     expect(auth.user()).toBeNull();
+    expect(tokens.getAccessToken()).toBeNull();
+    expect(tokens.getRefreshToken()).toBeNull();
   });
 
   it('shares one refresh between concurrent callers', async () => {
     setup();
+    tokens.setTokens('acc', 'ref');
     const a = firstValueFrom(auth.refreshSession());
     const b = firstValueFrom(auth.refreshSession());
-    http.expectOne(`${API}/auth/session/refresh`).flush({ success: true, data: {} });
+    http.expectOne(`${API}/auth/refresh`).flush({
+      success: true,
+      data: {
+        access_token: 'acc-2',
+        refresh_token: 'ref-2',
+        token_type: 'bearer',
+        expires_in: 900,
+        refresh_expires_in: 604800,
+      },
+    });
     await Promise.all([a, b]);
-    // A later refresh is a new request.
+
     void firstValueFrom(auth.refreshSession());
-    http.expectOne(`${API}/auth/session/refresh`).flush({ success: true, data: {} });
+    http.expectOne(`${API}/auth/refresh`).flush({
+      success: true,
+      data: {
+        access_token: 'acc-3',
+        refresh_token: 'ref-3',
+        token_type: 'bearer',
+        expires_in: 900,
+        refresh_expires_in: 604800,
+      },
+    });
   });
 
   it('sends a signed-in user whose session ended to the login page with a return URL', async () => {
     setup();
+    tokens.setTokens('acc', 'ref');
     const restore = auth.restoreSession();
     http.expectOne(`${API}/auth/me`).flush({ success: true, data: fakeUser() });
     await restore;
