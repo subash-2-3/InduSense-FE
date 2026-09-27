@@ -1,4 +1,4 @@
-import { IsoDateTime } from './common';
+import { IsoDateTime, RecordStatus } from './common';
 
 export interface Metadata {
   from: IsoDateTime;
@@ -285,7 +285,7 @@ export interface GatewayInfo {
   port: number | null;
   plant_id: number;
   area_id: number | null;
-  is_active: boolean;
+  status: RecordStatus;
 }
 
 export interface GatewaySummary {

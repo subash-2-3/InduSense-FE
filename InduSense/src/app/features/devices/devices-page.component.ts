@@ -16,6 +16,7 @@ import {
   StatusTone,
 } from '../../shared/ui';
 import { ToastService } from '../../shared/ui/toast/toast.service';
+import { VISIBLE_STATUSES } from '../../shared/utils/record-status';
 import { formatDateTime } from '../../shared/utils/format';
 
 @Component({
@@ -37,7 +38,9 @@ import { formatDateTime } from '../../shared/utils/format';
       <header class="dev-header">
         <div class="dev-header__titles">
           <h1 class="dev-header__title">Connected Devices</h1>
-          <p class="dev-header__subtitle">Manage edge data sources, gateways, and connection states</p>
+          <p class="dev-header__subtitle">
+            Manage edge data sources, gateways, and connection states
+          </p>
         </div>
         <div class="dev-header__actions">
           <button appButton variant="secondary" (click)="loadDevices()">
@@ -50,7 +53,6 @@ import { formatDateTime } from '../../shared/utils/format';
           </button>
         </div>
       </header>
-
 
       <div class="dev-toolbar">
         <div class="dev-search">
@@ -126,7 +128,9 @@ import { formatDateTime } from '../../shared/utils/format';
                     </td>
                     <td>
                       <div class="cell-name">
-                        <span class="cell-name__primary">{{ device.name || 'Unnamed Device' }}</span>
+                        <span class="cell-name__primary">{{
+                          device.name || 'Unnamed Device'
+                        }}</span>
                         <span class="cell-name__secondary">{{ device.external_id }}</span>
                       </div>
                     </td>
@@ -157,8 +161,8 @@ import { formatDateTime } from '../../shared/utils/format';
                         appButton
                         variant="ghost"
                         size="sm"
-                        title="Deactivate Device"
-                        (click)="deactivateDevice(device.id, device.name || device.external_id)"
+                        title="Delete Device"
+                        (click)="deleteDevice(device.id, device.name || device.external_id)"
                       >
                         <app-icon name="x" [size]="14" />
                       </button>
@@ -170,7 +174,9 @@ import { formatDateTime } from '../../shared/utils/format';
           </div>
 
           <footer class="dev-footer">
-            <span class="dev-footer__total">Showing {{ devices().length }} of {{ totalCount() }}</span>
+            <span class="dev-footer__total"
+              >Showing {{ devices().length }} of {{ totalCount() }}</span
+            >
             <div class="dev-footer__pager">
               <button
                 appButton
@@ -202,7 +208,11 @@ import { formatDateTime } from '../../shared/utils/format';
       <app-modal
         [open]="modalOpen()"
         [title]="editingDeviceId() ? 'Edit Device' : 'Register New Device'"
-        [subtitle]="editingDeviceId() ? 'Update connection details' : 'Register an industrial edge device or PLC'"
+        [subtitle]="
+          editingDeviceId()
+            ? 'Update connection details'
+            : 'Register an industrial edge device or PLC'
+        "
         (close)="modalOpen.set(false)"
       >
         <form (ngSubmit)="saveDevice()" class="modal-form">
@@ -265,12 +275,7 @@ import { formatDateTime } from '../../shared/utils/format';
           </div>
 
           <div class="modal-actions">
-            <button
-              appButton
-              variant="secondary"
-              type="button"
-              (click)="modalOpen.set(false)"
-            >
+            <button appButton variant="secondary" type="button" (click)="modalOpen.set(false)">
               Cancel
             </button>
             <button
@@ -606,6 +611,7 @@ export class DevicesPageComponent implements OnInit {
 
     this.devicesApi
       .list({
+        status: VISIBLE_STATUSES,
         page: this.currentPage(),
         page_size: this.pageSize,
         search: this.searchTerm().trim() || undefined,
@@ -707,16 +713,16 @@ export class DevicesPageComponent implements OnInit {
     }
   }
 
-  deactivateDevice(id: number, name: string): void {
-    if (!confirm(`Are you sure you want to deactivate device "${name}"?`)) return;
+  deleteDevice(id: number, name: string): void {
+    if (!confirm(`Are you sure you want to delete device "${name}"?`)) return;
 
-    this.devicesApi.deactivate(id).subscribe({
-      next: (updated) => {
-        this.devices.update((list) => list.map((d) => (d.id === id ? updated : d)));
-        this.toast.success(`Device "${name}" has been deactivated.`);
+    this.devicesApi.delete(id).subscribe({
+      next: () => {
+        this.devices.update((list) => list.filter((d) => d.id !== id));
+        this.toast.success(`Device \"${name}\" deleted.`);
       },
       error: (err) => {
-        this.toast.error(err, 'Failed to deactivate device.');
+        this.toast.error(err, 'Failed to delete device.');
       },
     });
   }
@@ -735,5 +741,4 @@ export class DevicesPageComponent implements OnInit {
   formatTime(iso: string | null): string {
     return iso ? formatDateTime(iso) : 'Never seen';
   }
-
 }

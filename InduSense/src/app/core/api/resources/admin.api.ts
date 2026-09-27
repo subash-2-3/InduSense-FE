@@ -53,7 +53,8 @@ export class UsersApi {
     return this.api.patch<User>(`/users/${id}`, body);
   }
 
-  deactivate(id: number): Observable<User> {
+  /** Soft delete (status `delete`). */
+  delete(id: number): Observable<User> {
     return this.api.delete<User>(`/users/${id}`);
   }
 
@@ -124,7 +125,8 @@ export class CompaniesApi {
     return this.api.patch<Company>(`/companies/${id}`, body);
   }
 
-  deactivate(id: number): Observable<Company> {
+  /** Soft delete (status `delete`). */
+  delete(id: number): Observable<Company> {
     return this.api.delete<Company>(`/companies/${id}`);
   }
 

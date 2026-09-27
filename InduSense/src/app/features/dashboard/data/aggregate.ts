@@ -148,8 +148,7 @@ export function aggregateFleet(
 
   const rows: FleetRowVm[] = machinesPage.items.map((m) => {
     const device = m.device_id != null ? deviceMap.get(m.device_id) : undefined;
-    const gateway =
-      device?.gateway_id != null ? gatewayMap.get(device.gateway_id) : undefined;
+    const gateway = device?.gateway_id != null ? gatewayMap.get(device.gateway_id) : undefined;
     const plant = plantMap.get(m.plant_id);
     const area = m.area_id != null ? areaMap.get(m.area_id) : undefined;
 
@@ -157,14 +156,13 @@ export function aggregateFleet(
       ? mapAssetConnection(device.connection_state)
       : 'UNCONNECTED';
 
-    const location =
-      plant && area ? `${plant.name} / ${area.name}` : plant ? plant.name : '—';
+    const location = plant && area ? `${plant.name} / ${area.name}` : plant ? plant.name : '—';
 
     return {
       id: String(m.id),
       name: m.name,
       code: m.machine_code,
-      status: m.status,
+      status: m.operating_status,
       updatedAt: m.updated_at,
       connection,
       location,

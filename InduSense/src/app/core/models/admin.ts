@@ -1,4 +1,4 @@
-import { IsoDateTime } from './common';
+import { EditableStatus, IsoDateTime, RecordStatus, StatusFilter } from './common';
 
 // ---------------------------------------------------------------------- Users ----
 
@@ -15,7 +15,7 @@ export interface UserCreate {
 export interface UserUpdate {
   first_name?: string | null;
   last_name?: string | null;
-  is_active?: boolean | null;
+  status?: EditableStatus;
   is_verified?: boolean | null;
 }
 
@@ -29,7 +29,7 @@ export interface PasswordReset {
 
 export interface UserFilters {
   company_id?: number;
-  is_active?: boolean;
+  status?: StatusFilter | null;
   search?: string;
 }
 
@@ -72,7 +72,7 @@ export interface Company {
   name: string;
   address: string | null;
   timezone: string;
-  is_active: boolean;
+  status: RecordStatus;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
 }
@@ -88,11 +88,11 @@ export interface CompanyUpdate {
   name?: string | null;
   address?: string | null;
   timezone?: string | null;
-  is_active?: boolean | null;
+  status?: EditableStatus;
 }
 
 export interface CompanyFilters {
-  is_active?: boolean;
+  status?: StatusFilter | null;
   search?: string;
 }
 
@@ -105,7 +105,7 @@ export interface Module {
   code: string;
   name: string;
   description: string | null;
-  is_active: boolean;
+  status: RecordStatus;
 }
 
 export interface ModuleCreate {
@@ -117,7 +117,7 @@ export interface ModuleCreate {
 export interface ModuleUpdate {
   name?: string | null;
   description?: string | null;
-  is_active?: boolean | null;
+  status?: EditableStatus;
 }
 
 // ---------------------------------------------------------------- DataLoggers ----

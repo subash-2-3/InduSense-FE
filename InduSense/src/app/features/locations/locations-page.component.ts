@@ -1,5 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { catchError, forkJoin, of } from 'rxjs';
 
@@ -16,6 +23,12 @@ import {
   StatusPillComponent,
 } from '../../shared/ui';
 import { ToastService } from '../../shared/ui/toast/toast.service';
+import {
+  VISIBLE_STATUSES,
+  recordStatusLabel,
+  recordStatusTone,
+  toggledStatus,
+} from '../../shared/utils/record-status';
 
 @Component({
   selector: 'app-locations-page',
@@ -36,7 +49,9 @@ import { ToastService } from '../../shared/ui/toast/toast.service';
       <header class="loc-header">
         <div class="loc-header__titles">
           <h1 class="loc-header__title">Locations & Facilities</h1>
-          <p class="loc-header__subtitle">Manage industrial plants, operational zones, and production facilities</p>
+          <p class="loc-header__subtitle">
+            Manage industrial plants, operational zones, and production facilities
+          </p>
         </div>
         <div class="loc-header__actions">
           <button appButton variant="secondary" (click)="loadData()">
@@ -125,8 +140,8 @@ import { ToastService } from '../../shared/ui/toast/toast.service';
                 </div>
                 <div class="plant-card__badges">
                   <app-status-pill
-                    [label]="plant.is_active ? 'Active' : 'Inactive'"
-                    [tone]="plant.is_active ? 'running' : 'stopped'"
+                    [label]="statusLabel(plant.status)"
+                    [tone]="statusTone(plant.status)"
                   />
                 </div>
               </div>
@@ -172,8 +187,8 @@ import { ToastService } from '../../shared/ui/toast/toast.service';
                         <button
                           type="button"
                           class="area-delete-btn"
-                          title="Deactivate area"
-                          (click)="deactivateArea(area.id, area.name)"
+                          title="Delete area"
+                          (click)="deleteArea(area.id, area.name)"
                         >
                           <app-icon name="x" [size]="12" />
                         </button>
@@ -184,12 +199,7 @@ import { ToastService } from '../../shared/ui/toast/toast.service';
               </div>
 
               <footer class="plant-card__actions">
-                <button
-                  appButton
-                  variant="ghost"
-                  size="sm"
-                  (click)="openEditPlantModal(plant)"
-                >
+                <button appButton variant="ghost" size="sm" (click)="openEditPlantModal(plant)">
                   <app-icon name="edit" [size]="14" />
                   Edit
                 </button>
@@ -197,11 +207,11 @@ import { ToastService } from '../../shared/ui/toast/toast.service';
                   appButton
                   variant="ghost"
                   size="sm"
-                  [class.text-danger]="plant.is_active"
+                  [class.text-danger]="plant.status === 'active'"
                   (click)="togglePlantStatus(plant)"
                 >
                   <app-icon name="settings" [size]="14" />
-                  {{ plant.is_active ? 'Deactivate' : 'Activate' }}
+                  {{ plant.status === 'active' ? 'Deactivate' : 'Activate' }}
                 </button>
               </footer>
             </app-card>
@@ -213,7 +223,11 @@ import { ToastService } from '../../shared/ui/toast/toast.service';
       <app-modal
         [open]="plantModalOpen()"
         [title]="editingPlantId() ? 'Edit Plant' : 'Create New Plant'"
-        [subtitle]="editingPlantId() ? 'Update facility details' : 'Add a manufacturing or processing facility'"
+        [subtitle]="
+          editingPlantId()
+            ? 'Update facility details'
+            : 'Add a manufacturing or processing facility'
+        "
         (close)="plantModalOpen.set(false)"
       >
         <form (ngSubmit)="savePlant()" class="modal-form">
@@ -268,12 +282,7 @@ import { ToastService } from '../../shared/ui/toast/toast.service';
           </div>
 
           <div class="modal-actions">
-            <button
-              appButton
-              variant="secondary"
-              type="button"
-              (click)="plantModalOpen.set(false)"
-            >
+            <button appButton variant="secondary" type="button" (click)="plantModalOpen.set(false)">
               Cancel
             </button>
             <button
@@ -323,12 +332,7 @@ import { ToastService } from '../../shared/ui/toast/toast.service';
           </div>
 
           <div class="modal-actions">
-            <button
-              appButton
-              variant="secondary"
-              type="button"
-              (click)="areaModalOpen.set(false)"
-            >
+            <button appButton variant="secondary" type="button" (click)="areaModalOpen.set(false)">
               Cancel
             </button>
             <button
@@ -684,6 +688,8 @@ export class LocationsPageComponent implements OnInit {
   readonly searchTerm = signal('');
   readonly statusFilter = signal<'all' | 'active' | 'inactive'>('all');
   private readonly toast = inject(ToastService);
+  protected readonly statusLabel = recordStatusLabel;
+  protected readonly statusTone = recordStatusTone;
 
   // Modals state
   readonly plantModalOpen = signal(false);
@@ -705,10 +711,7 @@ export class LocationsPageComponent implements OnInit {
         plant.code.toLowerCase().includes(term) ||
         (plant.address && plant.address.toLowerCase().includes(term));
 
-      const matchesStatus =
-        filter === 'all' ||
-        (filter === 'active' && plant.is_active) ||
-        (filter === 'inactive' && !plant.is_active);
+      const matchesStatus = filter === 'all' || plant.status === filter;
 
       return matchesSearch && matchesStatus;
     });
@@ -723,8 +726,14 @@ export class LocationsPageComponent implements OnInit {
     this.error.set(null);
 
     forkJoin({
-      plants: this.locationsApi.listAllPlants().pipe(catchError((err) => { throw err; })),
-      areas: this.locationsApi.listAllAreas().pipe(catchError(() => of([] as Area[]))),
+      plants: this.locationsApi.listAllPlants({ status: VISIBLE_STATUSES }).pipe(
+        catchError((err) => {
+          throw err;
+        }),
+      ),
+      areas: this.locationsApi
+        .listAllAreas({ status: VISIBLE_STATUSES })
+        .pipe(catchError(() => of([] as Area[]))),
     }).subscribe({
       next: ({ plants, areas }) => {
         this.plants.set(plants);
@@ -809,10 +818,10 @@ export class LocationsPageComponent implements OnInit {
   }
 
   togglePlantStatus(plant: Plant): void {
-    const newStatus = !plant.is_active;
-    const actionLabel = newStatus ? 'activated' : 'deactivated';
+    const newStatus = toggledStatus(plant.status);
+    const actionLabel = newStatus === 'active' ? 'activated' : 'deactivated';
 
-    this.locationsApi.updatePlant(plant.id, { is_active: newStatus }).subscribe({
+    this.locationsApi.updatePlant(plant.id, { status: newStatus }).subscribe({
       next: (updated) => {
         this.plants.update((list) => list.map((p) => (p.id === updated.id ? updated : p)));
         this.toast.success(`Plant "${plant.name}" has been ${actionLabel}.`);
@@ -858,18 +867,17 @@ export class LocationsPageComponent implements OnInit {
     });
   }
 
-  deactivateArea(areaId: number, areaName: string): void {
-    if (!confirm(`Are you sure you want to deactivate area "${areaName}"?`)) return;
+  deleteArea(areaId: number, areaName: string): void {
+    if (!confirm(`Are you sure you want to delete area "${areaName}"?`)) return;
 
-    this.locationsApi.deactivateArea(areaId).subscribe({
+    this.locationsApi.deleteArea(areaId).subscribe({
       next: () => {
         this.areas.update((list) => list.filter((a) => a.id !== areaId));
-        this.toast.success(`Area "${areaName}" deactivated.`);
+        this.toast.success(`Area "${areaName}" deleted.`);
       },
       error: (err) => {
-        this.toast.error(err, 'Failed to deactivate area.');
+        this.toast.error(err, 'Failed to delete area.');
       },
     });
   }
-
 }

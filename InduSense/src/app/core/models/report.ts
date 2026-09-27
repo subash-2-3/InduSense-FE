@@ -1,5 +1,5 @@
 import { PageResponse } from '../api/api-envelope';
-import { IsoDateTime } from './common';
+import { IsoDateTime, RecordStatus, StatusFilter } from './common';
 import { Metadata, Quantity } from './dashboard';
 import { LoggerStatus } from './admin';
 
@@ -178,7 +178,7 @@ export interface DeviceHealthRow {
   name: string | null;
   gateway_id: number | null;
   gateway_name: string | null;
-  is_active: boolean;
+  status: RecordStatus;
   connection_state: string;
   last_seen_at: IsoDateTime | null;
   last_telemetry_at: IsoDateTime | null;
@@ -204,7 +204,7 @@ export interface DeviceHealthResponse {
 export interface DeviceHealthFilters {
   plant_id?: number;
   gateway_id?: number;
-  is_active?: boolean;
+  status?: StatusFilter | null;
   page?: number;
   page_size?: number;
 }

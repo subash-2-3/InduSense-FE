@@ -1,4 +1,4 @@
-import { IsoDateTime } from './common';
+import { EditableStatus, IsoDateTime, RecordStatus, StatusFilter } from './common';
 
 /** `PlantResponse` (InduSense-BE `app/schemas/location.py`). */
 export interface Plant {
@@ -9,7 +9,7 @@ export interface Plant {
   address: string | null;
   /** IANA name; null means the company's timezone. */
   timezone: string | null;
-  is_active: boolean;
+  status: RecordStatus;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
 }
@@ -27,7 +27,7 @@ export interface PlantUpdate {
   name?: string;
   address?: string | null;
   timezone?: string | null;
-  is_active?: boolean | null;
+  status?: EditableStatus;
 }
 
 /** `AreaResponse`. */
@@ -38,7 +38,7 @@ export interface Area {
   code: string;
   name: string;
   description: string | null;
-  is_active: boolean;
+  status: RecordStatus;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
 }
@@ -54,11 +54,11 @@ export interface AreaUpdate {
   code?: string;
   name?: string;
   description?: string | null;
-  is_active?: boolean | null;
+  status?: EditableStatus;
 }
 
 export interface PlantFilters {
-  is_active?: boolean;
+  status?: StatusFilter | null;
   /** Matches code or name. */
   search?: string;
   /** Platform administrators only. */
@@ -67,7 +67,7 @@ export interface PlantFilters {
 
 export interface AreaFilters {
   plant_id?: number;
-  is_active?: boolean;
+  status?: StatusFilter | null;
   /** Matches code or name. */
   search?: string;
 }

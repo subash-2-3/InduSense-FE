@@ -1,5 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -28,6 +35,12 @@ import {
   StatusTone,
 } from '../../shared/ui';
 import { ToastService } from '../../shared/ui/toast/toast.service';
+import {
+  VISIBLE_STATUSES,
+  recordStatusLabel,
+  recordStatusTone,
+  toggledStatus,
+} from '../../shared/utils/record-status';
 
 type AssetTab = 'machines' | 'meters' | 'gateways';
 
@@ -50,7 +63,9 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
       <header class="assets-header">
         <div class="assets-header__titles">
           <h1 class="assets-header__title">Plant Assets</h1>
-          <p class="assets-header__subtitle">Manage industrial machinery, submeters, and edge telemetry gateways</p>
+          <p class="assets-header__subtitle">
+            Manage industrial machinery, submeters, and edge telemetry gateways
+          </p>
         </div>
         <div class="assets-header__actions">
           <button appButton variant="secondary" (click)="loadCurrentTab()">
@@ -142,7 +157,6 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
         </div>
       </div>
 
-
       <app-card [padded]="false">
         @if (loading()) {
           <div class="assets-skeleton">
@@ -191,7 +205,10 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
                       @for (m of filteredMachines(); track m.id) {
                         <tr>
                           <td>
-                            <app-status-pill [label]="m.status" [tone]="machineStatusTone(m.status)" />
+                            <app-status-pill
+                              [label]="m.operating_status"
+                              [tone]="machineStatusTone(m.operating_status)"
+                            />
                           </td>
                           <td>
                             <div class="cell-name">
@@ -200,9 +217,7 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
                             </div>
                           </td>
                           <td>{{ m.machine_type || '—' }}</td>
-                          <td>
-                            {{ m.manufacturer || '—' }} {{ m.model ? '/ ' + m.model : '' }}
-                          </td>
+                          <td>{{ m.manufacturer || '—' }} {{ m.model ? '/ ' + m.model : '' }}</td>
                           <td>
                             <span class="cell-mono">{{ m.serial_number || '—' }}</span>
                           </td>
@@ -214,8 +229,8 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
                               appButton
                               variant="ghost"
                               size="sm"
-                              title="Deactivate Machine"
-                              (click)="deactivateMachine(m.id, m.name)"
+                              title="Delete Machine"
+                              (click)="deleteMachine(m.id, m.name)"
                             >
                               <app-icon name="x" [size]="14" />
                             </button>
@@ -260,8 +275,8 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
                         <tr>
                           <td>
                             <app-status-pill
-                              [label]="meter.is_active ? 'Active' : 'Inactive'"
-                              [tone]="meter.is_active ? 'running' : 'stopped'"
+                              [label]="statusLabel(meter.status)"
+                              [tone]="statusTone(meter.status)"
                             />
                           </td>
                           <td>
@@ -275,7 +290,8 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
                             <span class="unit-badge">{{ meter.unit || 'kWh' }}</span>
                           </td>
                           <td>
-                            {{ meter.manufacturer || '—' }} {{ meter.model ? '/ ' + meter.model : '' }}
+                            {{ meter.manufacturer || '—' }}
+                            {{ meter.model ? '/ ' + meter.model : '' }}
                           </td>
                           <td>
                             <span class="cell-mono">{{ meter.serial_number || '—' }}</span>
@@ -294,8 +310,8 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
                               appButton
                               variant="ghost"
                               size="sm"
-                              title="Deactivate Meter"
-                              (click)="deactivateMeter(meter.id, meter.name)"
+                              title="Delete Meter"
+                              (click)="deleteMeter(meter.id, meter.name)"
                             >
                               <app-icon name="x" [size]="14" />
                             </button>
@@ -339,8 +355,8 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
                         <tr>
                           <td>
                             <app-status-pill
-                              [label]="g.is_active ? 'Active' : 'Inactive'"
-                              [tone]="g.is_active ? 'running' : 'stopped'"
+                              [label]="statusLabel(g.status)"
+                              [tone]="statusTone(g.status)"
                             />
                           </td>
                           <td>
@@ -363,8 +379,8 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
                               appButton
                               variant="ghost"
                               size="sm"
-                              title="Deactivate Gateway"
-                              (click)="deactivateGateway(g.id, g.name)"
+                              title="Delete Gateway"
+                              (click)="deleteGateway(g.id, g.name)"
                             >
                               <app-icon name="x" [size]="14" />
                             </button>
@@ -476,11 +492,7 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
             </div>
             <div class="form-group flex-1">
               <label class="form-label">Area (Optional)</label>
-              <select
-                class="form-select"
-                [(ngModel)]="machineForm.area_id"
-                name="area_id"
-              >
+              <select class="form-select" [(ngModel)]="machineForm.area_id" name="area_id">
                 <option [ngValue]="null">None</option>
                 @for (a of availableAreasForPlant(machineForm.plant_id); track a.id) {
                   <option [ngValue]="a.id">{{ a.name }} ({{ a.code }})</option>
@@ -502,7 +514,12 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
               appButton
               variant="primary"
               type="submit"
-              [disabled]="saving() || !machineForm.name.trim() || !machineForm.machine_code.trim() || !machineForm.plant_id"
+              [disabled]="
+                saving() ||
+                !machineForm.name.trim() ||
+                !machineForm.machine_code.trim() ||
+                !machineForm.plant_id
+              "
             >
               {{ saving() ? 'Creating...' : 'Create Machine' }}
             </button>
@@ -568,12 +585,7 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
 
           <div class="form-group">
             <label class="form-label">Plant *</label>
-            <select
-              class="form-select"
-              [(ngModel)]="meterForm.plant_id"
-              name="plant_id"
-              required
-            >
+            <select class="form-select" [(ngModel)]="meterForm.plant_id" name="plant_id" required>
               <option [ngValue]="null" disabled>Select Plant</option>
               @for (p of plants(); track p.id) {
                 <option [ngValue]="p.id">{{ p.name }} ({{ p.code }})</option>
@@ -582,19 +594,19 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
           </div>
 
           <div class="modal-actions">
-            <button
-              appButton
-              variant="secondary"
-              type="button"
-              (click)="meterModalOpen.set(false)"
-            >
+            <button appButton variant="secondary" type="button" (click)="meterModalOpen.set(false)">
               Cancel
             </button>
             <button
               appButton
               variant="primary"
               type="submit"
-              [disabled]="saving() || !meterForm.name.trim() || !meterForm.meter_code.trim() || !meterForm.plant_id"
+              [disabled]="
+                saving() ||
+                !meterForm.name.trim() ||
+                !meterForm.meter_code.trim() ||
+                !meterForm.plant_id
+              "
             >
               {{ saving() ? 'Creating...' : 'Create Meter' }}
             </button>
@@ -661,12 +673,7 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
 
           <div class="form-group">
             <label class="form-label">Plant *</label>
-            <select
-              class="form-select"
-              [(ngModel)]="gatewayForm.plant_id"
-              name="plant_id"
-              required
-            >
+            <select class="form-select" [(ngModel)]="gatewayForm.plant_id" name="plant_id" required>
               <option [ngValue]="null" disabled>Select Plant</option>
               @for (p of plants(); track p.id) {
                 <option [ngValue]="p.id">{{ p.name }} ({{ p.code }})</option>
@@ -687,7 +694,12 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
               appButton
               variant="primary"
               type="submit"
-              [disabled]="saving() || !gatewayForm.name.trim() || !gatewayForm.gateway_code.trim() || !gatewayForm.plant_id"
+              [disabled]="
+                saving() ||
+                !gatewayForm.name.trim() ||
+                !gatewayForm.gateway_code.trim() ||
+                !gatewayForm.plant_id
+              "
             >
               {{ saving() ? 'Creating...' : 'Create Gateway' }}
             </button>
@@ -1003,6 +1015,8 @@ export class AssetsPageComponent implements OnInit {
   readonly searchTerm = signal('');
   readonly statusFilter = signal<'all' | 'active' | 'inactive'>('all');
   private readonly toast = inject(ToastService);
+  protected readonly statusLabel = recordStatusLabel;
+  protected readonly statusTone = recordStatusTone;
 
   readonly machines = signal<Machine[]>([]);
   readonly meters = signal<Meter[]>([]);
@@ -1085,10 +1099,7 @@ export class AssetsPageComponent implements OnInit {
         (m.serial_number && m.serial_number.toLowerCase().includes(term)) ||
         (m.manufacturer && m.manufacturer.toLowerCase().includes(term));
 
-      const matchesStatus =
-        filter === 'all' ||
-        (filter === 'active' && m.is_active) ||
-        (filter === 'inactive' && !m.is_active);
+      const matchesStatus = filter === 'all' || m.status === filter;
 
       return matchesSearch && matchesStatus;
     });
@@ -1105,10 +1116,7 @@ export class AssetsPageComponent implements OnInit {
         m.meter_code.toLowerCase().includes(term) ||
         (m.serial_number && m.serial_number.toLowerCase().includes(term));
 
-      const matchesStatus =
-        filter === 'all' ||
-        (filter === 'active' && m.is_active) ||
-        (filter === 'inactive' && !m.is_active);
+      const matchesStatus = filter === 'all' || m.status === filter;
 
       return matchesSearch && matchesStatus;
     });
@@ -1125,10 +1133,7 @@ export class AssetsPageComponent implements OnInit {
         g.gateway_code.toLowerCase().includes(term) ||
         (g.ip_address && g.ip_address.toLowerCase().includes(term));
 
-      const matchesStatus =
-        filter === 'all' ||
-        (filter === 'active' && g.is_active) ||
-        (filter === 'inactive' && !g.is_active);
+      const matchesStatus = filter === 'all' || g.status === filter;
 
       return matchesSearch && matchesStatus;
     });
@@ -1161,7 +1166,7 @@ export class AssetsPageComponent implements OnInit {
 
     switch (this.activeTab()) {
       case 'machines':
-        this.machinesApi.listAll().subscribe({
+        this.machinesApi.listAll({ status: VISIBLE_STATUSES }).subscribe({
           next: (items) => {
             this.machines.set(items);
             this.machinesTotal.set(items.length);
@@ -1175,7 +1180,7 @@ export class AssetsPageComponent implements OnInit {
         break;
 
       case 'meters':
-        this.metersApi.listAll().subscribe({
+        this.metersApi.listAll({ status: VISIBLE_STATUSES }).subscribe({
           next: (items) => {
             this.meters.set(items);
             this.metersTotal.set(items.length);
@@ -1189,7 +1194,7 @@ export class AssetsPageComponent implements OnInit {
         break;
 
       case 'gateways':
-        this.gatewaysApi.listAll().subscribe({
+        this.gatewaysApi.listAll({ status: VISIBLE_STATUSES }).subscribe({
           next: (items) => {
             this.gateways.set(items);
             this.gatewaysTotal.set(items.length);
@@ -1230,7 +1235,11 @@ export class AssetsPageComponent implements OnInit {
   }
 
   saveMachine(): void {
-    if (!this.machineForm.name.trim() || !this.machineForm.machine_code.trim() || !this.machineForm.plant_id) {
+    if (
+      !this.machineForm.name.trim() ||
+      !this.machineForm.machine_code.trim() ||
+      !this.machineForm.plant_id
+    ) {
       return;
     }
     this.saving.set(true);
@@ -1261,16 +1270,16 @@ export class AssetsPageComponent implements OnInit {
     });
   }
 
-  deactivateMachine(id: number, name: string): void {
-    if (!confirm(`Are you sure you want to deactivate machine "${name}"?`)) return;
+  deleteMachine(id: number, name: string): void {
+    if (!confirm(`Are you sure you want to delete machine "${name}"?`)) return;
 
-    this.machinesApi.deactivate(id).subscribe({
-      next: (updated) => {
-        this.machines.update((list) => list.map((m) => (m.id === id ? updated : m)));
-        this.toast.success(`Machine "${name}" has been deactivated.`);
+    this.machinesApi.delete(id).subscribe({
+      next: () => {
+        this.machines.update((list) => list.filter((m) => m.id !== id));
+        this.toast.success(`Machine \"${name}\" deleted.`);
       },
       error: (err) => {
-        this.toast.error(err, 'Failed to deactivate machine.');
+        this.toast.error(err, 'Failed to delete machine.');
       },
     });
   }
@@ -1291,7 +1300,11 @@ export class AssetsPageComponent implements OnInit {
   }
 
   saveMeter(): void {
-    if (!this.meterForm.name.trim() || !this.meterForm.meter_code.trim() || !this.meterForm.plant_id) {
+    if (
+      !this.meterForm.name.trim() ||
+      !this.meterForm.meter_code.trim() ||
+      !this.meterForm.plant_id
+    ) {
       return;
     }
     this.saving.set(true);
@@ -1323,8 +1336,8 @@ export class AssetsPageComponent implements OnInit {
   }
 
   toggleMeterStatus(meter: Meter): void {
-    const newStatus = !meter.is_active;
-    this.metersApi.update(meter.id, { is_active: newStatus }).subscribe({
+    const newStatus = toggledStatus(meter.status);
+    this.metersApi.update(meter.id, { status: newStatus }).subscribe({
       next: (updated) => {
         this.meters.update((list) => list.map((m) => (m.id === meter.id ? updated : m)));
         this.toast.success(`Meter "${meter.name}" status updated.`);
@@ -1335,16 +1348,16 @@ export class AssetsPageComponent implements OnInit {
     });
   }
 
-  deactivateMeter(id: number, name: string): void {
-    if (!confirm(`Are you sure you want to deactivate meter "${name}"?`)) return;
+  deleteMeter(id: number, name: string): void {
+    if (!confirm(`Are you sure you want to delete meter "${name}"?`)) return;
 
-    this.metersApi.deactivate(id).subscribe({
-      next: (updated) => {
-        this.meters.update((list) => list.map((m) => (m.id === id ? updated : m)));
-        this.toast.success(`Meter "${name}" has been deactivated.`);
+    this.metersApi.delete(id).subscribe({
+      next: () => {
+        this.meters.update((list) => list.filter((m) => m.id !== id));
+        this.toast.success(`Meter \"${name}\" deleted.`);
       },
       error: (err) => {
-        this.toast.error(err, 'Failed to deactivate meter.');
+        this.toast.error(err, 'Failed to delete meter.');
       },
     });
   }
@@ -1362,7 +1375,11 @@ export class AssetsPageComponent implements OnInit {
   }
 
   saveGateway(): void {
-    if (!this.gatewayForm.name.trim() || !this.gatewayForm.gateway_code.trim() || !this.gatewayForm.plant_id) {
+    if (
+      !this.gatewayForm.name.trim() ||
+      !this.gatewayForm.gateway_code.trim() ||
+      !this.gatewayForm.plant_id
+    ) {
       return;
     }
     this.saving.set(true);
@@ -1390,16 +1407,16 @@ export class AssetsPageComponent implements OnInit {
     });
   }
 
-  deactivateGateway(id: number, name: string): void {
-    if (!confirm(`Are you sure you want to deactivate gateway "${name}"?`)) return;
+  deleteGateway(id: number, name: string): void {
+    if (!confirm(`Are you sure you want to delete gateway "${name}"?`)) return;
 
-    this.gatewaysApi.deactivate(id).subscribe({
-      next: (updated) => {
-        this.gateways.update((list) => list.map((g) => (g.id === id ? updated : g)));
-        this.toast.success(`Gateway "${name}" has been deactivated.`);
+    this.gatewaysApi.delete(id).subscribe({
+      next: () => {
+        this.gateways.update((list) => list.filter((g) => g.id !== id));
+        this.toast.success(`Gateway \"${name}\" deleted.`);
       },
       error: (err) => {
-        this.toast.error(err, 'Failed to deactivate gateway.');
+        this.toast.error(err, 'Failed to delete gateway.');
       },
     });
   }
@@ -1417,5 +1434,4 @@ export class AssetsPageComponent implements OnInit {
         return 'stopped';
     }
   }
-
 }

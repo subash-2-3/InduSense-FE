@@ -11,7 +11,7 @@ import { ApiService } from '../api.service';
  */
 export function matchTagByName(tags: readonly Tag[], name: string): Tag | null {
   const wanted = name.trim().toLowerCase();
-  const active = tags.filter((t) => t.is_active);
+  const active = tags.filter((t) => t.status === 'active');
   return (
     active.find((t) => t.tag_name.toLowerCase() === wanted) ??
     active.find((t) => t.display_name?.toLowerCase() === wanted) ??
@@ -43,7 +43,7 @@ export class TagsApi {
   /** The active tag with this name (optionally on one device), or null. */
   findByName(name: string, deviceId?: number): Observable<Tag | null> {
     return this.api
-      .getAllPages<Tag>('/tags', { search: name.trim(), device_id: deviceId, is_active: true })
+      .getAllPages<Tag>('/tags', { search: name.trim(), device_id: deviceId, status: 'active' })
       .pipe(map((tags) => matchTagByName(tags, name)));
   }
 }

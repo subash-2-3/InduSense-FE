@@ -1,4 +1,4 @@
-import { IsoDateTime } from './common';
+import { IsoDateTime, RecordStatus } from './common';
 
 /** `UserResponse` (InduSense-BE `app/schemas/user.py`). */
 export interface User {
@@ -8,7 +8,7 @@ export interface User {
   email: string;
   first_name: string | null;
   last_name: string | null;
-  is_active: boolean;
+  status: RecordStatus;
   is_verified: boolean;
   last_login_at: IsoDateTime | null;
   /** Role codes. */

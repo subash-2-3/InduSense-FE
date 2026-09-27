@@ -1,5 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -25,6 +32,12 @@ import {
   StatusPillComponent,
 } from '../../shared/ui';
 import { ToastService } from '../../shared/ui/toast/toast.service';
+import {
+  VISIBLE_STATUSES,
+  recordStatusLabel,
+  recordStatusTone,
+  toggledStatus,
+} from '../../shared/utils/record-status';
 import { formatDateTime } from '../../shared/utils/format';
 
 type SettingsTab = 'users' | 'roles' | 'companies';
@@ -48,7 +61,9 @@ type SettingsTab = 'users' | 'roles' | 'companies';
       <header class="settings-header">
         <div class="settings-header__titles">
           <h1 class="settings-header__title">Administration & Settings</h1>
-          <p class="settings-header__subtitle">Manage organization users, security roles, permissions, and tenant companies</p>
+          <p class="settings-header__subtitle">
+            Manage organization users, security roles, permissions, and tenant companies
+          </p>
         </div>
         <div class="settings-header__actions">
           <button appButton variant="secondary" (click)="loadCurrentTab()">
@@ -177,14 +192,16 @@ type SettingsTab = 'users' | 'roles' | 'companies';
                         <tr>
                           <td>
                             <app-status-pill
-                              [label]="u.is_active ? 'Active' : 'Inactive'"
-                              [tone]="u.is_active ? 'running' : 'stopped'"
+                              [label]="statusLabel(u.status)"
+                              [tone]="statusTone(u.status)"
                             />
                           </td>
                           <td>
                             <strong>{{ u.email }}</strong>
                           </td>
-                          <td>{{ u.first_name ? u.first_name + ' ' + (u.last_name || '') : '—' }}</td>
+                          <td>
+                            {{ u.first_name ? u.first_name + ' ' + (u.last_name || '') : '—' }}
+                          </td>
                           <td>
                             <div class="roles-chips">
                               @for (roleCode of u.roles; track roleCode) {
@@ -207,8 +224,8 @@ type SettingsTab = 'users' | 'roles' | 'companies';
                               appButton
                               variant="ghost"
                               size="sm"
-                              title="Deactivate User"
-                              (click)="deactivateUser(u.id, u.email)"
+                              title="Delete User"
+                              (click)="deleteUser(u.id, u.email)"
                             >
                               <app-icon name="x" [size]="14" />
                             </button>
@@ -224,10 +241,7 @@ type SettingsTab = 'users' | 'roles' | 'companies';
             @case ('roles') {
               @if (filteredRoles().length === 0) {
                 <div class="settings-state">
-                  <app-empty-state
-                    heading="No roles found"
-                    message="No security roles defined."
-                  />
+                  <app-empty-state heading="No roles found" message="No security roles defined." />
                 </div>
               } @else {
                 <div class="table-container">
@@ -245,7 +259,9 @@ type SettingsTab = 'users' | 'roles' | 'companies';
                       @for (role of filteredRoles(); track role.id) {
                         <tr>
                           <td class="cell-mono">{{ role.code }}</td>
-                          <td><strong>{{ role.name }}</strong></td>
+                          <td>
+                            <strong>{{ role.name }}</strong>
+                          </td>
                           <td>{{ role.description || '—' }}</td>
                           <td>
                             <div class="perms-summary" [title]="role.permissions.join(', ')">
@@ -290,12 +306,14 @@ type SettingsTab = 'users' | 'roles' | 'companies';
                         <tr>
                           <td>
                             <app-status-pill
-                              [label]="c.is_active ? 'Active' : 'Inactive'"
-                              [tone]="c.is_active ? 'running' : 'stopped'"
+                              [label]="statusLabel(c.status)"
+                              [tone]="statusTone(c.status)"
                             />
                           </td>
                           <td class="cell-mono">{{ c.code }}</td>
-                          <td><strong>{{ c.name }}</strong></td>
+                          <td>
+                            <strong>{{ c.name }}</strong>
+                          </td>
                           <td class="cell-time">{{ formatTime(c.created_at) }}</td>
                           <td class="text-right">
                             <button
@@ -390,19 +408,19 @@ type SettingsTab = 'users' | 'roles' | 'companies';
           </div>
 
           <div class="modal-actions">
-            <button
-              appButton
-              variant="secondary"
-              type="button"
-              (click)="userModalOpen.set(false)"
-            >
+            <button appButton variant="secondary" type="button" (click)="userModalOpen.set(false)">
               Cancel
             </button>
             <button
               appButton
               variant="primary"
               type="submit"
-              [disabled]="saving() || !userForm.email.trim() || !userForm.password.trim() || !userForm.selectedRoleCode"
+              [disabled]="
+                saving() ||
+                !userForm.email.trim() ||
+                !userForm.password.trim() ||
+                !userForm.selectedRoleCode
+              "
             >
               {{ saving() ? 'Creating...' : 'Create User' }}
             </button>
@@ -455,7 +473,9 @@ type SettingsTab = 'users' | 'roles' | 'companies';
           </div>
 
           <div class="form-group">
-            <label class="form-label">Permissions ({{ selectedPermissions().size }} selected)</label>
+            <label class="form-label"
+              >Permissions ({{ selectedPermissions().size }} selected)</label
+            >
             <div class="perms-picker">
               @for (perm of allPermissions(); track perm.code) {
                 <label class="perm-checkbox-item">
@@ -471,12 +491,7 @@ type SettingsTab = 'users' | 'roles' | 'companies';
           </div>
 
           <div class="modal-actions">
-            <button
-              appButton
-              variant="secondary"
-              type="button"
-              (click)="roleModalOpen.set(false)"
-            >
+            <button appButton variant="secondary" type="button" (click)="roleModalOpen.set(false)">
               Cancel
             </button>
             <button
@@ -859,6 +874,8 @@ export class SettingsPageComponent implements OnInit {
 
   readonly searchTerm = signal('');
   private readonly toast = inject(ToastService);
+  protected readonly statusLabel = recordStatusLabel;
+  protected readonly statusTone = recordStatusTone;
 
   readonly users = signal<User[]>([]);
   readonly roles = signal<Role[]>([]);
@@ -911,20 +928,14 @@ export class SettingsPageComponent implements OnInit {
   readonly filteredRoles = computed(() => {
     const term = this.searchTerm().trim().toLowerCase();
     return this.roles().filter(
-      (r) =>
-        !term ||
-        r.code.toLowerCase().includes(term) ||
-        r.name.toLowerCase().includes(term),
+      (r) => !term || r.code.toLowerCase().includes(term) || r.name.toLowerCase().includes(term),
     );
   });
 
   readonly filteredCompanies = computed(() => {
     const term = this.searchTerm().trim().toLowerCase();
     return this.companies().filter(
-      (c) =>
-        !term ||
-        c.code.toLowerCase().includes(term) ||
-        c.name.toLowerCase().includes(term),
+      (c) => !term || c.code.toLowerCase().includes(term) || c.name.toLowerCase().includes(term),
     );
   });
 
@@ -955,7 +966,7 @@ export class SettingsPageComponent implements OnInit {
 
     switch (this.activeTab()) {
       case 'users':
-        this.usersApi.listAll().subscribe({
+        this.usersApi.listAll({ status: VISIBLE_STATUSES }).subscribe({
           next: (items) => {
             this.users.set(items);
             this.usersTotal.set(items.length);
@@ -982,7 +993,7 @@ export class SettingsPageComponent implements OnInit {
         break;
 
       case 'companies':
-        this.companiesApi.listAll().subscribe({
+        this.companiesApi.listAll({ status: VISIBLE_STATUSES }).subscribe({
           next: (items) => {
             this.companies.set(items);
             this.loading.set(false);
@@ -1009,7 +1020,11 @@ export class SettingsPageComponent implements OnInit {
   }
 
   saveUser(): void {
-    if (!this.userForm.email.trim() || !this.userForm.password.trim() || !this.userForm.selectedRoleCode) {
+    if (
+      !this.userForm.email.trim() ||
+      !this.userForm.password.trim() ||
+      !this.userForm.selectedRoleCode
+    ) {
       return;
     }
     this.saving.set(true);
@@ -1038,8 +1053,8 @@ export class SettingsPageComponent implements OnInit {
   }
 
   toggleUserStatus(user: User): void {
-    const newStatus = !user.is_active;
-    this.usersApi.update(user.id, { is_active: newStatus }).subscribe({
+    const newStatus = toggledStatus(user.status);
+    this.usersApi.update(user.id, { status: newStatus }).subscribe({
       next: (updated) => {
         this.users.update((list) => list.map((u) => (u.id === user.id ? updated : u)));
         this.toast.success(`User "${user.email}" status updated.`);
@@ -1050,16 +1065,16 @@ export class SettingsPageComponent implements OnInit {
     });
   }
 
-  deactivateUser(id: number, email: string): void {
-    if (!confirm(`Are you sure you want to deactivate user "${email}"?`)) return;
+  deleteUser(id: number, email: string): void {
+    if (!confirm(`Are you sure you want to delete user "${email}"?`)) return;
 
-    this.usersApi.deactivate(id).subscribe({
-      next: (updated) => {
-        this.users.update((list) => list.map((u) => (u.id === id ? updated : u)));
-        this.toast.success(`User "${email}" deactivated.`);
+    this.usersApi.delete(id).subscribe({
+      next: () => {
+        this.users.update((list) => list.filter((u) => u.id !== id));
+        this.toast.success(`User \"${email}\" deleted.`);
       },
       error: (err) => {
-        this.toast.error(err, 'Failed to deactivate user.');
+        this.toast.error(err, 'Failed to delete user.');
       },
     });
   }
@@ -1142,8 +1157,8 @@ export class SettingsPageComponent implements OnInit {
   }
 
   toggleCompanyStatus(company: Company): void {
-    const newStatus = !company.is_active;
-    this.companiesApi.update(company.id, { is_active: newStatus }).subscribe({
+    const newStatus = toggledStatus(company.status);
+    this.companiesApi.update(company.id, { status: newStatus }).subscribe({
       next: (updated) => {
         this.companies.update((list) => list.map((c) => (c.id === company.id ? updated : c)));
         this.toast.success(`Company "${company.name}" status updated.`);
@@ -1157,5 +1172,4 @@ export class SettingsPageComponent implements OnInit {
   formatTime(iso: string | null): string {
     return iso ? formatDateTime(iso) : 'Never';
   }
-
 }
