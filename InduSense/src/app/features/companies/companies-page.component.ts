@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Observable, concat, forkJoin, last, of } from 'rxjs';
+import { Observable, concat, forkJoin, last, noop, of } from 'rxjs';
 
 import { CompaniesApi } from '../../core/api/resources/admin.api';
 import {
@@ -235,9 +235,8 @@ export class CompaniesPageComponent implements OnInit {
         this.close();
         this.load();
       },
-      error: (err) => {
+      error: () => {
         this.saving.set(false);
-        this.toast.error(err, 'Unable to save the company.');
       },
     });
   }
@@ -295,7 +294,7 @@ export class CompaniesPageComponent implements OnInit {
         );
         this.load();
       },
-      error: (err) => this.toast.error(err, 'Unable to change the company’s status.'),
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
@@ -309,7 +308,7 @@ export class CompaniesPageComponent implements OnInit {
         this.toast.success(`Company "${company.name}" deleted.`);
         this.load();
       },
-      error: (err) => this.toast.error(err, 'Unable to delete the company.'),
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
@@ -319,7 +318,7 @@ export class CompaniesPageComponent implements OnInit {
         this.toast.success(`Company "${company.name}" restored.`);
         this.load();
       },
-      error: (err) => this.toast.error(err, 'Unable to restore the company.'),
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 

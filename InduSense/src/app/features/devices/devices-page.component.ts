@@ -7,6 +7,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { noop } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 
 import { CompaniesApi } from '../../core/api/resources/admin.api';
@@ -845,9 +846,8 @@ export class DevicesPageComponent implements OnInit {
           this.saving.set(false);
           this.toast.success(`Device "${updated.name || updated.external_id}" updated.`);
         },
-        error: (err) => {
+        error: () => {
           this.saving.set(false);
-          this.toast.error(err, 'Failed to update device.');
         },
       });
     } else {
@@ -869,9 +869,8 @@ export class DevicesPageComponent implements OnInit {
           this.saving.set(false);
           this.toast.success(`Device "${created.name || created.external_id}" registered.`);
         },
-        error: (err) => {
+        error: () => {
           this.saving.set(false);
-          this.toast.error(err, 'Failed to register device.');
         },
       });
     }
@@ -885,9 +884,7 @@ export class DevicesPageComponent implements OnInit {
         this.devices.update((list) => list.filter((d) => d.id !== id));
         this.toast.success(`Device \"${name}\" deleted.`);
       },
-      error: (err) => {
-        this.toast.error(err, 'Failed to delete device.');
-      },
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
@@ -903,7 +900,7 @@ export class DevicesPageComponent implements OnInit {
             : `Device "${name}" deactivated: its telemetry is no longer stored.`,
         );
       },
-      error: (err) => this.toast.error(err, 'Failed to change the device status.'),
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
@@ -913,7 +910,7 @@ export class DevicesPageComponent implements OnInit {
         this.devices.update((list) => list.filter((d) => d.id !== device.id));
         this.toast.success(`Device "${device.name || device.external_id}" restored.`);
       },
-      error: (err) => this.toast.error(err, 'Failed to restore the device.'),
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 

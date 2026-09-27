@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Observable, concat, forkJoin, last, of } from 'rxjs';
+import { Observable, concat, forkJoin, last, noop, of } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 
 import { CompaniesApi, RolesApi, UsersApi } from '../../core/api/resources/admin.api';
@@ -1129,9 +1129,8 @@ export class SettingsPageComponent implements OnInit {
           this.saving.set(false);
           this.toast.success(`User "${created.email}" created successfully.`);
         },
-        error: (err) => {
+        error: () => {
           this.saving.set(false);
-          this.toast.error(err, 'Failed to create user.');
         },
       });
   }
@@ -1167,9 +1166,8 @@ export class SettingsPageComponent implements OnInit {
           this.saving.set(false);
           this.toast.success(`User "${updated.email}" updated.`);
         },
-        error: (err) => {
+        error: () => {
           this.saving.set(false);
-          this.toast.error(err, 'Failed to update user.');
           this.loadCurrentTab(); // some steps may have been saved
         },
       });
@@ -1190,9 +1188,8 @@ export class SettingsPageComponent implements OnInit {
         this.passwordUser.set(null);
         this.toast.success(`Password of "${user.email}" reset; their sessions ended.`);
       },
-      error: (err) => {
+      error: () => {
         this.saving.set(false);
-        this.toast.error(err, 'Failed to reset the password.');
       },
     });
   }
@@ -1203,7 +1200,7 @@ export class SettingsPageComponent implements OnInit {
         this.users.update((list) => list.filter((u) => u.id !== user.id));
         this.toast.success(`User "${user.email}" restored.`);
       },
-      error: (err) => this.toast.error(err, 'Failed to restore user.'),
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
@@ -1214,9 +1211,7 @@ export class SettingsPageComponent implements OnInit {
         this.users.update((list) => list.map((u) => (u.id === user.id ? updated : u)));
         this.toast.success(`User "${user.email}" status updated.`);
       },
-      error: (err) => {
-        this.toast.error(err, 'Failed to update user status.');
-      },
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
@@ -1228,9 +1223,7 @@ export class SettingsPageComponent implements OnInit {
         this.users.update((list) => list.filter((u) => u.id !== id));
         this.toast.success(`User \"${email}\" deleted.`);
       },
-      error: (err) => {
-        this.toast.error(err, 'Failed to delete user.');
-      },
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
@@ -1284,9 +1277,8 @@ export class SettingsPageComponent implements OnInit {
             this.saving.set(false);
             this.toast.success(`Role "${updated.name}" updated.`);
           },
-          error: (err) => {
+          error: () => {
             this.saving.set(false);
-            this.toast.error(err, 'Failed to update role.');
           },
         });
       return;
@@ -1306,9 +1298,8 @@ export class SettingsPageComponent implements OnInit {
         this.saving.set(false);
         this.toast.success(`Role "${created.name}" created successfully.`);
       },
-      error: (err) => {
+      error: () => {
         this.saving.set(false);
-        this.toast.error(err, 'Failed to create role.');
       },
     });
   }

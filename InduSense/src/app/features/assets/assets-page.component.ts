@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Observable, forkJoin, of } from 'rxjs';
+import { Observable, forkJoin, noop, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
 import { DevicesApi } from '../../core/api/resources/devices.api';
@@ -1506,7 +1506,7 @@ export class AssetsPageComponent implements OnInit {
             `"${item.name}" ${status === 'active' ? 'activated' : 'deactivated'}.`,
           );
         },
-        error: (err) => this.toast.error(err, 'Failed to change the status.'),
+        error: noop, // the error toast comes from errorToastInterceptor
       });
   }
 
@@ -1518,7 +1518,7 @@ export class AssetsPageComponent implements OnInit {
           this.assetList(kind).update((list) => list.filter((a) => a.id !== item.id));
           this.toast.success(`"${item.name}" restored.`);
         },
-        error: (err) => this.toast.error(err, 'Failed to restore.'),
+        error: noop, // the error toast comes from errorToastInterceptor
       });
   }
 
@@ -1594,9 +1594,8 @@ export class AssetsPageComponent implements OnInit {
           this.saving.set(false);
           this.toast.success(`Machine "${updated.name}" updated.`);
         },
-        error: (err) => {
+        error: () => {
           this.saving.set(false);
-          this.toast.error(err, 'Failed to update machine.');
         },
       });
       return;
@@ -1610,9 +1609,8 @@ export class AssetsPageComponent implements OnInit {
         this.saving.set(false);
         this.toast.success(`Machine "${created.name}" created successfully.`);
       },
-      error: (err) => {
+      error: () => {
         this.saving.set(false);
-        this.toast.error(err, 'Failed to create machine.');
       },
     });
   }
@@ -1625,9 +1623,7 @@ export class AssetsPageComponent implements OnInit {
         this.machines.update((list) => list.filter((m) => m.id !== id));
         this.toast.success(`Machine \"${name}\" deleted.`);
       },
-      error: (err) => {
-        this.toast.error(err, 'Failed to delete machine.');
-      },
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
@@ -1698,9 +1694,8 @@ export class AssetsPageComponent implements OnInit {
           this.saving.set(false);
           this.toast.success(`Meter "${updated.name}" updated.`);
         },
-        error: (err) => {
+        error: () => {
           this.saving.set(false);
-          this.toast.error(err, 'Failed to update meter.');
         },
       });
       return;
@@ -1714,9 +1709,8 @@ export class AssetsPageComponent implements OnInit {
         this.saving.set(false);
         this.toast.success(`Meter "${created.name}" created successfully.`);
       },
-      error: (err) => {
+      error: () => {
         this.saving.set(false);
-        this.toast.error(err, 'Failed to create meter.');
       },
     });
   }
@@ -1729,9 +1723,7 @@ export class AssetsPageComponent implements OnInit {
         this.meters.update((list) => list.filter((m) => m.id !== id));
         this.toast.success(`Meter \"${name}\" deleted.`);
       },
-      error: (err) => {
-        this.toast.error(err, 'Failed to delete meter.');
-      },
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
@@ -1793,9 +1785,8 @@ export class AssetsPageComponent implements OnInit {
           this.saving.set(false);
           this.toast.success(`Gateway "${updated.name}" updated.`);
         },
-        error: (err) => {
+        error: () => {
           this.saving.set(false);
-          this.toast.error(err, 'Failed to update gateway.');
         },
       });
       return;
@@ -1809,9 +1800,8 @@ export class AssetsPageComponent implements OnInit {
         this.saving.set(false);
         this.toast.success(`Gateway "${created.name}" created successfully.`);
       },
-      error: (err) => {
+      error: () => {
         this.saving.set(false);
-        this.toast.error(err, 'Failed to create gateway.');
       },
     });
   }
@@ -1824,9 +1814,7 @@ export class AssetsPageComponent implements OnInit {
         this.gateways.update((list) => list.filter((g) => g.id !== id));
         this.toast.success(`Gateway \"${name}\" deleted.`);
       },
-      error: (err) => {
-        this.toast.error(err, 'Failed to delete gateway.');
-      },
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 

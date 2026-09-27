@@ -146,7 +146,10 @@ Everything under `src/app/core/api/`:
   - FastAPI's default `{ detail }` shapes and non-JSON gateway pages are normalised too.
 - **`apiCredentialsInterceptor`** sends cookies (`withCredentials`) on API requests only.
 - **Resource services** provide typed access per endpoint group: `DevicesApi` (`list`, `listAll`, `count`, `get`), `MachinesApi` and `GatewaysApi` (`list`, `listAll`, `get`), `LocationsApi` (plants and areas), `TagsApi` (`findByName` prefers an exact `tag_name`, then `display_name`), and `TelemetryApi` (`latest`, `history`, with ISO time ranges).
-- **Toasts** (`shared/ui/toast`): pages report the outcome of every save, update and deactivation with `ToastService.success(message)` or `ToastService.error(error, fallback)`. An error toast shows the backend's message, names the first rejected field of a validation error, and adds the request id to unexpected server errors. Failures to load a page's data stay in the page as an error state with Retry.
+- **Toasts** (`shared/ui/toast`):
+  - **Errors** of changes are handled in one place. `errorToastInterceptor` toasts every failed POST/PUT/PATCH/DELETE with the backend's message: the first rejected field for validation errors, and a reference id for unexpected server errors. Screens only reset their own state.
+  - Not toasted by the interceptor: failed page loads (GET), which show in the page as an error state with Retry; `/auth/*`, where the login form shows errors inline; and 401, where the auth interceptor ends the session with its own message.
+  - **Successes** are toasted by the screen (`ToastService.success`) with the record's name. The backend's success envelope (`{ success, data }`) carries no message.
 
 ### Authentication
 

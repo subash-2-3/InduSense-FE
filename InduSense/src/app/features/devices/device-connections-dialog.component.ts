@@ -7,6 +7,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { noop } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 
 import { DevicesApi } from '../../core/api/resources/devices.api';
@@ -316,9 +317,8 @@ export class DeviceConnectionsDialogComponent {
         this.toast.success(`${saved.protocol} connection ${editing ? 'updated' : 'added'}.`);
         this.reset();
       },
-      error: (err) => {
+      error: () => {
         this.saving.set(false);
-        this.toast.error(err, 'Unable to save the connection.');
       },
     });
   }
@@ -333,7 +333,7 @@ export class DeviceConnectionsDialogComponent {
           `${c.protocol} connection ${saved.status === 'active' ? 'activated' : 'deactivated'}.`,
         );
       },
-      error: (err) => this.toast.error(err, 'Unable to change the connection status.'),
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
@@ -345,7 +345,7 @@ export class DeviceConnectionsDialogComponent {
         this.connections.update((list) => list.filter((x) => x.id !== c.id));
         this.toast.success(`${c.protocol} connection deleted.`);
       },
-      error: (err) => this.toast.error(err, 'Unable to delete the connection.'),
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 

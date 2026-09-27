@@ -1,7 +1,8 @@
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
+import { errorToastInterceptor } from '../../core/api/error-toast.interceptor';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { AssetTagsDialogComponent, MappedAsset } from './asset-tags-dialog.component';
 
@@ -31,7 +32,10 @@ describe('AssetTagsDialogComponent', () => {
 
   function open() {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(withInterceptors([errorToastInterceptor])),
+        provideHttpClientTesting(),
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     const fixture = TestBed.createComponent(AssetTagsDialogComponent);
@@ -104,6 +108,7 @@ describe('AssetTagsDialogComponent', () => {
         },
         { status: 422, statusText: 'Unprocessable Entity' },
       );
+    expect(error).toHaveBeenCalledTimes(1);
     expect((error.mock.calls[0][0] as Error).message).toBe(
       'This tag is already assigned to the selected asset.',
     );

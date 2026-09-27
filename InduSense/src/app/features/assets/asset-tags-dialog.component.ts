@@ -277,9 +277,8 @@ export class AssetTagsDialogComponent {
         this.saved.emit(result);
         this.closed.emit();
       },
-      error: (err) => {
+      error: () => {
         this.saving.set(false);
-        this.toast.error(err, 'Unable to save the asset tags.');
       },
     });
   }

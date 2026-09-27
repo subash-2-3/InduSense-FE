@@ -1,7 +1,8 @@
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
+import { errorToastInterceptor } from '../../core/api/error-toast.interceptor';
 import { Company, CompanyLimitUsage, LIMITED_RESOURCES } from '../../core/models';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { CompaniesPageComponent } from './companies-page.component';
@@ -36,7 +37,11 @@ describe('CompaniesPageComponent', () => {
 
   async function setup() {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      // The real error interceptor: failed changes are toasted there, once.
+      providers: [
+        provideHttpClient(withInterceptors([errorToastInterceptor])),
+        provideHttpClientTesting(),
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     const fixture = TestBed.createComponent(CompaniesPageComponent);
@@ -128,7 +133,9 @@ describe('CompaniesPageComponent', () => {
       },
       { status: 409, statusText: 'Conflict' },
     );
-    const [err] = error.mock.calls[0];
-    expect((err as Error).message).toBe('This company has reached its maximum plant limit (5).');
+    expect(error).toHaveBeenCalledTimes(1); // from the interceptor, not also from the page
+    expect((error.mock.calls[0][0] as Error).message).toBe(
+      'This company has reached its maximum plant limit (5).',
+    );
   });
 });

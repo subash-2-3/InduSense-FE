@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { catchError, forkJoin, of } from 'rxjs';
+import { catchError, forkJoin, noop, of } from 'rxjs';
 
 import { LocationsApi } from '../../core/api/resources/locations.api';
 import { CompaniesApi } from '../../core/api/resources/admin.api';
@@ -908,9 +908,8 @@ export class LocationsPageComponent implements OnInit {
           this.saving.set(false);
           this.toast.success(`Plant "${updated.name}" updated successfully.`);
         },
-        error: (err) => {
+        error: () => {
           this.saving.set(false);
-          this.toast.error(err, 'Failed to update plant.');
         },
       });
     } else {
@@ -928,9 +927,8 @@ export class LocationsPageComponent implements OnInit {
           this.saving.set(false);
           this.toast.success(`Plant "${created.name}" created successfully.`);
         },
-        error: (err) => {
+        error: () => {
           this.saving.set(false);
-          this.toast.error(err, 'Failed to create plant.');
         },
       });
     }
@@ -945,9 +943,7 @@ export class LocationsPageComponent implements OnInit {
         this.plants.update((list) => list.map((p) => (p.id === updated.id ? updated : p)));
         this.toast.success(`Plant "${plant.name}" has been ${actionLabel}.`);
       },
-      error: (err) => {
-        this.toast.error(err, `Failed to change plant status.`);
-      },
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
@@ -984,9 +980,8 @@ export class LocationsPageComponent implements OnInit {
           this.saving.set(false);
           this.toast.success(`Area "${updated.name}" updated.`);
         },
-        error: (err) => {
+        error: () => {
           this.saving.set(false);
-          this.toast.error(err, 'Failed to update area.');
         },
       });
       return;
@@ -1005,9 +1000,8 @@ export class LocationsPageComponent implements OnInit {
         this.saving.set(false);
         this.toast.success(`Area "${created.name}" added to ${plant.name}.`);
       },
-      error: (err) => {
+      error: () => {
         this.saving.set(false);
-        this.toast.error(err, 'Failed to create area.');
       },
     });
   }
@@ -1021,7 +1015,7 @@ export class LocationsPageComponent implements OnInit {
           `Area "${area.name}" ${status === 'active' ? 'activated' : 'deactivated'}.`,
         );
       },
-      error: (err) => this.toast.error(err, 'Failed to change area status.'),
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
@@ -1032,7 +1026,7 @@ export class LocationsPageComponent implements OnInit {
         this.plants.update((list) => list.filter((p) => p.id !== plant.id));
         this.toast.success(`Plant "${plant.name}" deleted.`);
       },
-      error: (err) => this.toast.error(err, 'Failed to delete plant.'),
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
@@ -1042,7 +1036,7 @@ export class LocationsPageComponent implements OnInit {
         this.plants.update((list) => list.filter((p) => p.id !== plant.id));
         this.toast.success(`Plant "${plant.name}" restored.`);
       },
-      error: (err) => this.toast.error(err, 'Failed to restore plant.'),
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
@@ -1064,9 +1058,7 @@ export class LocationsPageComponent implements OnInit {
         this.areas.update((list) => list.filter((a) => a.id !== areaId));
         this.toast.success(`Area "${areaName}" deleted.`);
       },
-      error: (err) => {
-        this.toast.error(err, 'Failed to delete area.');
-      },
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 }

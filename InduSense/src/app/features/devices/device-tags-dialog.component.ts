@@ -8,6 +8,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { noop } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 
 import { TagsApi } from '../../core/api/resources/tags.api';
@@ -298,9 +299,8 @@ export class DeviceTagsDialogComponent {
         this.saving.set(false);
         this.toast.success(`Tag "${tag.tag_name}" updated.`);
       },
-      error: (err) => {
+      error: () => {
         this.saving.set(false);
-        this.toast.error(err, 'Unable to update the tag.');
       },
     });
   }
@@ -316,7 +316,7 @@ export class DeviceTagsDialogComponent {
             : `Tag "${tag.tag_name}" deactivated: its telemetry is no longer stored.`,
         );
       },
-      error: (err) => this.toast.error(err, 'Unable to change the tag status.'),
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
