@@ -1,5 +1,5 @@
-// Tree-shaken ECharts: register only the charts and components the dashboard uses.
-import { BarChart, GaugeChart, PieChart } from 'echarts/charts';
+// Tree-shaken ECharts: register only the charts and components the app uses.
+import { BarChart, GaugeChart, LineChart, PieChart } from 'echarts/charts';
 import {
   AriaComponent,
   GridComponent,
@@ -13,6 +13,7 @@ import { SVGRenderer } from 'echarts/renderers';
 echarts.use([
   BarChart,
   GaugeChart,
+  LineChart,
   PieChart,
   AriaComponent,
   GridComponent,

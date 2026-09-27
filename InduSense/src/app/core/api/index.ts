@@ -10,3 +10,4 @@ export * from './resources/telemetry.api';
 export * from './resources/dashboards.api';
 export * from './resources/reports.api';
 export * from './resources/admin.api';
+export * from './resources/energy.api';
