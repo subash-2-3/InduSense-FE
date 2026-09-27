@@ -11,16 +11,8 @@ import { FormsModule } from '@angular/forms';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
-import { CompaniesApi, RolesApi, UsersApi } from '../../core/api/resources/admin.api';
-import {
-  Company,
-  CompanyCreate,
-  Permission,
-  Role,
-  RoleCreate,
-  User,
-  UserCreate,
-} from '../../core/models';
+import { RolesApi, UsersApi } from '../../core/api/resources/admin.api';
+import { Permission, Role, RoleCreate, User, UserCreate } from '../../core/models';
 import {
   ButtonComponent,
   CardComponent,
@@ -40,7 +32,7 @@ import {
 } from '../../shared/utils/record-status';
 import { formatDateTime } from '../../shared/utils/format';
 
-type SettingsTab = 'users' | 'roles' | 'companies';
+type SettingsTab = 'users' | 'roles';
 
 @Component({
   selector: 'app-settings-page',
@@ -62,7 +54,7 @@ type SettingsTab = 'users' | 'roles' | 'companies';
         <div class="settings-header__titles">
           <h1 class="settings-header__title">Administration & Settings</h1>
           <p class="settings-header__subtitle">
-            Manage organization users, security roles, permissions, and tenant companies
+            Manage organization users, security roles and permissions
           </p>
         </div>
         <div class="settings-header__actions">
@@ -81,12 +73,6 @@ type SettingsTab = 'users' | 'roles' | 'companies';
               <button appButton variant="primary" (click)="openCreateRoleModal()">
                 <app-icon name="plus" [size]="14" />
                 New Role
-              </button>
-            }
-            @case ('companies') {
-              <button appButton variant="primary" (click)="openCreateCompanyModal()">
-                <app-icon name="plus" [size]="14" />
-                New Company
               </button>
             }
           }
@@ -112,15 +98,6 @@ type SettingsTab = 'users' | 'roles' | 'companies';
         >
           <app-icon name="lock" [size]="16" />
           Roles & Permissions ({{ roles().length }})
-        </button>
-        <button
-          type="button"
-          class="tab-btn"
-          [class.tab-btn--active]="activeTab() === 'companies'"
-          (click)="setTab('companies')"
-        >
-          <app-icon name="building" [size]="16" />
-          Companies ({{ companies().length }})
         </button>
       </div>
 
@@ -272,59 +249,6 @@ type SettingsTab = 'users' | 'roles' | 'companies';
                             <span class="role-type-badge" [class.badge-system]="role.is_system">
                               {{ role.is_system ? 'System' : 'Custom' }}
                             </span>
-                          </td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              }
-            }
-
-            @case ('companies') {
-              @if (filteredCompanies().length === 0) {
-                <div class="settings-state">
-                  <app-empty-state
-                    heading="No companies found"
-                    message="No companies configured."
-                  />
-                </div>
-              } @else {
-                <div class="table-container">
-                  <table class="settings-table">
-                    <thead>
-                      <tr>
-                        <th>Status</th>
-                        <th>Company Code</th>
-                        <th>Company Name</th>
-                        <th>Created</th>
-                        <th class="text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (c of filteredCompanies(); track c.id) {
-                        <tr>
-                          <td>
-                            <app-status-pill
-                              [label]="statusLabel(c.status)"
-                              [tone]="statusTone(c.status)"
-                            />
-                          </td>
-                          <td class="cell-mono">{{ c.code }}</td>
-                          <td>
-                            <strong>{{ c.name }}</strong>
-                          </td>
-                          <td class="cell-time">{{ formatTime(c.created_at) }}</td>
-                          <td class="text-right">
-                            <button
-                              appButton
-                              variant="ghost"
-                              size="sm"
-                              title="Toggle Company Status"
-                              (click)="toggleCompanyStatus(c)"
-                            >
-                              <app-icon name="settings" [size]="14" />
-                            </button>
                           </td>
                         </tr>
                       }
@@ -501,59 +425,6 @@ type SettingsTab = 'users' | 'roles' | 'companies';
               [disabled]="saving() || !roleForm.code.trim() || !roleForm.name.trim()"
             >
               {{ saving() ? 'Creating...' : 'Create Role' }}
-            </button>
-          </div>
-        </form>
-      </app-modal>
-
-      <!-- Company Create Modal -->
-      <app-modal
-        [open]="companyModalOpen()"
-        title="Register New Company / Tenant"
-        subtitle="Multi-tenant workspace isolation for industrial clients"
-        (close)="companyModalOpen.set(false)"
-      >
-        <form (ngSubmit)="saveCompany()" class="modal-form">
-          <div class="form-group">
-            <label class="form-label">Company Name *</label>
-            <input
-              type="text"
-              class="form-input"
-              placeholder="e.g. Apex Manufacturing Solutions"
-              [(ngModel)]="companyForm.name"
-              name="name"
-              required
-            />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Company Code *</label>
-            <input
-              type="text"
-              class="form-input"
-              placeholder="e.g. APEX-IND"
-              [(ngModel)]="companyForm.code"
-              name="code"
-              required
-            />
-          </div>
-
-          <div class="modal-actions">
-            <button
-              appButton
-              variant="secondary"
-              type="button"
-              (click)="companyModalOpen.set(false)"
-            >
-              Cancel
-            </button>
-            <button
-              appButton
-              variant="primary"
-              type="submit"
-              [disabled]="saving() || !companyForm.name.trim() || !companyForm.code.trim()"
-            >
-              {{ saving() ? 'Registering...' : 'Register Company' }}
             </button>
           </div>
         </form>
@@ -865,7 +736,6 @@ type SettingsTab = 'users' | 'roles' | 'companies';
 export class SettingsPageComponent implements OnInit {
   private readonly usersApi = inject(UsersApi);
   private readonly rolesApi = inject(RolesApi);
-  private readonly companiesApi = inject(CompaniesApi);
 
   readonly activeTab = signal<SettingsTab>('users');
   readonly loading = signal(true);
@@ -879,7 +749,6 @@ export class SettingsPageComponent implements OnInit {
 
   readonly users = signal<User[]>([]);
   readonly roles = signal<Role[]>([]);
-  readonly companies = signal<Company[]>([]);
   readonly allPermissions = signal<Permission[]>([]);
 
   readonly usersTotal = signal(0);
@@ -908,12 +777,6 @@ export class SettingsPageComponent implements OnInit {
   };
   readonly selectedPermissions = signal<Set<string>>(new Set());
 
-  readonly companyModalOpen = signal(false);
-  companyForm = {
-    code: '',
-    name: '',
-  };
-
   readonly filteredUsers = computed(() => {
     const term = this.searchTerm().trim().toLowerCase();
     return this.users().filter(
@@ -929,13 +792,6 @@ export class SettingsPageComponent implements OnInit {
     const term = this.searchTerm().trim().toLowerCase();
     return this.roles().filter(
       (r) => !term || r.code.toLowerCase().includes(term) || r.name.toLowerCase().includes(term),
-    );
-  });
-
-  readonly filteredCompanies = computed(() => {
-    const term = this.searchTerm().trim().toLowerCase();
-    return this.companies().filter(
-      (c) => !term || c.code.toLowerCase().includes(term) || c.name.toLowerCase().includes(term),
     );
   });
 
@@ -987,19 +843,6 @@ export class SettingsPageComponent implements OnInit {
           },
           error: (err) => {
             this.error.set(err?.message || 'Failed to load roles.');
-            this.loading.set(false);
-          },
-        });
-        break;
-
-      case 'companies':
-        this.companiesApi.listAll({ status: VISIBLE_STATUSES }).subscribe({
-          next: (items) => {
-            this.companies.set(items);
-            this.loading.set(false);
-          },
-          error: (err) => {
-            this.error.set(err?.message || 'Failed to load companies.');
             this.loading.set(false);
           },
         });
@@ -1123,48 +966,6 @@ export class SettingsPageComponent implements OnInit {
       error: (err) => {
         this.saving.set(false);
         this.toast.error(err, 'Failed to create role.');
-      },
-    });
-  }
-
-  // Company actions
-  openCreateCompanyModal(): void {
-    this.companyForm = { code: '', name: '' };
-    this.companyModalOpen.set(true);
-  }
-
-  saveCompany(): void {
-    if (!this.companyForm.code.trim() || !this.companyForm.name.trim()) return;
-    this.saving.set(true);
-
-    const payload: CompanyCreate = {
-      code: this.companyForm.code.trim().toUpperCase(),
-      name: this.companyForm.name.trim(),
-    };
-
-    this.companiesApi.create(payload).subscribe({
-      next: (created) => {
-        this.companies.update((list) => [created, ...list]);
-        this.companyModalOpen.set(false);
-        this.saving.set(false);
-        this.toast.success(`Company "${created.name}" registered successfully.`);
-      },
-      error: (err) => {
-        this.saving.set(false);
-        this.toast.error(err, 'Failed to register company.');
-      },
-    });
-  }
-
-  toggleCompanyStatus(company: Company): void {
-    const newStatus = toggledStatus(company.status);
-    this.companiesApi.update(company.id, { status: newStatus }).subscribe({
-      next: (updated) => {
-        this.companies.update((list) => list.map((c) => (c.id === company.id ? updated : c)));
-        this.toast.success(`Company "${company.name}" status updated.`);
-      },
-      error: (err) => {
-        this.toast.error(err, 'Failed to update company status.');
       },
     });
   }

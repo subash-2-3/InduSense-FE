@@ -1,0 +1,219 @@
+<div class="page">
+  <header class="page__header">
+    <div>
+      <h1 class="page__title">Companies</h1>
+      <p class="page__subtitle">
+        Platform administration: tenants, their resource limits and enabled modules
+      </p>
+    </div>
+    <div class="page__actions">
+      <button appButton variant="secondary" type="button" (click)="load()">
+        <app-icon name="refresh" [size]="14" />
+        Refresh
+      </button>
+      <button appButton variant="primary" type="button" (click)="openCreate()">
+        <app-icon name="plus" [size]="14" />
+        New company
+      </button>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <label class="search">
+      <app-icon name="search" [size]="16" class="search__icon" />
+      <input
+        type="search"
+        class="field"
+        placeholder="Search name or code"
+        aria-label="Search companies"
+        [ngModel]="search()"
+        (ngModelChange)="search.set($event)"
+      />
+    </label>
+    <label class="toolbar__filter">
+      Show
+      <select
+        class="field"
+        [ngModel]="statusView()"
+        (ngModelChange)="changeView($event)"
+        aria-label="Company status"
+      >
+        <option value="visible">Active and inactive</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+        <option value="delete">Deleted</option>
+      </select>
+    </label>
+  </div>
+
+  <app-card [padded]="false">
+    @if (loading()) {
+      <div class="state"><app-skeleton height="160px" /></div>
+    } @else if (error()) {
+      <app-error-state heading="Unable to load companies" [message]="error()!" (retry)="load()" />
+    } @else if (filtered().length === 0) {
+      <app-empty-state
+        heading="No companies"
+        message="Create a company, or change the search or status filter."
+        icon="building"
+      />
+    } @else {
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">Code</th>
+              <th scope="col">Name</th>
+              <th scope="col">Timezone</th>
+              <th scope="col">Status</th>
+              <th scope="col">Created</th>
+              <th scope="col" class="num">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (c of filtered(); track c.id) {
+              <tr>
+                <td class="mono">{{ c.code }}</td>
+                <td>{{ c.name }}</td>
+                <td>{{ c.timezone }}</td>
+                <td>
+                  <app-status-pill [label]="statusLabel(c.status)" [tone]="statusTone(c.status)" />
+                </td>
+                <td class="muted">{{ formatTime(c.created_at) }}</td>
+                <td class="num">
+                  <div class="row-actions">
+                    @if (c.status === 'delete') {
+                      <button
+                        appButton
+                        variant="ghost"
+                        size="sm"
+                        type="button"
+                        (click)="restore(c)"
+                      >
+                        Restore
+                      </button>
+                    } @else {
+                      <button
+                        appButton
+                        variant="ghost"
+                        size="sm"
+                        type="button"
+                        (click)="openEdit(c)"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        appButton
+                        variant="ghost"
+                        size="sm"
+                        type="button"
+                        (click)="toggleStatus(c)"
+                      >
+                        {{ c.status === 'active' ? 'Deactivate' : 'Activate' }}
+                      </button>
+                      <button
+                        appButton
+                        variant="icon"
+                        type="button"
+                        class="danger"
+                        [attr.aria-label]="'Delete ' + c.name"
+                        (click)="remove(c)"
+                      >
+                        <app-icon name="x" [size]="16" />
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </app-card>
+</div>
+
+<app-modal [open]="editing() !== null" [title]="modalTitle()" maxWidth="720px" (close)="close()">
+  <form class="form" (ngSubmit)="save()">
+    <div class="form__grid">
+      @if (editing() === 'new') {
+        <label class="form__field">
+          <span>Code *</span>
+          <input class="field" name="code" required maxlength="64" [(ngModel)]="form.code" />
+        </label>
+      }
+      <label class="form__field">
+        <span>Name *</span>
+        <input class="field" name="name" required maxlength="200" [(ngModel)]="form.name" />
+      </label>
+      <label class="form__field">
+        <span>Timezone (IANA)</span>
+        <input
+          class="field"
+          name="timezone"
+          placeholder="e.g. Asia/Kolkata"
+          [(ngModel)]="form.timezone"
+        />
+      </label>
+      <label class="form__field form__field--wide">
+        <span>Address</span>
+        <input class="field" name="address" maxlength="500" [(ngModel)]="form.address" />
+      </label>
+    </div>
+
+    <fieldset class="form__section">
+      <legend>Resource limits <small>(blank = unlimited)</small></legend>
+      <div class="limits">
+        @for (r of resources; track r) {
+          <label class="limit">
+            <span class="limit__name">{{ resourceLabel[r] }}</span>
+            <input
+              class="field"
+              inputmode="numeric"
+              [name]="'limit-' + r"
+              [class.field--invalid]="invalidLimits().includes(r)"
+              [(ngModel)]="form.limits[r]"
+            />
+            @if (usageOf(r); as u) {
+              <span
+                class="limit__use"
+                [class.limit__use--full]="u.limit !== null && u.used >= u.limit"
+              >
+                {{ u.used }} / {{ u.limit ?? '∞' }} used
+              </span>
+            }
+          </label>
+        }
+      </div>
+    </fieldset>
+
+    <fieldset class="form__section">
+      <legend>Modules</legend>
+      @if (productModules().length === 0) {
+        <p class="muted">No product modules are defined.</p>
+      }
+      <div class="modules">
+        @for (m of productModules(); track m.code) {
+          <label class="module">
+            <input
+              type="checkbox"
+              [name]="'module-' + m.code"
+              [checked]="form.modules.has(m.code)"
+              (change)="toggleModule(m.code, $any($event.target).checked)"
+            />
+            <span>
+              <strong>{{ m.code }}</strong> {{ m.name }}
+            </span>
+          </label>
+        }
+      </div>
+    </fieldset>
+
+    <div class="form__actions">
+      <button appButton variant="secondary" type="button" (click)="close()">Cancel</button>
+      <button appButton variant="primary" type="submit" [disabled]="saving()">
+        {{ saving() ? 'Saving…' : editing() === 'new' ? 'Create company' : 'Save changes' }}
+      </button>
+    </div>
+  </form>
+</app-modal>

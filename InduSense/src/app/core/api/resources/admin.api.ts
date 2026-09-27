@@ -5,12 +5,14 @@ import {
   AuditLog,
   AuditLogFilters,
   Company,
+  CompanyLimitUsage,
   CompanyCreate,
   CompanyFilters,
   CompanyUpdate,
   LoggerAssign,
   LoggerFilters,
   LoggerStatus,
+  LimitedResource,
   Module,
   ModuleCreate,
   ModuleUpdate,
@@ -138,6 +140,19 @@ export class CompaniesApi {
     return this.api.put<string[]>(`/companies/${companyId}/modules`, {
       module_codes: moduleCodes,
     });
+  }
+
+  /** Limits and current use of every resource. */
+  limits(companyId: number): Observable<CompanyLimitUsage[]> {
+    return this.api.get<CompanyLimitUsage[]>(`/companies/${companyId}/limits`);
+  }
+
+  /** Changes only the given resources; `null` removes a limit (platform administrators). */
+  setLimits(
+    companyId: number,
+    limits: Partial<Record<LimitedResource, number | null>>,
+  ): Observable<CompanyLimitUsage[]> {
+    return this.api.put<CompanyLimitUsage[]>(`/companies/${companyId}/limits`, { limits });
   }
 
   listProductModules(): Observable<Module[]> {

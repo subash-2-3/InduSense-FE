@@ -14,6 +14,8 @@ export interface NavItem {
 /** Sidebar entries, top to bottom. */
 export const PRIMARY_NAV: readonly NavItem[] = [
   { label: 'Dashboard', path: '/dashboard', icon: 'gauge' },
+  // Platform administration: every company (tenant:all only).
+  { label: 'Companies', path: '/companies', icon: 'building', permission: Permission.TenantAll },
   {
     label: 'Devices',
     path: '/devices',

@@ -77,11 +77,36 @@ export interface Company {
   updated_at: IsoDateTime;
 }
 
+/** Resources a platform administrator can cap per company (InduSense-BE `LimitedResource`). */
+export type LimitedResource =
+  'plants' | 'areas' | 'machines' | 'meters' | 'gateways' | 'devices' | 'users';
+
+export const LIMITED_RESOURCES: readonly LimitedResource[] = [
+  'plants',
+  'areas',
+  'machines',
+  'meters',
+  'gateways',
+  'devices',
+  'users',
+];
+
+/** `GET /companies/{id}/limits` row: `limit` null = unlimited; `used` = active + inactive records. */
+export interface CompanyLimitUsage {
+  resource: LimitedResource;
+  limit: number | null;
+  used: number;
+}
+
 export interface CompanyCreate {
   code: string;
   name: string;
   address?: string | null;
   timezone?: string;
+  /** Omitted resources are unlimited. */
+  limits?: Partial<Record<LimitedResource, number>>;
+  /** Module codes to enable (needs `modules:manage`). */
+  module_codes?: string[];
 }
 
 export interface CompanyUpdate {
