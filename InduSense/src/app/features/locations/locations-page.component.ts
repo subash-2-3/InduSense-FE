@@ -11,7 +11,18 @@ import { FormsModule } from '@angular/forms';
 import { catchError, forkJoin, of } from 'rxjs';
 
 import { LocationsApi } from '../../core/api/resources/locations.api';
-import { Area, AreaCreate, Plant, PlantCreate, PlantUpdate } from '../../core/models';
+import { CompaniesApi } from '../../core/api/resources/admin.api';
+import { AuthService } from '../../core/auth/auth.service';
+import { Permission } from '../../core/auth/permissions';
+import {
+  Area,
+  AreaCreate,
+  Company,
+  Plant,
+  PlantCreate,
+  PlantUpdate,
+  RecordStatus,
+} from '../../core/models';
 import {
   ButtonComponent,
   CardComponent,
@@ -88,11 +99,12 @@ import {
           <select
             class="filter-select"
             [ngModel]="statusFilter()"
-            (ngModelChange)="statusFilter.set($event)"
+            (ngModelChange)="setStatusFilter($event)"
           >
-            <option value="all">All Statuses</option>
+            <option value="all">Active and inactive</option>
             <option value="active">Active Only</option>
             <option value="inactive">Inactive Only</option>
+            <option value="delete">Deleted</option>
           </select>
         </div>
       </div>
@@ -169,6 +181,7 @@ import {
                     variant="ghost"
                     size="sm"
                     class="btn-add-area"
+                    [disabled]="plant.status !== 'active'"
                     (click)="openCreateAreaModal(plant)"
                   >
                     <app-icon name="plus" [size]="12" />
@@ -181,17 +194,44 @@ import {
                 } @else {
                   <div class="areas-list">
                     @for (area of getPlantAreas(plant.id); track area.id) {
-                      <div class="area-chip">
+                      <div class="area-chip" [class.area-chip--inactive]="area.status !== 'active'">
                         <span class="area-chip__code">{{ area.code }}</span>
                         <span class="area-chip__name">{{ area.name }}</span>
-                        <button
-                          type="button"
-                          class="area-delete-btn"
-                          title="Delete area"
-                          (click)="deleteArea(area.id, area.name)"
-                        >
-                          <app-icon name="x" [size]="12" />
-                        </button>
+                        @if (area.status !== 'active') {
+                          <span class="area-chip__state">{{ statusLabel(area.status) }}</span>
+                        }
+                        @if (plant.status !== 'delete') {
+                          <button
+                            type="button"
+                            class="area-delete-btn"
+                            [attr.aria-label]="'Edit area ' + area.name"
+                            title="Edit area"
+                            (click)="openEditAreaModal(plant, area)"
+                          >
+                            <app-icon name="edit" [size]="12" />
+                          </button>
+                          <button
+                            type="button"
+                            class="area-delete-btn"
+                            [attr.aria-label]="
+                              (area.status === 'active' ? 'Deactivate area ' : 'Activate area ') +
+                              area.name
+                            "
+                            [title]="area.status === 'active' ? 'Deactivate area' : 'Activate area'"
+                            (click)="toggleAreaStatus(area)"
+                          >
+                            <app-icon name="settings" [size]="12" />
+                          </button>
+                          <button
+                            type="button"
+                            class="area-delete-btn"
+                            [attr.aria-label]="'Delete area ' + area.name"
+                            title="Delete area"
+                            (click)="deleteArea(area.id, area.name)"
+                          >
+                            <app-icon name="x" [size]="12" />
+                          </button>
+                        }
                       </div>
                     }
                   </div>
@@ -199,20 +239,31 @@ import {
               </div>
 
               <footer class="plant-card__actions">
-                <button appButton variant="ghost" size="sm" (click)="openEditPlantModal(plant)">
-                  <app-icon name="edit" [size]="14" />
-                  Edit
-                </button>
-                <button
-                  appButton
-                  variant="ghost"
-                  size="sm"
-                  [class.text-danger]="plant.status === 'active'"
-                  (click)="togglePlantStatus(plant)"
-                >
-                  <app-icon name="settings" [size]="14" />
-                  {{ plant.status === 'active' ? 'Deactivate' : 'Activate' }}
-                </button>
+                @if (plant.status === 'delete') {
+                  <button appButton variant="ghost" size="sm" (click)="restorePlant(plant)">
+                    <app-icon name="refresh" [size]="14" />
+                    Restore
+                  </button>
+                } @else {
+                  <button appButton variant="ghost" size="sm" (click)="openEditPlantModal(plant)">
+                    <app-icon name="edit" [size]="14" />
+                    Edit
+                  </button>
+                  <button appButton variant="ghost" size="sm" (click)="togglePlantStatus(plant)">
+                    <app-icon name="settings" [size]="14" />
+                    {{ plant.status === 'active' ? 'Deactivate' : 'Activate' }}
+                  </button>
+                  <button
+                    appButton
+                    variant="ghost"
+                    size="sm"
+                    class="text-danger"
+                    (click)="deletePlant(plant)"
+                  >
+                    <app-icon name="x" [size]="14" />
+                    Delete
+                  </button>
+                }
               </footer>
             </app-card>
           }
@@ -231,6 +282,23 @@ import {
         (close)="plantModalOpen.set(false)"
       >
         <form (ngSubmit)="savePlant()" class="modal-form">
+          @if (isPlatformAdmin() && !editingPlantId()) {
+            <div class="form-group">
+              <label class="form-label" for="plantCompany">Company *</label>
+              <select
+                id="plantCompany"
+                class="form-input"
+                [(ngModel)]="plantForm.company_id"
+                name="company_id"
+                required
+              >
+                <option [ngValue]="null" disabled>Select the company</option>
+                @for (c of companies(); track c.id) {
+                  <option [ngValue]="c.id">{{ c.name }} ({{ c.code }})</option>
+                }
+              </select>
+            </div>
+          }
           <div class="form-group">
             <label class="form-label" for="plantName">Plant Name *</label>
             <input
@@ -289,7 +357,12 @@ import {
               appButton
               variant="primary"
               type="submit"
-              [disabled]="saving() || !plantForm.name.trim() || !plantForm.code.trim()"
+              [disabled]="
+                saving() ||
+                !plantForm.name.trim() ||
+                !plantForm.code.trim() ||
+                (isPlatformAdmin() && !editingPlantId() && !plantForm.company_id)
+              "
             >
               {{ saving() ? 'Saving...' : editingPlantId() ? 'Update Plant' : 'Create Plant' }}
             </button>
@@ -300,8 +373,8 @@ import {
       <!-- Area Modal (Create) -->
       <app-modal
         [open]="areaModalOpen()"
-        title="Add Operational Area"
-        [subtitle]="selectedPlantForArea() ? 'Adding zone to ' + selectedPlantForArea()!.name : ''"
+        [title]="editingAreaId() ? 'Edit Operational Area' : 'Add Operational Area'"
+        [subtitle]="selectedPlantForArea() ? 'Plant: ' + selectedPlantForArea()!.name : ''"
         (close)="areaModalOpen.set(false)"
       >
         <form (ngSubmit)="saveArea()" class="modal-form">
@@ -331,6 +404,18 @@ import {
             />
           </div>
 
+          <div class="form-group">
+            <label class="form-label" for="areaDescription">Description</label>
+            <textarea
+              id="areaDescription"
+              rows="2"
+              class="form-textarea"
+              maxlength="1000"
+              [(ngModel)]="areaForm.description"
+              name="areaDescription"
+            ></textarea>
+          </div>
+
           <div class="modal-actions">
             <button appButton variant="secondary" type="button" (click)="areaModalOpen.set(false)">
               Cancel
@@ -341,7 +426,7 @@ import {
               type="submit"
               [disabled]="saving() || !areaForm.name.trim() || !areaForm.code.trim()"
             >
-              {{ saving() ? 'Creating...' : 'Create Area' }}
+              {{ saving() ? 'Saving...' : editingAreaId() ? 'Update Area' : 'Create Area' }}
             </button>
           </div>
         </form>
@@ -664,6 +749,15 @@ import {
       margin-top: 8px;
     }
 
+    .area-chip--inactive {
+      opacity: 0.7;
+    }
+
+    .area-chip__state {
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+    }
+
     .spinning {
       animation: spin 1s linear infinite;
     }
@@ -686,7 +780,14 @@ export class LocationsPageComponent implements OnInit {
   readonly error = signal<string | null>(null);
 
   readonly searchTerm = signal('');
-  readonly statusFilter = signal<'all' | 'active' | 'inactive'>('all');
+  readonly statusFilter = signal<'all' | RecordStatus>('all');
+  private readonly auth = inject(AuthService);
+  private readonly companiesApi = inject(CompaniesApi);
+  /** Platform administrators pick the company a new plant belongs to. */
+  protected readonly isPlatformAdmin = computed(() =>
+    this.auth.hasPermission(Permission.TenantAll),
+  );
+  protected readonly companies = signal<Company[]>([]);
   private readonly toast = inject(ToastService);
   protected readonly statusLabel = recordStatusLabel;
   protected readonly statusTone = recordStatusTone;
@@ -694,11 +795,12 @@ export class LocationsPageComponent implements OnInit {
   // Modals state
   readonly plantModalOpen = signal(false);
   readonly editingPlantId = signal<number | null>(null);
-  plantForm = { name: '', code: '', timezone: 'UTC', address: '' };
+  plantForm = this.blankPlantForm();
 
   readonly areaModalOpen = signal(false);
   readonly selectedPlantForArea = signal<Plant | null>(null);
-  areaForm = { name: '', code: '' };
+  readonly editingAreaId = signal<number | null>(null);
+  areaForm = { name: '', code: '', description: '' };
 
   readonly filteredPlants = computed(() => {
     const term = this.searchTerm().trim().toLowerCase();
@@ -719,6 +821,18 @@ export class LocationsPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadData();
+    if (this.isPlatformAdmin()) {
+      this.companiesApi.listAll().subscribe({
+        next: (companies) => this.companies.set(companies),
+        error: (err) => this.toast.error(err, 'Unable to load companies.'),
+      });
+    }
+  }
+
+  setStatusFilter(filter: 'all' | RecordStatus): void {
+    const reload = filter === 'delete' || this.statusFilter() === 'delete';
+    this.statusFilter.set(filter);
+    if (reload) this.loadData();
   }
 
   loadData(): void {
@@ -726,11 +840,13 @@ export class LocationsPageComponent implements OnInit {
     this.error.set(null);
 
     forkJoin({
-      plants: this.locationsApi.listAllPlants({ status: VISIBLE_STATUSES }).pipe(
-        catchError((err) => {
-          throw err;
-        }),
-      ),
+      plants: this.locationsApi
+        .listAllPlants({ status: this.statusFilter() === 'delete' ? 'delete' : VISIBLE_STATUSES })
+        .pipe(
+          catchError((err) => {
+            throw err;
+          }),
+        ),
       areas: this.locationsApi
         .listAllAreas({ status: VISIBLE_STATUSES })
         .pipe(catchError(() => of([] as Area[]))),
@@ -753,16 +869,17 @@ export class LocationsPageComponent implements OnInit {
 
   openCreatePlantModal(): void {
     this.editingPlantId.set(null);
-    this.plantForm = { name: '', code: '', timezone: 'UTC', address: '' };
+    this.plantForm = this.blankPlantForm();
     this.plantModalOpen.set(true);
   }
 
   openEditPlantModal(plant: Plant): void {
     this.editingPlantId.set(plant.id);
     this.plantForm = {
+      company_id: plant.company_id,
       name: plant.name,
       code: plant.code,
-      timezone: plant.timezone || 'UTC',
+      timezone: plant.timezone || '',
       address: plant.address || '',
     };
     this.plantModalOpen.set(true);
@@ -780,8 +897,9 @@ export class LocationsPageComponent implements OnInit {
       const payload: PlantUpdate = {
         name,
         code,
-        timezone: this.plantForm.timezone.trim() || undefined,
-        address: this.plantForm.address.trim() || undefined,
+        // Blank clears the value (timezone: the company's is used).
+        timezone: this.plantForm.timezone.trim() || null,
+        address: this.plantForm.address.trim() || null,
       };
       this.locationsApi.updatePlant(editingId, payload).subscribe({
         next: (updated) => {
@@ -799,8 +917,9 @@ export class LocationsPageComponent implements OnInit {
       const payload: PlantCreate = {
         name,
         code,
-        timezone: this.plantForm.timezone.trim() || 'UTC',
-        address: this.plantForm.address.trim() || undefined,
+        timezone: this.plantForm.timezone.trim() || null,
+        address: this.plantForm.address.trim() || null,
+        company_id: this.isPlatformAdmin() ? this.plantForm.company_id : undefined,
       };
       this.locationsApi.createPlant(payload).subscribe({
         next: (created) => {
@@ -834,7 +953,15 @@ export class LocationsPageComponent implements OnInit {
 
   openCreateAreaModal(plant: Plant): void {
     this.selectedPlantForArea.set(plant);
-    this.areaForm = { name: '', code: '' };
+    this.editingAreaId.set(null);
+    this.areaForm = { name: '', code: '', description: '' };
+    this.areaModalOpen.set(true);
+  }
+
+  openEditAreaModal(plant: Plant, area: Area): void {
+    this.selectedPlantForArea.set(plant);
+    this.editingAreaId.set(area.id);
+    this.areaForm = { name: area.name, code: area.code, description: area.description ?? '' };
     this.areaModalOpen.set(true);
   }
 
@@ -847,10 +974,28 @@ export class LocationsPageComponent implements OnInit {
     if (!name || !code) return;
 
     this.saving.set(true);
+    const description = this.areaForm.description.trim() || null;
+    const editingId = this.editingAreaId();
+    if (editingId) {
+      this.locationsApi.updateArea(editingId, { name, code, description }).subscribe({
+        next: (updated) => {
+          this.areas.update((list) => list.map((a) => (a.id === updated.id ? updated : a)));
+          this.areaModalOpen.set(false);
+          this.saving.set(false);
+          this.toast.success(`Area "${updated.name}" updated.`);
+        },
+        error: (err) => {
+          this.saving.set(false);
+          this.toast.error(err, 'Failed to update area.');
+        },
+      });
+      return;
+    }
     const payload: AreaCreate = {
       name,
       code,
       plant_id: plant.id,
+      description,
     };
 
     this.locationsApi.createArea(payload).subscribe({
@@ -865,6 +1010,50 @@ export class LocationsPageComponent implements OnInit {
         this.toast.error(err, 'Failed to create area.');
       },
     });
+  }
+
+  toggleAreaStatus(area: Area): void {
+    const status = toggledStatus(area.status);
+    this.locationsApi.updateArea(area.id, { status }).subscribe({
+      next: (updated) => {
+        this.areas.update((list) => list.map((a) => (a.id === updated.id ? updated : a)));
+        this.toast.success(
+          `Area "${area.name}" ${status === 'active' ? 'activated' : 'deactivated'}.`,
+        );
+      },
+      error: (err) => this.toast.error(err, 'Failed to change area status.'),
+    });
+  }
+
+  deletePlant(plant: Plant): void {
+    if (!confirm(`Delete plant "${plant.name}"? It can be restored later.`)) return;
+    this.locationsApi.deletePlant(plant.id).subscribe({
+      next: () => {
+        this.plants.update((list) => list.filter((p) => p.id !== plant.id));
+        this.toast.success(`Plant "${plant.name}" deleted.`);
+      },
+      error: (err) => this.toast.error(err, 'Failed to delete plant.'),
+    });
+  }
+
+  restorePlant(plant: Plant): void {
+    this.locationsApi.updatePlant(plant.id, { status: 'active' }).subscribe({
+      next: () => {
+        this.plants.update((list) => list.filter((p) => p.id !== plant.id));
+        this.toast.success(`Plant "${plant.name}" restored.`);
+      },
+      error: (err) => this.toast.error(err, 'Failed to restore plant.'),
+    });
+  }
+
+  private blankPlantForm(): {
+    company_id: number | null;
+    name: string;
+    code: string;
+    timezone: string;
+    address: string;
+  } {
+    return { company_id: null, name: '', code: '', timezone: '', address: '' };
   }
 
   deleteArea(areaId: number, areaName: string): void {

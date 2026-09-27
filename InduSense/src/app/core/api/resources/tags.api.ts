@@ -28,6 +28,11 @@ export class TagsApi {
     return this.api.getPage<Tag>('/tags', { ...filters });
   }
 
+  /** Every page (a V-BOX can report hundreds of tags). */
+  listAll(filters: TagFilters = {}): Observable<Tag[]> {
+    return this.api.getAllPages<Tag>('/tags', { ...filters });
+  }
+
   get(id: number): Observable<Tag> {
     return this.api.get<Tag>(`/tags/${id}`);
   }

@@ -8,11 +8,23 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { forkJoin, of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { Observable, concat, forkJoin, last, of } from 'rxjs';
+import { catchError, switchMap } from 'rxjs/operators';
 
-import { RolesApi, UsersApi } from '../../core/api/resources/admin.api';
-import { Permission, Role, RoleCreate, User, UserCreate } from '../../core/models';
+import { CompaniesApi, RolesApi, UsersApi } from '../../core/api/resources/admin.api';
+import { LocationsApi } from '../../core/api/resources/locations.api';
+import { AuthService } from '../../core/auth/auth.service';
+import { Permission } from '../../core/auth/permissions';
+import {
+  Company,
+  Permission as PermissionModel,
+  Plant,
+  RecordStatus,
+  Role,
+  RoleCreate,
+  User,
+  UserCreate,
+} from '../../core/models';
 import {
   ButtonComponent,
   CardComponent,
@@ -33,6 +45,29 @@ import {
 import { formatDateTime } from '../../shared/utils/format';
 
 type SettingsTab = 'users' | 'roles';
+
+interface UserForm {
+  company_id: number | null;
+  email: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+  roles: Set<string>;
+  /** Empty = every plant of the company. */
+  plants: Set<number>;
+}
+
+function blankUserForm(): UserForm {
+  return {
+    company_id: null,
+    email: '',
+    password: '',
+    first_name: '',
+    last_name: '',
+    roles: new Set<string>(),
+    plants: new Set<number>(),
+  };
+}
 
 @Component({
   selector: 'app-settings-page',
@@ -119,6 +154,22 @@ type SettingsTab = 'users' | 'roles';
             </button>
           }
         </div>
+        @if (activeTab() === 'users') {
+          <label class="status-filter">
+            Show
+            <select
+              class="form-select"
+              [ngModel]="userStatusView()"
+              (ngModelChange)="setUserStatusView($event)"
+              aria-label="User status"
+            >
+              <option value="visible">Active and inactive</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="delete">Deleted</option>
+            </select>
+          </label>
+        }
       </div>
 
       <app-card [padded]="false">
@@ -185,27 +236,62 @@ type SettingsTab = 'users' | 'roles';
                                 <span class="role-badge">{{ roleCode }}</span>
                               }
                             </div>
+                            @if (u.plant_ids.length) {
+                              <div class="perms-summary">Plants: {{ plantNames(u.plant_ids) }}</div>
+                            }
                           </td>
                           <td class="cell-time">{{ formatTime(u.last_login_at) }}</td>
                           <td class="text-right">
-                            <button
-                              appButton
-                              variant="ghost"
-                              size="sm"
-                              title="Toggle User Status"
-                              (click)="toggleUserStatus(u)"
-                            >
-                              <app-icon name="settings" [size]="14" />
-                            </button>
-                            <button
-                              appButton
-                              variant="ghost"
-                              size="sm"
-                              title="Delete User"
-                              (click)="deleteUser(u.id, u.email)"
-                            >
-                              <app-icon name="x" [size]="14" />
-                            </button>
+                            @if (u.status === 'delete') {
+                              <button appButton variant="ghost" size="sm" (click)="restoreUser(u)">
+                                Restore
+                              </button>
+                            } @else {
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                title="Edit user"
+                                [attr.aria-label]="'Edit ' + u.email"
+                                (click)="openEditUserModal(u)"
+                              >
+                                <app-icon name="edit" [size]="14" />
+                              </button>
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                title="Reset password"
+                                [attr.aria-label]="'Reset password of ' + u.email"
+                                (click)="openPasswordModal(u)"
+                              >
+                                <app-icon name="lock" [size]="14" />
+                              </button>
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                [title]="
+                                  u.status === 'active' ? 'Deactivate user' : 'Activate user'
+                                "
+                                [attr.aria-label]="
+                                  (u.status === 'active' ? 'Deactivate ' : 'Activate ') + u.email
+                                "
+                                (click)="toggleUserStatus(u)"
+                              >
+                                <app-icon name="settings" [size]="14" />
+                              </button>
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                title="Delete user"
+                                [attr.aria-label]="'Delete ' + u.email"
+                                (click)="deleteUser(u.id, u.email)"
+                              >
+                                <app-icon name="x" [size]="14" />
+                              </button>
+                            }
                           </td>
                         </tr>
                       }
@@ -230,6 +316,7 @@ type SettingsTab = 'users' | 'roles';
                         <th>Description</th>
                         <th>Permissions</th>
                         <th>Type</th>
+                        <th class="text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -250,6 +337,20 @@ type SettingsTab = 'users' | 'roles';
                               {{ role.is_system ? 'System' : 'Custom' }}
                             </span>
                           </td>
+                          <td class="text-right">
+                            @if (!role.is_system) {
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                title="Edit role"
+                                [attr.aria-label]="'Edit role ' + role.name"
+                                (click)="openEditRoleModal(role)"
+                              >
+                                <app-icon name="edit" [size]="14" />
+                              </button>
+                            }
+                          </td>
                         </tr>
                       }
                     </tbody>
@@ -264,22 +365,40 @@ type SettingsTab = 'users' | 'roles';
       <!-- User Create Modal -->
       <app-modal
         [open]="userModalOpen()"
-        title="Add New User"
-        subtitle="Invite a team member or administrator with assigned roles"
+        [title]="editingUser() ? 'Edit ' + editingUser()!.email : 'Add New User'"
+        subtitle="Roles decide what the user may do; plants limit where"
         (close)="userModalOpen.set(false)"
       >
         <form (ngSubmit)="saveUser()" class="modal-form">
-          <div class="form-group">
-            <label class="form-label">Email Address *</label>
-            <input
-              type="email"
-              class="form-input"
-              placeholder="e.g. operator@company.com"
-              [(ngModel)]="userForm.email"
-              name="email"
-              required
-            />
-          </div>
+          @if (isPlatformAdmin() && !editingUser()) {
+            <div class="form-group">
+              <label class="form-label">Company *</label>
+              <select
+                class="form-select"
+                [(ngModel)]="userForm.company_id"
+                name="company_id"
+                required
+              >
+                <option [ngValue]="null" disabled>Select the company</option>
+                @for (c of companies(); track c.id) {
+                  <option [ngValue]="c.id">{{ c.name }} ({{ c.code }})</option>
+                }
+              </select>
+            </div>
+          }
+          @if (!editingUser()) {
+            <div class="form-group">
+              <label class="form-label">Email Address *</label>
+              <input
+                type="email"
+                class="form-input"
+                placeholder="e.g. operator@company.com"
+                [(ngModel)]="userForm.email"
+                name="email"
+                required
+              />
+            </div>
+          }
 
           <div class="form-row">
             <div class="form-group flex-1">
@@ -304,32 +423,56 @@ type SettingsTab = 'users' | 'roles';
             </div>
           </div>
 
+          @if (!editingUser()) {
+            <div class="form-group">
+              <label class="form-label">Initial Password *</label>
+              <input
+                type="password"
+                class="form-input"
+                placeholder="At least 12 characters, with upper and lower case letters and a digit"
+                autocomplete="new-password"
+                [(ngModel)]="userForm.password"
+                name="password"
+                required
+              />
+            </div>
+          }
           <div class="form-group">
-            <label class="form-label">Initial Password *</label>
-            <input
-              type="password"
-              class="form-input"
-              placeholder="Enter strong password (minimum 8 characters)"
-              [(ngModel)]="userForm.password"
-              name="password"
-              required
-            />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Assign Role *</label>
-            <select
-              class="form-select"
-              [(ngModel)]="userForm.selectedRoleCode"
-              name="selectedRoleCode"
-              required
-            >
-              <option [ngValue]="null" disabled>Select Role</option>
+            <span class="form-label">Roles * ({{ userForm.roles.size }} selected)</span>
+            <div class="perms-picker">
               @for (r of roles(); track r.id) {
-                <option [ngValue]="r.code">{{ r.name }} ({{ r.code }})</option>
+                <label class="perm-checkbox-item">
+                  <input
+                    type="checkbox"
+                    [checked]="userForm.roles.has(r.code)"
+                    (change)="toggleInSet(userForm.roles, r.code)"
+                  />
+                  <span>{{ r.name }} ({{ r.code }})</span>
+                </label>
               }
-            </select>
+            </div>
           </div>
+          @if (plantsForUserForm().length) {
+            <div class="form-group">
+              <span class="form-label">
+                Plant access ({{
+                  userForm.plants.size ? userForm.plants.size + ' selected' : 'all plants'
+                }})
+              </span>
+              <div class="perms-picker">
+                @for (pl of plantsForUserForm(); track pl.id) {
+                  <label class="perm-checkbox-item">
+                    <input
+                      type="checkbox"
+                      [checked]="userForm.plants.has(pl.id)"
+                      (change)="toggleInSet(userForm.plants, pl.id)"
+                    />
+                    <span>{{ pl.name }} ({{ pl.code }})</span>
+                  </label>
+                }
+              </div>
+            </div>
+          }
 
           <div class="modal-actions">
             <button appButton variant="secondary" type="button" (click)="userModalOpen.set(false)">
@@ -341,12 +484,45 @@ type SettingsTab = 'users' | 'roles';
               type="submit"
               [disabled]="
                 saving() ||
-                !userForm.email.trim() ||
-                !userForm.password.trim() ||
-                !userForm.selectedRoleCode
+                userForm.roles.size === 0 ||
+                (!editingUser() &&
+                  (!userForm.email.trim() ||
+                    !userForm.password.trim() ||
+                    (isPlatformAdmin() && !userForm.company_id)))
               "
             >
-              {{ saving() ? 'Creating...' : 'Create User' }}
+              {{ saving() ? 'Saving...' : editingUser() ? 'Save User' : 'Create User' }}
+            </button>
+          </div>
+        </form>
+      </app-modal>
+
+      <!-- Password Reset Modal -->
+      <app-modal
+        [open]="passwordUser() !== null"
+        [title]="'Reset password: ' + (passwordUser()?.email ?? '')"
+        subtitle="The user's sessions end; they sign in with the new password"
+        (close)="passwordUser.set(null)"
+      >
+        <form (ngSubmit)="resetPassword()" class="modal-form">
+          <div class="form-group">
+            <label class="form-label" for="newPassword">New password *</label>
+            <input
+              id="newPassword"
+              type="password"
+              class="form-input"
+              autocomplete="new-password"
+              [(ngModel)]="newPassword"
+              name="newPassword"
+              required
+            />
+          </div>
+          <div class="modal-actions">
+            <button appButton variant="secondary" type="button" (click)="passwordUser.set(null)">
+              Cancel
+            </button>
+            <button appButton variant="primary" type="submit" [disabled]="saving() || !newPassword">
+              {{ saving() ? 'Saving...' : 'Reset password' }}
             </button>
           </div>
         </form>
@@ -355,7 +531,7 @@ type SettingsTab = 'users' | 'roles';
       <!-- Role Create Modal -->
       <app-modal
         [open]="roleModalOpen()"
-        title="Create Custom Role"
+        [title]="editingRoleId() ? 'Edit Custom Role' : 'Create Custom Role'"
         subtitle="Define fine-grained permission assignments"
         (close)="roleModalOpen.set(false)"
       >
@@ -368,6 +544,7 @@ type SettingsTab = 'users' | 'roles';
                 class="form-input"
                 placeholder="e.g. SHIFT_SUPERVISOR"
                 [(ngModel)]="roleForm.code"
+                [disabled]="editingRoleId() !== null"
                 name="code"
                 required
               />
@@ -424,7 +601,7 @@ type SettingsTab = 'users' | 'roles';
               type="submit"
               [disabled]="saving() || !roleForm.code.trim() || !roleForm.name.trim()"
             >
-              {{ saving() ? 'Creating...' : 'Create Role' }}
+              {{ saving() ? 'Saving...' : editingRoleId() ? 'Save Role' : 'Create Role' }}
             </button>
           </div>
         </form>
@@ -713,6 +890,15 @@ type SettingsTab = 'users' | 'roles';
       cursor: pointer;
     }
 
+    .status-filter {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      color: var(--text-secondary);
+      font-size: var(--fs-sm);
+      white-space: nowrap;
+    }
+
     .modal-actions {
       display: flex;
       align-items: center;
@@ -749,27 +935,30 @@ export class SettingsPageComponent implements OnInit {
 
   readonly users = signal<User[]>([]);
   readonly roles = signal<Role[]>([]);
-  readonly allPermissions = signal<Permission[]>([]);
+  readonly allPermissions = signal<PermissionModel[]>([]);
 
   readonly usersTotal = signal(0);
 
+  private readonly auth = inject(AuthService);
+  private readonly companiesApi = inject(CompaniesApi);
+  private readonly locationsApi = inject(LocationsApi);
+  protected readonly isPlatformAdmin = computed(() =>
+    this.auth.hasPermission(Permission.TenantAll),
+  );
+  readonly companies = signal<Company[]>([]);
+  readonly plants = signal<Plant[]>([]);
+  readonly userStatusView = signal<'visible' | RecordStatus>('visible');
+
   // Modals
   readonly userModalOpen = signal(false);
-  userForm: {
-    email: string;
-    password: string;
-    first_name: string;
-    last_name: string;
-    selectedRoleCode: string | null;
-  } = {
-    email: '',
-    password: '',
-    first_name: '',
-    last_name: '',
-    selectedRoleCode: null,
-  };
+  readonly editingUser = signal<User | null>(null);
+  userForm: UserForm = blankUserForm();
+
+  readonly passwordUser = signal<User | null>(null);
+  newPassword = '';
 
   readonly roleModalOpen = signal(false);
+  readonly editingRoleId = signal<number | null>(null);
   roleForm = {
     code: '',
     name: '',
@@ -803,11 +992,42 @@ export class SettingsPageComponent implements OnInit {
   loadLookups(): void {
     forkJoin({
       roles: this.rolesApi.list().pipe(catchError(() => of([] as Role[]))),
-      perms: this.rolesApi.listPermissions().pipe(catchError(() => of([] as Permission[]))),
-    }).subscribe(({ roles, perms }) => {
+      perms: this.rolesApi.listPermissions().pipe(catchError(() => of([] as PermissionModel[]))),
+      plants: this.locationsApi.listAllPlants().pipe(catchError(() => of([] as Plant[]))),
+    }).subscribe(({ roles, perms, plants }) => {
       this.roles.set(roles);
       this.allPermissions.set(perms);
+      this.plants.set(plants);
     });
+    if (this.isPlatformAdmin()) {
+      this.companiesApi.listAll().subscribe({
+        next: (companies) => this.companies.set(companies),
+        error: (err) => this.toast.error(err, 'Unable to load companies.'),
+      });
+    }
+  }
+
+  setUserStatusView(view: 'visible' | RecordStatus): void {
+    this.userStatusView.set(view);
+    this.loadCurrentTab();
+  }
+
+  /** Plants of the company the user in the form belongs to (platform admins see every company). */
+  plantsForUserForm(): Plant[] {
+    const companyId = this.editingUser()?.company_id ?? this.userForm.company_id;
+    return companyId ? this.plants().filter((p) => p.company_id === companyId) : this.plants();
+  }
+
+  plantNames(ids: number[]): string {
+    return ids.map((id) => this.plants().find((p) => p.id === id)?.name ?? `#${id}`).join(', ');
+  }
+
+  toggleInSet<T>(set: Set<T>, value: T): void {
+    if (set.has(value)) {
+      set.delete(value);
+    } else {
+      set.add(value);
+    }
   }
 
   setTab(tab: SettingsTab): void {
@@ -821,8 +1041,9 @@ export class SettingsPageComponent implements OnInit {
     this.error.set(null);
 
     switch (this.activeTab()) {
-      case 'users':
-        this.usersApi.listAll({ status: VISIBLE_STATUSES }).subscribe({
+      case 'users': {
+        const view = this.userStatusView();
+        this.usersApi.listAll({ status: view === 'visible' ? VISIBLE_STATUSES : view }).subscribe({
           next: (items) => {
             this.users.set(items);
             this.usersTotal.set(items.length);
@@ -834,6 +1055,7 @@ export class SettingsPageComponent implements OnInit {
           },
         });
         break;
+      }
 
       case 'roles':
         this.rolesApi.list().subscribe({
@@ -852,46 +1074,136 @@ export class SettingsPageComponent implements OnInit {
 
   // User actions
   openCreateUserModal(): void {
+    this.editingUser.set(null);
+    this.userForm = blankUserForm();
+    this.userModalOpen.set(true);
+  }
+
+  openEditUserModal(user: User): void {
+    this.editingUser.set(user);
     this.userForm = {
-      email: '',
-      password: '',
-      first_name: '',
-      last_name: '',
-      selectedRoleCode: this.roles()[0]?.code ?? null,
+      ...blankUserForm(),
+      company_id: user.company_id,
+      email: user.email,
+      first_name: user.first_name ?? '',
+      last_name: user.last_name ?? '',
+      roles: new Set(user.roles),
+      plants: new Set(user.plant_ids),
     };
     this.userModalOpen.set(true);
   }
 
   saveUser(): void {
-    if (
-      !this.userForm.email.trim() ||
-      !this.userForm.password.trim() ||
-      !this.userForm.selectedRoleCode
-    ) {
+    const editing = this.editingUser();
+    if (editing) {
+      this.updateUser(editing);
+      return;
+    }
+    if (!this.userForm.email.trim() || !this.userForm.password || !this.userForm.roles.size) {
       return;
     }
     this.saving.set(true);
 
     const payload: UserCreate = {
       email: this.userForm.email.trim(),
-      password: this.userForm.password.trim(),
-      first_name: this.userForm.first_name.trim() || undefined,
-      last_name: this.userForm.last_name.trim() || undefined,
-      role_codes: [this.userForm.selectedRoleCode],
+      password: this.userForm.password,
+      first_name: this.userForm.first_name.trim() || null,
+      last_name: this.userForm.last_name.trim() || null,
+      role_codes: [...this.userForm.roles],
+      company_id: this.isPlatformAdmin() ? this.userForm.company_id : undefined,
     };
+    const plantIds = [...this.userForm.plants];
 
-    this.usersApi.create(payload).subscribe({
-      next: (created) => {
-        this.users.update((list) => [created, ...list]);
-        this.usersTotal.update((n) => n + 1);
-        this.userModalOpen.set(false);
+    this.usersApi
+      .create(payload)
+      .pipe(
+        switchMap((created) =>
+          plantIds.length ? this.usersApi.setPlants(created.id, plantIds) : of(created),
+        ),
+      )
+      .subscribe({
+        next: (created) => {
+          this.users.update((list) => [created, ...list]);
+          this.usersTotal.update((n) => n + 1);
+          this.userModalOpen.set(false);
+          this.saving.set(false);
+          this.toast.success(`User "${created.email}" created successfully.`);
+        },
+        error: (err) => {
+          this.saving.set(false);
+          this.toast.error(err, 'Failed to create user.');
+        },
+      });
+  }
+
+  /** Names, roles and plant access are separate endpoints; only what changed is sent. */
+  private updateUser(user: User): void {
+    if (!this.userForm.roles.size) return;
+    const steps: Observable<User>[] = [];
+    const firstName = this.userForm.first_name.trim() || null;
+    const lastName = this.userForm.last_name.trim() || null;
+    if (firstName !== user.first_name || lastName !== user.last_name) {
+      steps.push(this.usersApi.update(user.id, { first_name: firstName, last_name: lastName }));
+    }
+    const roles = [...this.userForm.roles].sort();
+    if (roles.join() !== [...user.roles].sort().join()) {
+      steps.push(this.usersApi.setRoles(user.id, roles));
+    }
+    const plants = [...this.userForm.plants].sort((a, b) => a - b);
+    if (plants.join() !== [...user.plant_ids].sort((a, b) => a - b).join()) {
+      steps.push(this.usersApi.setPlants(user.id, plants));
+    }
+    if (!steps.length) {
+      this.userModalOpen.set(false);
+      return;
+    }
+    this.saving.set(true);
+    concat(...steps)
+      .pipe(last())
+      .subscribe({
+        next: (updated) => {
+          this.users.update((list) => list.map((u) => (u.id === updated.id ? updated : u)));
+          this.userModalOpen.set(false);
+          this.saving.set(false);
+          this.toast.success(`User "${updated.email}" updated.`);
+        },
+        error: (err) => {
+          this.saving.set(false);
+          this.toast.error(err, 'Failed to update user.');
+          this.loadCurrentTab(); // some steps may have been saved
+        },
+      });
+  }
+
+  openPasswordModal(user: User): void {
+    this.newPassword = '';
+    this.passwordUser.set(user);
+  }
+
+  resetPassword(): void {
+    const user = this.passwordUser();
+    if (!user || !this.newPassword) return;
+    this.saving.set(true);
+    this.usersApi.resetPassword(user.id, this.newPassword).subscribe({
+      next: () => {
         this.saving.set(false);
-        this.toast.success(`User "${created.email}" created successfully.`);
+        this.passwordUser.set(null);
+        this.toast.success(`Password of "${user.email}" reset; their sessions ended.`);
       },
       error: (err) => {
         this.saving.set(false);
-        this.toast.error(err, 'Failed to create user.');
+        this.toast.error(err, 'Failed to reset the password.');
       },
+    });
+  }
+
+  restoreUser(user: User): void {
+    this.usersApi.update(user.id, { status: 'active' }).subscribe({
+      next: () => {
+        this.users.update((list) => list.filter((u) => u.id !== user.id));
+        this.toast.success(`User "${user.email}" restored.`);
+      },
+      error: (err) => this.toast.error(err, 'Failed to restore user.'),
     });
   }
 
@@ -923,7 +1235,15 @@ export class SettingsPageComponent implements OnInit {
   }
 
   // Role actions
+  openEditRoleModal(role: Role): void {
+    this.editingRoleId.set(role.id);
+    this.roleForm = { code: role.code, name: role.name, description: role.description ?? '' };
+    this.selectedPermissions.set(new Set(role.permissions));
+    this.roleModalOpen.set(true);
+  }
+
   openCreateRoleModal(): void {
+    this.editingRoleId.set(null);
     this.roleForm = {
       code: '',
       name: '',
@@ -948,6 +1268,29 @@ export class SettingsPageComponent implements OnInit {
   saveRole(): void {
     if (!this.roleForm.code.trim() || !this.roleForm.name.trim()) return;
     this.saving.set(true);
+
+    const editingId = this.editingRoleId();
+    if (editingId) {
+      this.rolesApi
+        .update(editingId, {
+          name: this.roleForm.name.trim(),
+          description: this.roleForm.description.trim() || null,
+          permission_codes: Array.from(this.selectedPermissions()),
+        })
+        .subscribe({
+          next: (updated) => {
+            this.roles.update((list) => list.map((r) => (r.id === updated.id ? updated : r)));
+            this.roleModalOpen.set(false);
+            this.saving.set(false);
+            this.toast.success(`Role "${updated.name}" updated.`);
+          },
+          error: (err) => {
+            this.saving.set(false);
+            this.toast.error(err, 'Failed to update role.');
+          },
+        });
+      return;
+    }
 
     const payload: RoleCreate = {
       code: this.roleForm.code.trim().toUpperCase(),
