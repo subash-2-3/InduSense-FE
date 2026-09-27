@@ -25,11 +25,18 @@
   <div class="topbar__spacer"></div>
 
   @if (user(); as u) {
-    <div class="company" [attr.title]="u.companyName + ' (' + u.companyCode + ')'">
-      <app-icon name="building" [size]="16" />
-      <span class="company__name">{{ u.companyName }}</span>
-      <span class="company__code">{{ u.companyCode }}</span>
-    </div>
+    @if (u.companyName) {
+      <div class="company" [attr.title]="u.companyName + ' (' + u.companyCode + ')'">
+        <app-icon name="building" [size]="16" />
+        <span class="company__name">{{ u.companyName }}</span>
+        <span class="company__code">{{ u.companyCode }}</span>
+      </div>
+    } @else {
+      <div class="company" title="Platform administration: every company">
+        <app-icon name="settings" [size]="16" />
+        <span class="company__name">Platform</span>
+      </div>
+    }
   }
 
   <div class="topbar__tools">
@@ -81,7 +88,7 @@
           <div class="user-card__text">
             <p class="user-card__name">{{ u.name }}</p>
             <p class="user-card__meta">{{ u.email }}</p>
-            <p class="user-card__meta">{{ u.role }} · {{ u.companyCode }}</p>
+            <p class="user-card__meta">{{ u.role }} · {{ u.companyCode ?? 'Platform' }}</p>
           </div>
         </div>
       </app-dropdown-menu>

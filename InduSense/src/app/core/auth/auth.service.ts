@@ -29,8 +29,9 @@ export interface DisplayUser {
   name: string;
   email: string;
   role: string;
-  companyName: string;
-  companyCode: string;
+  /** `null` for a platform administrator, who belongs to no company. */
+  companyName: string | null;
+  companyCode: string | null;
 }
 
 /** Browser-session endpoints (InduSense-BE `/auth/session`). */

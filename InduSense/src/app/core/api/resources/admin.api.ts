@@ -62,6 +62,11 @@ export class UsersApi {
     return this.api.put<User>(`/users/${id}/roles`, body);
   }
 
+  /** Limits the user to these plants; an empty list gives access to every plant of the company. */
+  setPlants(id: number, plantIds: number[]): Observable<User> {
+    return this.api.put<User>(`/users/${id}/plants`, { plant_ids: plantIds });
+  }
+
   resetPassword(id: number, newPassword: string): Observable<void> {
     const body: PasswordReset = { new_password: newPassword };
     return this.api.post<void>(`/users/${id}/password`, body);
