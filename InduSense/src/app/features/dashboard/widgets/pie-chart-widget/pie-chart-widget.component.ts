@@ -51,12 +51,12 @@ export class PieChartWidgetComponent {
 
   readonly retry = output<void>();
 
-  private readonly theme = inject(ChartThemeService).theme;
+  private readonly theme = inject(ChartThemeService).current;
   protected readonly width = signal(0);
 
   protected readonly hasData = computed(() => !!this.slices()?.some((s) => s.value > 0));
   protected readonly options = computed(() =>
-    buildPieOptions(this.slices() ?? [], this.theme, this.width() > 0 && this.width() < 360),
+    buildPieOptions(this.slices() ?? [], this.theme(), this.width() > 0 && this.width() < 360),
   );
   protected readonly summary = computed(() => pieSummary(this.heading(), this.slices() ?? []));
 }

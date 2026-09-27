@@ -15,6 +15,7 @@ import {
   StatusPillComponent,
   StatusTone,
 } from '../../shared/ui';
+import { ToastService } from '../../shared/ui/toast/toast.service';
 import { formatDateTime } from '../../shared/utils/format';
 
 @Component({
@@ -50,14 +51,6 @@ import { formatDateTime } from '../../shared/utils/format';
         </div>
       </header>
 
-      @if (actionFeedback(); as fb) {
-        <div class="feedback-banner" [class.feedback-banner--error]="fb.type === 'error'">
-          <span>{{ fb.message }}</span>
-          <button class="clear-btn" type="button" (click)="actionFeedback.set(null)">
-            <app-icon name="x" [size]="14" />
-          </button>
-        </div>
-      }
 
       <div class="dev-toolbar">
         <div class="dev-search">
@@ -400,24 +393,6 @@ import { formatDateTime } from '../../shared/utils/format';
       font-family: var(--font-mono);
     }
 
-    .feedback-banner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 16px;
-      border-radius: var(--radius-sm);
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: #34d399;
-      font-size: var(--text-sm);
-    }
-
-    .feedback-banner--error {
-      background: rgba(239, 68, 68, 0.12);
-      border-color: rgba(239, 68, 68, 0.3);
-      color: #f87171;
-    }
-
     .table-container {
       overflow-x: auto;
     }
@@ -608,7 +583,7 @@ export class DevicesPageComponent implements OnInit {
   readonly totalPages = signal(1);
   readonly pageSize = 20;
 
-  readonly actionFeedback = signal<{ message: string; type: 'success' | 'error' } | null>(null);
+  private readonly toast = inject(ToastService);
 
   // Modal
   readonly modalOpen = signal(false);
@@ -701,11 +676,11 @@ export class DevicesPageComponent implements OnInit {
           this.devices.update((list) => list.map((d) => (d.id === updated.id ? updated : d)));
           this.modalOpen.set(false);
           this.saving.set(false);
-          this.setFeedback(`Device "${updated.name || updated.external_id}" updated.`);
+          this.toast.success(`Device "${updated.name || updated.external_id}" updated.`);
         },
         error: (err) => {
           this.saving.set(false);
-          this.setFeedback(err?.message || 'Failed to update device.', 'error');
+          this.toast.error(err, 'Failed to update device.');
         },
       });
     } else {
@@ -722,11 +697,11 @@ export class DevicesPageComponent implements OnInit {
           this.totalCount.update((n) => n + 1);
           this.modalOpen.set(false);
           this.saving.set(false);
-          this.setFeedback(`Device "${created.name || created.external_id}" registered.`);
+          this.toast.success(`Device "${created.name || created.external_id}" registered.`);
         },
         error: (err) => {
           this.saving.set(false);
-          this.setFeedback(err?.message || 'Failed to register device.', 'error');
+          this.toast.error(err, 'Failed to register device.');
         },
       });
     }
@@ -738,10 +713,10 @@ export class DevicesPageComponent implements OnInit {
     this.devicesApi.deactivate(id).subscribe({
       next: (updated) => {
         this.devices.update((list) => list.map((d) => (d.id === id ? updated : d)));
-        this.setFeedback(`Device "${name}" has been deactivated.`);
+        this.toast.success(`Device "${name}" has been deactivated.`);
       },
       error: (err) => {
-        this.setFeedback(err?.message || 'Failed to deactivate device.', 'error');
+        this.toast.error(err, 'Failed to deactivate device.');
       },
     });
   }
@@ -761,10 +736,4 @@ export class DevicesPageComponent implements OnInit {
     return iso ? formatDateTime(iso) : 'Never seen';
   }
 
-  private setFeedback(message: string, type: 'success' | 'error' = 'success'): void {
-    this.actionFeedback.set({ message, type });
-    setTimeout(() => {
-      this.actionFeedback.set(null);
-    }, 5000);
-  }
 }

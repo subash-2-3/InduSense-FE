@@ -15,6 +15,7 @@ import {
   SkeletonComponent,
   StatusPillComponent,
 } from '../../shared/ui';
+import { ToastService } from '../../shared/ui/toast/toast.service';
 
 @Component({
   selector: 'app-locations-page',
@@ -82,14 +83,6 @@ import {
       </div>
 
       <!-- Action Message / Alert -->
-      @if (actionFeedback(); as fb) {
-        <div class="feedback-banner" [class.feedback-banner--error]="fb.type === 'error'">
-          <span>{{ fb.message }}</span>
-          <button class="clear-btn" type="button" (click)="actionFeedback.set(null)">
-            <app-icon name="x" [size]="14" />
-          </button>
-        </div>
-      }
 
       @if (loading()) {
         <div class="loc-skeleton">
@@ -463,24 +456,6 @@ import {
       font-size: var(--text-sm);
     }
 
-    .feedback-banner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 16px;
-      border-radius: var(--radius-sm);
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: #34d399;
-      font-size: var(--text-sm);
-    }
-
-    .feedback-banner--error {
-      background: rgba(239, 68, 68, 0.12);
-      border-color: rgba(239, 68, 68, 0.3);
-      color: #f87171;
-    }
-
     .loc-skeleton {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
@@ -624,7 +599,7 @@ import {
     }
 
     .area-delete-btn:hover {
-      color: #f87171;
+      color: var(--status-fault-text);
     }
 
     .plant-card__actions {
@@ -637,7 +612,7 @@ import {
     }
 
     .text-danger {
-      color: #f87171 !important;
+      color: var(--status-fault-text) !important;
     }
 
     /* Modal Form Styles */
@@ -708,7 +683,7 @@ export class LocationsPageComponent implements OnInit {
 
   readonly searchTerm = signal('');
   readonly statusFilter = signal<'all' | 'active' | 'inactive'>('all');
-  readonly actionFeedback = signal<{ message: string; type: 'success' | 'error' } | null>(null);
+  private readonly toast = inject(ToastService);
 
   // Modals state
   readonly plantModalOpen = signal(false);
@@ -804,11 +779,11 @@ export class LocationsPageComponent implements OnInit {
           this.plants.update((list) => list.map((p) => (p.id === updated.id ? updated : p)));
           this.plantModalOpen.set(false);
           this.saving.set(false);
-          this.setFeedback(`Plant "${updated.name}" updated successfully.`);
+          this.toast.success(`Plant "${updated.name}" updated successfully.`);
         },
         error: (err) => {
           this.saving.set(false);
-          this.setFeedback(err?.message || 'Failed to update plant.', 'error');
+          this.toast.error(err, 'Failed to update plant.');
         },
       });
     } else {
@@ -823,11 +798,11 @@ export class LocationsPageComponent implements OnInit {
           this.plants.update((list) => [created, ...list]);
           this.plantModalOpen.set(false);
           this.saving.set(false);
-          this.setFeedback(`Plant "${created.name}" created successfully.`);
+          this.toast.success(`Plant "${created.name}" created successfully.`);
         },
         error: (err) => {
           this.saving.set(false);
-          this.setFeedback(err?.message || 'Failed to create plant.', 'error');
+          this.toast.error(err, 'Failed to create plant.');
         },
       });
     }
@@ -840,10 +815,10 @@ export class LocationsPageComponent implements OnInit {
     this.locationsApi.updatePlant(plant.id, { is_active: newStatus }).subscribe({
       next: (updated) => {
         this.plants.update((list) => list.map((p) => (p.id === updated.id ? updated : p)));
-        this.setFeedback(`Plant "${plant.name}" has been ${actionLabel}.`);
+        this.toast.success(`Plant "${plant.name}" has been ${actionLabel}.`);
       },
       error: (err) => {
-        this.setFeedback(err?.message || `Failed to change plant status.`, 'error');
+        this.toast.error(err, `Failed to change plant status.`);
       },
     });
   }
@@ -874,11 +849,11 @@ export class LocationsPageComponent implements OnInit {
         this.areas.update((list) => [...list, created]);
         this.areaModalOpen.set(false);
         this.saving.set(false);
-        this.setFeedback(`Area "${created.name}" added to ${plant.name}.`);
+        this.toast.success(`Area "${created.name}" added to ${plant.name}.`);
       },
       error: (err) => {
         this.saving.set(false);
-        this.setFeedback(err?.message || 'Failed to create area.', 'error');
+        this.toast.error(err, 'Failed to create area.');
       },
     });
   }
@@ -889,18 +864,12 @@ export class LocationsPageComponent implements OnInit {
     this.locationsApi.deactivateArea(areaId).subscribe({
       next: () => {
         this.areas.update((list) => list.filter((a) => a.id !== areaId));
-        this.setFeedback(`Area "${areaName}" deactivated.`);
+        this.toast.success(`Area "${areaName}" deactivated.`);
       },
       error: (err) => {
-        this.setFeedback(err?.message || 'Failed to deactivate area.', 'error');
+        this.toast.error(err, 'Failed to deactivate area.');
       },
     });
   }
 
-  private setFeedback(message: string, type: 'success' | 'error' = 'success'): void {
-    this.actionFeedback.set({ message, type });
-    setTimeout(() => {
-      this.actionFeedback.set(null);
-    }, 5000);
-  }
 }

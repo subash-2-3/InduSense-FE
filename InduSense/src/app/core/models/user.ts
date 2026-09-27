@@ -1,13 +1,5 @@
 import { IsoDateTime } from './common';
 
-export interface TokenResponse {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
-  refresh_expires_in: number;
-}
-
 /** `UserResponse` (InduSense-BE `app/schemas/user.py`). */
 export interface User {
   id: number;
@@ -38,3 +30,5 @@ export interface LoginRequest {
   email: string;
   password: string;
 }
+
+// No token types: authentication uses HttpOnly cookies, so tokens never reach the app.

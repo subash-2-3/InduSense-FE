@@ -27,6 +27,7 @@ import {
   StatusPillComponent,
   StatusTone,
 } from '../../shared/ui';
+import { ToastService } from '../../shared/ui/toast/toast.service';
 
 type AssetTab = 'machines' | 'meters' | 'gateways';
 
@@ -141,14 +142,6 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
         </div>
       </div>
 
-      @if (actionFeedback(); as fb) {
-        <div class="feedback-banner" [class.feedback-banner--error]="fb.type === 'error'">
-          <span>{{ fb.message }}</span>
-          <button class="clear-btn" type="button" (click)="actionFeedback.set(null)">
-            <app-icon name="x" [size]="14" />
-          </button>
-        </div>
-      }
 
       <app-card [padded]="false">
         @if (loading()) {
@@ -848,24 +841,6 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
       font-size: var(--text-sm);
     }
 
-    .feedback-banner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 16px;
-      border-radius: var(--radius-sm);
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: #34d399;
-      font-size: var(--text-sm);
-    }
-
-    .feedback-banner--error {
-      background: rgba(239, 68, 68, 0.12);
-      border-color: rgba(239, 68, 68, 0.3);
-      color: #f87171;
-    }
-
     .table-container {
       overflow-x: auto;
     }
@@ -1027,7 +1002,7 @@ export class AssetsPageComponent implements OnInit {
 
   readonly searchTerm = signal('');
   readonly statusFilter = signal<'all' | 'active' | 'inactive'>('all');
-  readonly actionFeedback = signal<{ message: string; type: 'success' | 'error' } | null>(null);
+  private readonly toast = inject(ToastService);
 
   readonly machines = signal<Machine[]>([]);
   readonly meters = signal<Meter[]>([]);
@@ -1186,10 +1161,10 @@ export class AssetsPageComponent implements OnInit {
 
     switch (this.activeTab()) {
       case 'machines':
-        this.machinesApi.list({ page: 1, page_size: 50 }).subscribe({
-          next: (page) => {
-            this.machines.set(page.items);
-            this.machinesTotal.set(page.pagination.total);
+        this.machinesApi.listAll().subscribe({
+          next: (items) => {
+            this.machines.set(items);
+            this.machinesTotal.set(items.length);
             this.loading.set(false);
           },
           error: (err) => {
@@ -1200,10 +1175,10 @@ export class AssetsPageComponent implements OnInit {
         break;
 
       case 'meters':
-        this.metersApi.list({ page: 1, page_size: 50 }).subscribe({
-          next: (page) => {
-            this.meters.set(page.items);
-            this.metersTotal.set(page.pagination.total);
+        this.metersApi.listAll().subscribe({
+          next: (items) => {
+            this.meters.set(items);
+            this.metersTotal.set(items.length);
             this.loading.set(false);
           },
           error: (err) => {
@@ -1214,10 +1189,10 @@ export class AssetsPageComponent implements OnInit {
         break;
 
       case 'gateways':
-        this.gatewaysApi.list({ page: 1, page_size: 50 }).subscribe({
-          next: (page) => {
-            this.gateways.set(page.items);
-            this.gatewaysTotal.set(page.pagination.total);
+        this.gatewaysApi.listAll().subscribe({
+          next: (items) => {
+            this.gateways.set(items);
+            this.gatewaysTotal.set(items.length);
             this.loading.set(false);
           },
           error: (err) => {
@@ -1277,11 +1252,11 @@ export class AssetsPageComponent implements OnInit {
         this.machinesTotal.update((n) => n + 1);
         this.machineModalOpen.set(false);
         this.saving.set(false);
-        this.setFeedback(`Machine "${created.name}" created successfully.`);
+        this.toast.success(`Machine "${created.name}" created successfully.`);
       },
       error: (err) => {
         this.saving.set(false);
-        this.setFeedback(err?.message || 'Failed to create machine.', 'error');
+        this.toast.error(err, 'Failed to create machine.');
       },
     });
   }
@@ -1292,10 +1267,10 @@ export class AssetsPageComponent implements OnInit {
     this.machinesApi.deactivate(id).subscribe({
       next: (updated) => {
         this.machines.update((list) => list.map((m) => (m.id === id ? updated : m)));
-        this.setFeedback(`Machine "${name}" has been deactivated.`);
+        this.toast.success(`Machine "${name}" has been deactivated.`);
       },
       error: (err) => {
-        this.setFeedback(err?.message || 'Failed to deactivate machine.', 'error');
+        this.toast.error(err, 'Failed to deactivate machine.');
       },
     });
   }
@@ -1338,11 +1313,11 @@ export class AssetsPageComponent implements OnInit {
         this.metersTotal.update((n) => n + 1);
         this.meterModalOpen.set(false);
         this.saving.set(false);
-        this.setFeedback(`Meter "${created.name}" created successfully.`);
+        this.toast.success(`Meter "${created.name}" created successfully.`);
       },
       error: (err) => {
         this.saving.set(false);
-        this.setFeedback(err?.message || 'Failed to create meter.', 'error');
+        this.toast.error(err, 'Failed to create meter.');
       },
     });
   }
@@ -1352,10 +1327,10 @@ export class AssetsPageComponent implements OnInit {
     this.metersApi.update(meter.id, { is_active: newStatus }).subscribe({
       next: (updated) => {
         this.meters.update((list) => list.map((m) => (m.id === meter.id ? updated : m)));
-        this.setFeedback(`Meter "${meter.name}" status updated.`);
+        this.toast.success(`Meter "${meter.name}" status updated.`);
       },
       error: (err) => {
-        this.setFeedback(err?.message || 'Failed to update meter status.', 'error');
+        this.toast.error(err, 'Failed to update meter status.');
       },
     });
   }
@@ -1366,10 +1341,10 @@ export class AssetsPageComponent implements OnInit {
     this.metersApi.deactivate(id).subscribe({
       next: (updated) => {
         this.meters.update((list) => list.map((m) => (m.id === id ? updated : m)));
-        this.setFeedback(`Meter "${name}" has been deactivated.`);
+        this.toast.success(`Meter "${name}" has been deactivated.`);
       },
       error: (err) => {
-        this.setFeedback(err?.message || 'Failed to deactivate meter.', 'error');
+        this.toast.error(err, 'Failed to deactivate meter.');
       },
     });
   }
@@ -1406,11 +1381,11 @@ export class AssetsPageComponent implements OnInit {
         this.gatewaysTotal.update((n) => n + 1);
         this.gatewayModalOpen.set(false);
         this.saving.set(false);
-        this.setFeedback(`Gateway "${created.name}" created successfully.`);
+        this.toast.success(`Gateway "${created.name}" created successfully.`);
       },
       error: (err) => {
         this.saving.set(false);
-        this.setFeedback(err?.message || 'Failed to create gateway.', 'error');
+        this.toast.error(err, 'Failed to create gateway.');
       },
     });
   }
@@ -1421,10 +1396,10 @@ export class AssetsPageComponent implements OnInit {
     this.gatewaysApi.deactivate(id).subscribe({
       next: (updated) => {
         this.gateways.update((list) => list.map((g) => (g.id === id ? updated : g)));
-        this.setFeedback(`Gateway "${name}" has been deactivated.`);
+        this.toast.success(`Gateway "${name}" has been deactivated.`);
       },
       error: (err) => {
-        this.setFeedback(err?.message || 'Failed to deactivate gateway.', 'error');
+        this.toast.error(err, 'Failed to deactivate gateway.');
       },
     });
   }
@@ -1443,10 +1418,4 @@ export class AssetsPageComponent implements OnInit {
     }
   }
 
-  private setFeedback(message: string, type: 'success' | 'error' = 'success'): void {
-    this.actionFeedback.set({ message, type });
-    setTimeout(() => {
-      this.actionFeedback.set(null);
-    }, 5000);
-  }
 }

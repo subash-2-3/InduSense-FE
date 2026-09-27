@@ -29,6 +29,7 @@
   --status-warning: #f59e0b;
   --status-stopped: #64748b;
   --status-fault: #ef4444;
+  --status-fault-text: #f87171; // fault/error as text (lighter than --status-fault for contrast)
 
   /* Fonts */
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -81,4 +82,34 @@
   --z-topbar: 30;
   --z-dropdown: 50;
   --z-overlay: 60;
+  --z-toast: 70;
+}
+
+// Light theme (ThemeService sets data-theme on <html>). Only colors change; text colors keep
+// >= 4.5:1 on white and on --bg-app, and accent/status colors are darkened to stay legible as text.
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-app: #f1f5f9;
+  --bg-sidebar: #ffffff;
+  --bg-topbar: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --bg-popover: #ffffff;
+  --border-card: #e2e8f0;
+  --border-light: #cbd5e1;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #566378;
+
+  --accent-cyan: #0e7490;
+  --accent-cyan-soft: rgb(14 116 144 / 12%);
+  --status-running: #047857;
+  --status-warning: #b45309;
+  --status-stopped: #64748b;
+  --status-fault: #dc2626;
+  --status-fault-text: #b91c1c;
+
+  --shadow-popover: 0 12px 32px rgb(15 23 42 / 14%);
 }

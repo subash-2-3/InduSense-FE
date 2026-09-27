@@ -68,7 +68,7 @@
   border: 1px solid color-mix(in srgb, var(--status-fault) 45%, transparent);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--status-fault) 12%, transparent);
-  color: #fca5a5;
+  color: var(--status-fault-text);
   font-size: var(--fs-sm);
 }
 
@@ -138,7 +138,7 @@
 
 .field__error {
   margin-top: 6px;
-  color: #f87171;
+  color: var(--status-fault-text);
   font-size: var(--fs-sm);
 }
 

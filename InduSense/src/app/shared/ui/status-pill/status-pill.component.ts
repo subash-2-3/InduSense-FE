@@ -42,7 +42,7 @@ import { StatusTone } from '../../utils/status-colors';
 
     :host([data-tone='fault']) {
       --pill-color: var(--status-fault);
-      --pill-text: #f87171;
+      --pill-text: var(--status-fault-text);
     }
 
     :host([data-tone='info']) {

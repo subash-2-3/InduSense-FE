@@ -52,14 +52,14 @@ export class DonutStatusWidgetComponent {
 
   readonly retry = output<void>();
 
-  private readonly theme = inject(ChartThemeService).theme;
+  private readonly theme = inject(ChartThemeService).current;
   protected readonly width = signal(0);
 
   protected readonly hasData = computed(() => !!this.slices()?.some((s) => s.value > 0));
   protected readonly options = computed(() =>
     buildDonutOptions(
       this.slices() ?? [],
-      this.theme,
+      this.theme(),
       this.centerLabel(),
       this.width() > 0 && this.width() < 360,
     ),

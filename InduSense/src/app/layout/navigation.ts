@@ -29,7 +29,7 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     path: '/reports',
     icon: 'line-chart',
     hasChildren: true,
-    permission: Permission.TelemetryView,
+    permission: Permission.ReportsView,
   },
   { label: 'Alarms', path: '/alarms', icon: 'bell', hasChildren: true },
   { label: 'More', path: '/more', icon: 'more-horizontal' },

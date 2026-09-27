@@ -24,6 +24,7 @@ import {
   SkeletonComponent,
   StatusPillComponent,
 } from '../../shared/ui';
+import { ToastService } from '../../shared/ui/toast/toast.service';
 import { formatDateTime } from '../../shared/utils/format';
 
 type SettingsTab = 'users' | 'roles' | 'companies';
@@ -109,14 +110,6 @@ type SettingsTab = 'users' | 'roles' | 'companies';
       </div>
 
       <!-- Action Feedback Banner -->
-      @if (actionFeedback(); as fb) {
-        <div class="feedback-banner" [class.feedback-banner--error]="fb.type === 'error'">
-          <span>{{ fb.message }}</span>
-          <button class="clear-btn" type="button" (click)="actionFeedback.set(null)">
-            <app-icon name="x" [size]="14" />
-          </button>
-        </div>
-      }
 
       <div class="settings-toolbar">
         <div class="search-box">
@@ -673,24 +666,6 @@ type SettingsTab = 'users' | 'roles' | 'companies';
       place-items: center;
     }
 
-    .feedback-banner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 16px;
-      border-radius: var(--radius-sm);
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: #34d399;
-      font-size: var(--text-sm);
-    }
-
-    .feedback-banner--error {
-      background: rgba(239, 68, 68, 0.12);
-      border-color: rgba(239, 68, 68, 0.3);
-      color: #f87171;
-    }
-
     .table-container {
       overflow-x: auto;
     }
@@ -883,7 +858,7 @@ export class SettingsPageComponent implements OnInit {
   readonly error = signal<string | null>(null);
 
   readonly searchTerm = signal('');
-  readonly actionFeedback = signal<{ message: string; type: 'success' | 'error' } | null>(null);
+  private readonly toast = inject(ToastService);
 
   readonly users = signal<User[]>([]);
   readonly roles = signal<Role[]>([]);
@@ -980,10 +955,10 @@ export class SettingsPageComponent implements OnInit {
 
     switch (this.activeTab()) {
       case 'users':
-        this.usersApi.list({ page: 1, page_size: 50 }).subscribe({
-          next: (page) => {
-            this.users.set(page.items);
-            this.usersTotal.set(page.pagination.total);
+        this.usersApi.listAll().subscribe({
+          next: (items) => {
+            this.users.set(items);
+            this.usersTotal.set(items.length);
             this.loading.set(false);
           },
           error: (err) => {
@@ -1007,9 +982,9 @@ export class SettingsPageComponent implements OnInit {
         break;
 
       case 'companies':
-        this.companiesApi.list({ page: 1, page_size: 50 }).subscribe({
-          next: (page) => {
-            this.companies.set(page.items);
+        this.companiesApi.listAll().subscribe({
+          next: (items) => {
+            this.companies.set(items);
             this.loading.set(false);
           },
           error: (err) => {
@@ -1053,11 +1028,11 @@ export class SettingsPageComponent implements OnInit {
         this.usersTotal.update((n) => n + 1);
         this.userModalOpen.set(false);
         this.saving.set(false);
-        this.setFeedback(`User "${created.email}" created successfully.`);
+        this.toast.success(`User "${created.email}" created successfully.`);
       },
       error: (err) => {
         this.saving.set(false);
-        this.setFeedback(err?.message || 'Failed to create user.', 'error');
+        this.toast.error(err, 'Failed to create user.');
       },
     });
   }
@@ -1067,10 +1042,10 @@ export class SettingsPageComponent implements OnInit {
     this.usersApi.update(user.id, { is_active: newStatus }).subscribe({
       next: (updated) => {
         this.users.update((list) => list.map((u) => (u.id === user.id ? updated : u)));
-        this.setFeedback(`User "${user.email}" status updated.`);
+        this.toast.success(`User "${user.email}" status updated.`);
       },
       error: (err) => {
-        this.setFeedback(err?.message || 'Failed to update user status.', 'error');
+        this.toast.error(err, 'Failed to update user status.');
       },
     });
   }
@@ -1081,10 +1056,10 @@ export class SettingsPageComponent implements OnInit {
     this.usersApi.deactivate(id).subscribe({
       next: (updated) => {
         this.users.update((list) => list.map((u) => (u.id === id ? updated : u)));
-        this.setFeedback(`User "${email}" deactivated.`);
+        this.toast.success(`User "${email}" deactivated.`);
       },
       error: (err) => {
-        this.setFeedback(err?.message || 'Failed to deactivate user.', 'error');
+        this.toast.error(err, 'Failed to deactivate user.');
       },
     });
   }
@@ -1128,11 +1103,11 @@ export class SettingsPageComponent implements OnInit {
         this.roles.update((list) => [...list, created]);
         this.roleModalOpen.set(false);
         this.saving.set(false);
-        this.setFeedback(`Role "${created.name}" created successfully.`);
+        this.toast.success(`Role "${created.name}" created successfully.`);
       },
       error: (err) => {
         this.saving.set(false);
-        this.setFeedback(err?.message || 'Failed to create role.', 'error');
+        this.toast.error(err, 'Failed to create role.');
       },
     });
   }
@@ -1157,11 +1132,11 @@ export class SettingsPageComponent implements OnInit {
         this.companies.update((list) => [created, ...list]);
         this.companyModalOpen.set(false);
         this.saving.set(false);
-        this.setFeedback(`Company "${created.name}" registered successfully.`);
+        this.toast.success(`Company "${created.name}" registered successfully.`);
       },
       error: (err) => {
         this.saving.set(false);
-        this.setFeedback(err?.message || 'Failed to register company.', 'error');
+        this.toast.error(err, 'Failed to register company.');
       },
     });
   }
@@ -1171,10 +1146,10 @@ export class SettingsPageComponent implements OnInit {
     this.companiesApi.update(company.id, { is_active: newStatus }).subscribe({
       next: (updated) => {
         this.companies.update((list) => list.map((c) => (c.id === company.id ? updated : c)));
-        this.setFeedback(`Company "${company.name}" status updated.`);
+        this.toast.success(`Company "${company.name}" status updated.`);
       },
       error: (err) => {
-        this.setFeedback(err?.message || 'Failed to update company status.', 'error');
+        this.toast.error(err, 'Failed to update company status.');
       },
     });
   }
@@ -1183,10 +1158,4 @@ export class SettingsPageComponent implements OnInit {
     return iso ? formatDateTime(iso) : 'Never';
   }
 
-  private setFeedback(message: string, type: 'success' | 'error' = 'success'): void {
-    this.actionFeedback.set({ message, type });
-    setTimeout(() => {
-      this.actionFeedback.set(null);
-    }, 5000);
-  }
 }

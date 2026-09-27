@@ -53,6 +53,16 @@
     >
       <app-icon name="search" />
     </button>
+    <button
+      appButton
+      variant="icon"
+      type="button"
+      [attr.aria-label]="theme() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+      [attr.title]="theme() === 'dark' ? 'Light theme' : 'Dark theme'"
+      (click)="toggleTheme()"
+    >
+      <app-icon [name]="theme() === 'dark' ? 'sun' : 'moon'" />
+    </button>
     <a appButton variant="icon" routerLink="/settings" aria-label="Settings">
       <app-icon name="settings" />
     </a>
