@@ -41,6 +41,7 @@ import {
   StatusTone,
 } from '../../shared/ui';
 import { ToastService } from '../../shared/ui/toast/toast.service';
+import { AssetTagsDialogComponent, MappedAsset } from './asset-tags-dialog.component';
 import {
   VISIBLE_STATUSES,
   recordStatusLabel,
@@ -74,6 +75,7 @@ interface AssetStatusApi {
     EmptyStateComponent,
     ErrorStateComponent,
     ModalComponent,
+    AssetTagsDialogComponent,
   ],
   template: `
     <div class="assets-page">
@@ -263,6 +265,15 @@ interface AssetStatusApi {
                                 appButton
                                 variant="ghost"
                                 size="sm"
+                                title="Asset tags"
+                                (click)="openAssetTags('machine', m)"
+                              >
+                                Tags
+                              </button>
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
                                 [attr.aria-label]="'Edit ' + m.name"
                                 title="Edit"
                                 (click)="openEditMachineModal(m)"
@@ -365,6 +376,15 @@ interface AssetStatusApi {
                                 Restore
                               </button>
                             } @else {
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                title="Asset tags"
+                                (click)="openAssetTags('meter', meter)"
+                              >
+                                Tags
+                              </button>
                               <button
                                 appButton
                                 variant="ghost"
@@ -898,6 +918,8 @@ interface AssetStatusApi {
         </form>
       </app-modal>
     </div>
+
+    <app-asset-tags-dialog [asset]="mappedAsset()" (closed)="mappedAsset.set(null)" />
   `,
   styles: `
     .assets-page {
@@ -1216,6 +1238,8 @@ export class AssetsPageComponent implements OnInit {
     'FAULT',
   ];
   readonly editingMachineId = signal<number | null>(null);
+  /** Machine or meter whose asset tags are being configured. */
+  readonly mappedAsset = signal<MappedAsset | null>(null);
   readonly editingMeterId = signal<number | null>(null);
   readonly editingGatewayId = signal<number | null>(null);
   private readonly toast = inject(ToastService);
@@ -1436,6 +1460,16 @@ export class AssetsPageComponent implements OnInit {
   devicesForPlant(plantId: number | null): Device[] {
     const plant = this.plants().find((p) => p.id === plantId);
     return plant ? this.devices().filter((d) => d.company_id === plant.company_id) : [];
+  }
+
+  openAssetTags(kind: 'machine' | 'meter', asset: Machine | Meter): void {
+    this.mappedAsset.set({
+      kind,
+      id: asset.id,
+      name: asset.name,
+      company_id: asset.company_id,
+      device_id: asset.device_id,
+    });
   }
 
   setStatusFilter(filter: 'all' | RecordStatus): void {

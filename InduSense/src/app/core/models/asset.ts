@@ -173,7 +173,30 @@ export interface MeterFilters extends PlantAssetFilters {
 export interface TagMappingItem {
   metric: Metric;
   tag_id: number;
+  /** The device the tag was picked from; the backend rejects a tag of another device. */
+  device_id?: number | null;
 }
+
+/** Metrics a machine can map (meters: all but PRODUCTION_COUNTER and RUN_STATUS). */
+export const MACHINE_METRICS: readonly Metric[] = [
+  'PRODUCTION_COUNTER',
+  'RUN_STATUS',
+  'POWER',
+  'ENERGY',
+  'VOLTAGE',
+  'CURRENT',
+  'FREQUENCY',
+  'POWER_FACTOR',
+];
+
+export const METER_METRICS: readonly Metric[] = [
+  'POWER',
+  'ENERGY',
+  'VOLTAGE',
+  'CURRENT',
+  'FREQUENCY',
+  'POWER_FACTOR',
+];
 
 export interface TagMappingsUpdate {
   mappings: TagMappingItem[];
