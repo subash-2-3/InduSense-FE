@@ -28,6 +28,8 @@ import {
   DATA_TYPE_SUGGESTIONS,
   TAG_CODE_PATTERN,
   definitionsOf,
+  formatStateMap,
+  parseStateMap,
   roundoffError,
   roundoffValue,
 } from './tag-rules';
@@ -45,6 +47,8 @@ export interface TagForm {
   is_counter: boolean;
   is_cumulative: boolean;
   status: EditableStatus;
+  /** `0=RUNNING, 1=IDLE, 2=ALARM`; empty = non-zero is running. */
+  state_map: string;
 }
 
 export function emptyForm(type: TagType, deviceId: number | null = null): TagForm {
@@ -61,6 +65,7 @@ export function emptyForm(type: TagType, deviceId: number | null = null): TagFor
     is_counter: false,
     is_cumulative: false,
     status: 'active',
+    state_map: '',
   };
 }
 
@@ -78,6 +83,7 @@ export function formOf(tag: Tag): TagForm {
     is_counter: tag.is_counter,
     is_cumulative: tag.is_cumulative,
     status: tag.status === 'inactive' ? 'inactive' : 'active',
+    state_map: formatStateMap(tag.state_map),
   };
 }
 
@@ -237,6 +243,29 @@ const text = (value: string) => value.trim() || null;
           </label>
         </fieldset>
 
+        @if (form.tag_type === 'oee' || form.state_map) {
+          <fieldset class="group">
+            <legend>Machine state</legend>
+            <label class="f f--wide">
+              <span>State map (machine status tags)</span>
+              <input
+                name="state_map"
+                [(ngModel)]="form.state_map"
+                maxlength="400"
+                placeholder="e.g. 0=RUNNING, 1=IDLE, 2=ALARM"
+              />
+              @if (errors().state_map; as e) {
+                <small class="err" role="alert">{{ e }}</small>
+              } @else {
+                <small>
+                  Which value means which state ({{ states().join(', ') }}); only RUNNING counts as
+                  runtime. Empty: any non-zero value is running.
+                </small>
+              }
+            </label>
+          </fieldset>
+        }
+
         @if (serverError(); as e) {
           <p class="err" role="alert">{{ e }}</p>
         }
@@ -347,6 +376,9 @@ export class TagFormDialogComponent {
   protected readonly saving = signal(false);
   protected readonly serverError = signal<string | null>(null);
   protected readonly max = computed(() => this.metadata()?.roundoff_max ?? 6);
+  protected readonly states = computed(
+    () => this.metadata()?.machine_states ?? ['RUNNING', 'IDLE', 'STOPPED', 'ALARM'],
+  );
   /** Bumped on every edit so the computed checks below re-run (the form is a plain object). */
   private readonly revision = signal(0);
   protected form: TagForm = emptyForm('ems');
@@ -373,8 +405,12 @@ export class TagFormDialogComponent {
     });
   }
 
-  protected errors(): { code?: string; roundoff?: string } {
-    const result: { code?: string; roundoff?: string } = {};
+  protected errors(): { code?: string; roundoff?: string; state_map?: string } {
+    const result: { code?: string; roundoff?: string; state_map?: string } = {};
+    const stateMap = parseStateMap(this.form.state_map, this.states()).error;
+    if (stateMap) {
+      result.state_map = stateMap;
+    }
     const code = this.form.code.trim();
     if (code && !TAG_CODE_PATTERN.test(code)) {
       result.code = 'Lowercase letters, digits, "_", "." or "-" (e.g. voltage).';
@@ -393,7 +429,8 @@ export class TagFormDialogComponent {
       !!this.form.device_id &&
       !!this.form.tag_name.trim() &&
       !e.code &&
-      !e.roundoff
+      !e.roundoff &&
+      !e.state_map
     );
   }
 
@@ -422,6 +459,7 @@ export class TagFormDialogComponent {
       unit: text(f.unit),
       roundoff_digits: roundoffValue(f.roundoff),
       description: text(f.description),
+      state_map: parseStateMap(f.state_map, this.states()).map,
       is_counter: f.is_counter,
       is_cumulative: f.is_cumulative,
       status: f.status,

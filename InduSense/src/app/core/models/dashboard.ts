@@ -198,6 +198,11 @@ export interface MachineSummary {
   frequency: KpiValue | null;
   power_factor: KpiValue | null;
   runtime: MachineRuntimeSummary | null;
+  /** Increase of the PLC's run / stop second counters (RUN_SECONDS / STOP_SECONDS), when mapped. */
+  run_seconds?: KpiValue | null;
+  stop_seconds?: KpiValue | null;
+  /** run / (run + stop) as a fraction 0..1. */
+  availability?: KpiValue | null;
 }
 
 export interface SeriesCharts {

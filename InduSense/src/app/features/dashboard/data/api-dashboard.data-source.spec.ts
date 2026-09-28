@@ -80,6 +80,7 @@ describe('ApiDashboardDataSource', () => {
     tag_type: 'ems',
     roundoff_digits: null,
     description: null,
+    state_map: null,
     created_at: '2026-09-25T10:00:00Z',
     updated_at: '2026-09-25T12:00:00Z',
   };

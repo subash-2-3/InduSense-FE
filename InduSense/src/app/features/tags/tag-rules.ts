@@ -92,3 +92,48 @@ export function formatWithRoundoff(
   }
   return value.toFixed(digits);
 }
+
+/** `{"0": "RUNNING", "1": "IDLE"}` -> `0=RUNNING, 1=IDLE` (the form's text for a state map). */
+export function formatStateMap(map: Record<string, string> | null | undefined): string {
+  if (!map) {
+    return '';
+  }
+  return Object.entries(map)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([value, state]) => `${value}=${state}`)
+    .join(', ');
+}
+
+/**
+ * Parses `0=RUNNING, 1=IDLE, 2=ALARM` (the backend validates again). Empty text = no map
+ * (non-zero = running).
+ */
+export function parseStateMap(
+  text: string,
+  states: readonly string[],
+): { map: Record<string, string> | null; error: string | null } {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return { map: null, error: null };
+  }
+  const map: Record<string, string> = {};
+  for (const part of trimmed
+    .split(/[,;\n]/)
+    .map((p) => p.trim())
+    .filter(Boolean)) {
+    const match = /^(-?\d+)\s*[=:]\s*([A-Za-z_]+)$/.exec(part);
+    if (!match) {
+      return { map: null, error: `"${part}" is not value=STATE (e.g. 0=RUNNING).` };
+    }
+    const state = match[2].toUpperCase();
+    if (!states.includes(state)) {
+      return { map: null, error: `"${match[2]}" is not one of ${states.join(', ')}.` };
+    }
+    const key = String(Number(match[1]));
+    if (key in map) {
+      return { map: null, error: `Value ${key} is listed twice.` };
+    }
+    map[key] = state;
+  }
+  return { map, error: null };
+}

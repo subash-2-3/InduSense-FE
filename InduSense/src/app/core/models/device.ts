@@ -108,6 +108,11 @@ export interface Tag {
   /** Decimals to display for floating-point values (display only; telemetry is stored as received). */
   roundoff_digits: number | null;
   description: string | null;
+  /**
+   * RUN_STATUS tags: value -> machine state, e.g. `{"0": "RUNNING", "1": "IDLE", "2": "ALARM"}`.
+   * null: non-zero = running, 0 = stopped.
+   */
+  state_map: Record<string, string> | null;
   is_counter: boolean;
   is_cumulative: boolean;
   status: RecordStatus;
@@ -129,6 +134,7 @@ export interface TagCreate {
   category?: string | null;
   roundoff_digits?: number | null;
   description?: string | null;
+  state_map?: Record<string, string> | null;
   is_counter?: boolean;
   is_cumulative?: boolean;
   status?: EditableStatus;
@@ -144,6 +150,7 @@ export interface TagUpdate {
   category?: string | null;
   roundoff_digits?: number | null;
   description?: string | null;
+  state_map?: Record<string, string> | null;
   is_counter?: boolean | null;
   is_cumulative?: boolean | null;
   status?: EditableStatus;
@@ -193,6 +200,8 @@ export interface TagDefinition {
 export interface TagMetadata {
   tag_types: TagTypeOption[];
   roundoff_max: number;
+  /** States a state map may use (only RUNNING counts as runtime). */
+  machine_states: string[];
   value_kinds: ValueKind[];
   definitions: TagDefinition[];
 }

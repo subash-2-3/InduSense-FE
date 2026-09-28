@@ -9,7 +9,14 @@ import { ToastService } from '../../shared/ui/toast/toast.service';
 import { formatValue } from '../energy/energy-charts';
 import { DefaultTagsPickerComponent } from './default-tags-picker.component';
 import { TagFormDialogComponent, applyDefinition, emptyForm } from './tag-form-dialog.component';
-import { formatWithRoundoff, roundoffError, roundoffValue, tagTypeLabel } from './tag-rules';
+import {
+  formatStateMap,
+  formatWithRoundoff,
+  parseStateMap,
+  roundoffError,
+  roundoffValue,
+  tagTypeLabel,
+} from './tag-rules';
 import { TagsPageComponent } from './tags-page.component';
 
 const ok = <T>(data: T) => ({ success: true, data });
@@ -25,6 +32,7 @@ const METADATA: TagMetadata = {
     { value: 'oee', label: 'OEE — Overall Equipment Effectiveness' },
   ],
   roundoff_max: 6,
+  machine_states: ['RUNNING', 'IDLE', 'STOPPED', 'ALARM'],
   value_kinds: ['float', 'integer', 'boolean', 'string'],
   definitions: [
     def(1, 'voltage', 'Voltage', 'ems', 'V', 2),
@@ -75,6 +83,7 @@ function tag(overrides: Partial<Tag> = {}): Tag {
     category: null,
     roundoff_digits: 2,
     description: null,
+    state_map: null,
     is_counter: false,
     is_cumulative: false,
     status: 'active',
@@ -109,6 +118,22 @@ describe('tag rules', () => {
     expect(formatWithRoundoff(12.567891, null)).toBe('12.567891');
     expect(formatValue(415.2345, 'V', 2)).toBe('415.23 V');
     expect(formatValue(50, 'Hz', 2)).toBe('50.00 Hz');
+  });
+
+  it('parses and formats machine state maps', () => {
+    const states = METADATA.machine_states;
+    expect(parseStateMap('0=RUNNING, 1=idle; 2: ALARM', states)).toEqual({
+      map: { '0': 'RUNNING', '1': 'IDLE', '2': 'ALARM' },
+      error: null,
+    });
+    expect(parseStateMap('', states)).toEqual({ map: null, error: null });
+    expect(parseStateMap('0=SPINNING', states).error).toContain('not one of');
+    expect(parseStateMap('x=RUNNING', states).error).toContain('value=STATE');
+    expect(parseStateMap('0=RUNNING, 0=IDLE', states).error).toContain('twice');
+    expect(formatStateMap({ '2': 'ALARM', '0': 'RUNNING', '1': 'IDLE' })).toBe(
+      '0=RUNNING, 1=IDLE, 2=ALARM',
+    );
+    expect(formatStateMap(null)).toBe('');
   });
 
   it('labels tag types from the backend options', () => {
@@ -286,7 +311,7 @@ describe('TagFormDialogComponent', () => {
       form: ReturnType<typeof emptyForm>;
       save(): void;
       canSave(): boolean;
-      errors(): { code?: string; roundoff?: string };
+      errors(): { code?: string; roundoff?: string; state_map?: string };
       setType(t: string): void;
       suggestions(): { code: string }[];
       useDefinition(d: unknown): void;
@@ -318,6 +343,27 @@ describe('TagFormDialogComponent', () => {
     });
     req.flush(ok(tag({ id: 5, tag_name: 'GOOD_CNT', tag_type: 'oee' })));
     expect(saved).toHaveBeenCalled();
+  });
+
+  it('sends the machine state map of an OEE status tag', () => {
+    const { cmp } = open(
+      tag({
+        tag_name: 'machine_status',
+        tag_type: 'oee',
+        data_type: 'uint16',
+        roundoff_digits: null,
+      }),
+    );
+    cmp.form.state_map = '0=RUNNING, 1=IDLE, 2=ALARM';
+    expect(cmp.canSave()).toBe(true);
+    cmp.save();
+    const req = http.expectOne((r) => r.method === 'PATCH');
+    expect(req.request.body.state_map).toEqual({ '0': 'RUNNING', '1': 'IDLE', '2': 'ALARM' });
+    req.flush(ok(tag()));
+    const bad = open(tag({ tag_type: 'oee' })).cmp;
+    bad.form.state_map = '0=BROKEN';
+    expect(bad.errors().state_map).toBeTruthy();
+    expect(bad.canSave()).toBe(false);
   });
 
   it('blocks invalid round-off and codes', () => {
