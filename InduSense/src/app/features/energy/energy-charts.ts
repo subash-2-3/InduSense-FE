@@ -33,11 +33,23 @@ export function fractionDigits(value: number): number {
   return abs >= 1 ? 2 : 4;
 }
 
-export function formatValue(value: number | null | undefined, unit?: string | null): string {
+/**
+ * A value with its unit. `roundoff` is the tag's configured decimals (display only); without it the
+ * decimals suit the magnitude.
+ */
+export function formatValue(
+  value: number | null | undefined,
+  unit?: string | null,
+  roundoff?: number | null,
+): string {
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return EMPTY_VALUE;
   }
-  const text = formatNumber(value, { maximumFractionDigits: fractionDigits(value) });
+  const digits = roundoff ?? fractionDigits(value);
+  const text = formatNumber(value, {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: roundoff ?? 0,
+  });
   return unit ? `${text} ${unit}` : text;
 }
 
@@ -94,6 +106,7 @@ export function buildTrendOptions(group: TrendGroup, theme: ChartTheme): ChartOp
     several && group.series.some((o) => o !== s && o.name === s.name)
       ? `${s.name} · ${s.asset_name}`
       : s.name;
+  const digits = new Map(group.series.map((s) => [label(s), s.roundoff_digits ?? null]));
   return {
     animation: theme.animation,
     color: [...theme.categorical],
@@ -112,7 +125,7 @@ export function buildTrendOptions(group: TrendGroup, theme: ChartTheme): ChartOp
         const when = new Date(params[0].value[0]).toLocaleString();
         const rows = params.map(
           (p) =>
-            `${swatch(p.color)}${escapeHtml(p.seriesName)}: <b>${escapeHtml(formatValue(p.value[1], group.unit))}</b>`,
+            `${swatch(p.color)}${escapeHtml(p.seriesName)}: <b>${escapeHtml(formatValue(p.value[1], group.unit, digits.get(p.seriesName)))}</b>`,
         );
         return [escapeHtml(when), ...rows].join('<br/>');
       },

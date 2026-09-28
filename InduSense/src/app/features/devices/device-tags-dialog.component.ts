@@ -12,7 +12,9 @@ import { noop } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 
 import { TagsApi } from '../../core/api/resources/tags.api';
-import { Device, Tag, TagUpdate } from '../../core/models';
+import { AuthService } from '../../core/auth/auth.service';
+import { Permission } from '../../core/auth/permissions';
+import { Device, Tag, TagMetadata, TagUpdate } from '../../core/models';
 import {
   ButtonComponent,
   IconComponent,
@@ -27,6 +29,7 @@ import {
   recordStatusTone,
   toggledStatus,
 } from '../../shared/utils/record-status';
+import { DefaultTagsPickerComponent } from '../tags/default-tags-picker.component';
 
 type TagDraft = Required<Pick<TagUpdate, 'is_counter' | 'is_cumulative'>> & {
   display_name: string;
@@ -49,6 +52,7 @@ type TagDraft = Required<Pick<TagUpdate, 'is_counter' | 'is_cumulative'>> & {
     ModalComponent,
     SkeletonComponent,
     StatusPillComponent,
+    DefaultTagsPickerComponent,
   ],
   template: `
     <app-modal
@@ -58,24 +62,52 @@ type TagDraft = Required<Pick<TagUpdate, 'is_counter' | 'is_cumulative'>> & {
       maxWidth="960px"
       (close)="closed.emit()"
     >
-      <input
-        type="search"
-        class="field search"
-        placeholder="Search tag name or display name"
-        aria-label="Search tags"
-        [ngModel]="search()"
-        (ngModelChange)="search.set($event)"
-      />
+      <div class="bar">
+        <input
+          type="search"
+          class="field search"
+          placeholder="Search tag name, display name or code"
+          aria-label="Search tags"
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event)"
+        />
+        @if (canCreate() && device()?.status === 'active') {
+          <button
+            appButton
+            variant="secondary"
+            size="sm"
+            type="button"
+            [attr.aria-expanded]="showDefaults()"
+            (click)="toggleDefaults()"
+          >
+            <app-icon name="package" [size]="14" />
+            {{ showDefaults() ? 'Hide default tags' : 'Add default tags' }}
+          </button>
+        }
+      </div>
+      @if (showDefaults()) {
+        <section class="defaults" aria-label="Default tags">
+          <app-default-tags-picker
+            [deviceId]="device()?.id ?? null"
+            [metadata]="metadata()"
+            [existingCodes]="codes()"
+            (added)="onDefaultsAdded()"
+          />
+        </section>
+      }
       @if (loading()) {
         <app-skeleton height="120px" />
       } @else if (filtered().length === 0) {
-        <p class="empty">No tags yet. They appear when the DataLogger first reports a value.</p>
+        <p class="empty">
+          No tags yet. They appear when the DataLogger first reports a value, or add default tags.
+        </p>
       } @else {
         <div class="wrap">
           <table class="table">
             <thead>
               <tr>
                 <th scope="col">Tag</th>
+                <th scope="col">EMS / OEE</th>
                 <th scope="col">Display name</th>
                 <th scope="col">Unit</th>
                 <th scope="col">Category</th>
@@ -90,6 +122,7 @@ type TagDraft = Required<Pick<TagUpdate, 'is_counter' | 'is_cumulative'>> & {
                 @if (editingId() === t.id) {
                   <tr>
                     <td class="mono">{{ t.tag_name }}</td>
+                    <td>{{ t.tag_type.toUpperCase() }}</td>
                     <td>
                       <input
                         class="field"
@@ -138,6 +171,7 @@ type TagDraft = Required<Pick<TagUpdate, 'is_counter' | 'is_cumulative'>> & {
                 } @else {
                   <tr>
                     <td class="mono">{{ t.tag_name }}</td>
+                    <td>{{ t.tag_type.toUpperCase() }}</td>
                     <td>{{ t.display_name || '—' }}</td>
                     <td>{{ t.unit || '—' }}</td>
                     <td>{{ t.category || '—' }}</td>
@@ -174,9 +208,22 @@ type TagDraft = Required<Pick<TagUpdate, 'is_counter' | 'is_cumulative'>> & {
     </app-modal>
   `,
   styles: `
+    .bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      margin-bottom: var(--space-3);
+    }
     .search {
       max-width: 320px;
-      margin-bottom: var(--space-3);
+    }
+    .defaults {
+      margin-bottom: var(--space-4);
+      padding: var(--space-3);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-md);
     }
     .field {
       width: 100%;
@@ -229,6 +276,7 @@ type TagDraft = Required<Pick<TagUpdate, 'is_counter' | 'is_cumulative'>> & {
 export class DeviceTagsDialogComponent {
   private readonly api = inject(TagsApi);
   private readonly toast = inject(ToastService);
+  private readonly auth = inject(AuthService);
 
   /** The device whose tags are shown; null = closed. */
   readonly device = input<Device | null>(null);
@@ -242,6 +290,10 @@ export class DeviceTagsDialogComponent {
   protected readonly search = signal('');
   protected readonly editingId = signal<number | null>(null);
   protected draft: TagDraft = this.draftOf(null);
+  protected readonly canCreate = computed(() => this.auth.hasPermission(Permission.TagsCreate));
+  protected readonly showDefaults = signal(false);
+  protected readonly metadata = signal<TagMetadata | null>(null);
+  protected readonly codes = computed(() => this.tags().map((t) => t.code));
 
   protected readonly filtered = computed(() => {
     const term = this.search().trim().toLowerCase();
@@ -249,7 +301,8 @@ export class DeviceTagsDialogComponent {
       (t) =>
         !term ||
         t.tag_name.toLowerCase().includes(term) ||
-        (t.display_name ?? '').toLowerCase().includes(term),
+        (t.display_name ?? '').toLowerCase().includes(term) ||
+        (t.code ?? '').toLowerCase().includes(term),
     );
   });
 
@@ -259,6 +312,7 @@ export class DeviceTagsDialogComponent {
       this.tags.set([]);
       this.search.set('');
       this.editingId.set(null);
+      this.showDefaults.set(false);
       if (device) this.load(device.id);
     });
   }
@@ -275,6 +329,21 @@ export class DeviceTagsDialogComponent {
         this.toast.error(err, 'Unable to load the tags.');
       },
     });
+  }
+
+  protected toggleDefaults(): void {
+    this.showDefaults.update((shown) => !shown);
+    if (this.showDefaults() && !this.metadata()) {
+      this.api.metadata().subscribe({
+        next: (m) => this.metadata.set(m),
+        error: (err) => this.toast.error(err, 'Unable to load the default tags.'),
+      });
+    }
+  }
+
+  protected onDefaultsAdded(): void {
+    const device = this.device();
+    if (device) this.load(device.id);
   }
 
   protected edit(tag: Tag): void {

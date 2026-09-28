@@ -23,10 +23,11 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     hasChildren: true,
     permission: Permission.DevicesView,
   },
+  { label: 'Tags', path: '/tags', icon: 'inbox', permission: Permission.TagsView },
   { label: 'Assets', path: '/assets', icon: 'lightbulb', permission: Permission.MachinesView },
   { label: 'Locations', path: '/locations', icon: 'map-pin', permission: Permission.PlantsView },
   { label: 'Energy', path: '/energy', icon: 'zap', permission: Permission.DashboardsView },
-  { label: 'Maps', path: '/maps', icon: 'map', permission: Permission.PlantsView },
+  // { label: 'Maps', path: '/maps', icon: 'map', permission: Permission.PlantsView },
   {
     label: 'Reports',
     path: '/reports',

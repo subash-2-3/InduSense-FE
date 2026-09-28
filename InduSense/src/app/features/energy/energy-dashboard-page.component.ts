@@ -221,7 +221,9 @@ function message(error: unknown): string {
                       @for (p of a.parameters; track p.tag_id) {
                         <div class="param" [class.param--stale]="p.connection_state !== 'ONLINE'">
                           <dt class="param__name" [title]="metricLabel(p.metric)">{{ p.name }}</dt>
-                          <dd class="param__value">{{ value(p.value, p.unit) }}</dd>
+                          <dd class="param__value">
+                            {{ value(p.value, p.unit, p.roundoff_digits) }}
+                          </dd>
                         </div>
                       }
                     </dl>

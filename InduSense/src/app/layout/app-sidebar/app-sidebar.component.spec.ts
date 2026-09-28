@@ -28,10 +28,10 @@ describe('AppSidebarComponent', () => {
     expect(labels).toEqual([
       'Dashboard',
       'Devices',
+      'Tags',
       'Assets',
       'Locations',
       'Energy',
-      'Maps',
       'Reports',
       'Alarms',
       'More',

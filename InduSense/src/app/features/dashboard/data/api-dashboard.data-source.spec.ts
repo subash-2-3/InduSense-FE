@@ -76,6 +76,10 @@ describe('ApiDashboardDataSource', () => {
     data_id: null,
     monitor_id: null,
     register_address: null,
+    code: null,
+    tag_type: 'ems',
+    roundoff_digits: null,
+    description: null,
     created_at: '2026-09-25T10:00:00Z',
     updated_at: '2026-09-25T12:00:00Z',
   };

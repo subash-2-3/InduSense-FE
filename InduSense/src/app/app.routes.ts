@@ -47,6 +47,14 @@ export const routes: Routes = [
           import('./features/devices/devices-page.component').then((m) => m.DevicesPageComponent),
       },
       {
+        path: 'tags',
+        title: 'Tags · InduSense',
+        data: { section: 'Tags' },
+        canActivate: [permissionGuard(Permission.TagsView)],
+        loadComponent: () =>
+          import('./features/tags/tags-page.component').then((m) => m.TagsPageComponent),
+      },
+      {
         path: 'assets',
         title: 'Assets · InduSense',
         data: { section: 'Assets' },

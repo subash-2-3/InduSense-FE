@@ -86,14 +86,28 @@ export interface DeviceConnectionUpdate {
 }
 
 /** `TagResponse`. */
+/**
+ * What a tag serves (InduSense-BE `TagType`). The allowed values and their labels come from
+ * `GET /tag-definitions`; this type only names the ones known today.
+ */
+export type TagType = 'ems' | 'oee' | (string & {});
+
 export interface Tag {
   id: number;
   device_id: number;
+  /** The data source's key (the DataLogger matches by it); unique per device. */
   tag_name: string;
+  /** Logical key, e.g. `voltage`; unique per device. */
+  code: string | null;
   display_name: string | null;
+  tag_type: TagType;
+  /** Value/register format, e.g. float32, int16 (Modbus decodes by it); null = the connection's default. */
   data_type: string | null;
   unit: string | null;
   category: string | null;
+  /** Decimals to display for floating-point values (display only; telemetry is stored as received). */
+  roundoff_digits: number | null;
+  description: string | null;
   is_counter: boolean;
   is_cumulative: boolean;
   status: RecordStatus;
@@ -107,19 +121,29 @@ export interface Tag {
 export interface TagCreate {
   device_id: number;
   tag_name: string;
+  code?: string | null;
   display_name?: string | null;
+  tag_type?: TagType;
   data_type?: string | null;
   unit?: string | null;
   category?: string | null;
+  roundoff_digits?: number | null;
+  description?: string | null;
   is_counter?: boolean;
   is_cumulative?: boolean;
+  status?: EditableStatus;
 }
 
+/** `tag_name` cannot change (it is the data source's key). */
 export interface TagUpdate {
+  code?: string | null;
   display_name?: string | null;
+  tag_type?: TagType;
   data_type?: string | null;
   unit?: string | null;
   category?: string | null;
+  roundoff_digits?: number | null;
+  description?: string | null;
   is_counter?: boolean | null;
   is_cumulative?: boolean | null;
   status?: EditableStatus;
@@ -127,8 +151,61 @@ export interface TagUpdate {
 
 export interface TagFilters {
   device_id?: number;
+  tag_type?: TagType | TagType[];
+  /** Tags mapped to this machine / meter (asset tags). */
+  machine_id?: number;
+  meter_id?: number;
   category?: string;
   status?: StatusFilter | null;
-  /** Matches tag name or display name. */
+  /** Matches tag name, display name or code. */
   search?: string;
+}
+
+// -------------------------------------------------------------- default tag catalog ----
+
+export interface TagTypeOption {
+  value: TagType;
+  label: string;
+}
+
+export type ValueKind = 'float' | 'integer' | 'boolean' | 'string';
+
+/** A reusable default tag (`tag_definitions`), e.g. voltage or good_count. */
+export interface TagDefinition {
+  id: number;
+  code: string;
+  display_name: string;
+  tag_type: TagType;
+  value_kind: ValueKind;
+  unit: string | null;
+  category: string | null;
+  roundoff_digits: number | null;
+  description: string | null;
+  /** Asset tag metric this tag usually maps to, if any. */
+  metric: string | null;
+  is_counter: boolean;
+  is_cumulative: boolean;
+  sort_order: number;
+  status: RecordStatus;
+}
+
+/** `GET /tag-definitions`: everything a tag form needs. */
+export interface TagMetadata {
+  tag_types: TagTypeOption[];
+  roundoff_max: number;
+  value_kinds: ValueKind[];
+  definitions: TagDefinition[];
+}
+
+export interface DefaultTagItem {
+  code: string;
+  /** Name the data source uses; default: the code. */
+  tag_name?: string | null;
+  register_address?: string | null;
+}
+
+export interface TagsFromDefinitionsResult {
+  created: Tag[];
+  restored: Tag[];
+  skipped: { code: string; reason: string }[];
 }

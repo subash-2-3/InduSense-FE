@@ -308,7 +308,9 @@ export function saveBlob(document: Document, blob: Blob, filename: string): void
                             <td>{{ r.plant_name }}{{ r.area_name ? ' · ' + r.area_name : '' }}</td>
                             <td>{{ r.device_name ?? '—' }}</td>
                             <td>{{ r.parameter }}</td>
-                            <td class="num mono">{{ value(r.value, r.unit) }}</td>
+                            <td class="num mono">
+                              {{ value(r.value, r.unit, r.roundoff_digits) }}
+                            </td>
                             <td>{{ r.quality ?? '—' }}</td>
                           </tr>
                         }

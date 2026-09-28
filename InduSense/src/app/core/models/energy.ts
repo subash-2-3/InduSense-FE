@@ -44,6 +44,8 @@ export interface LiveParameter {
   metric: EnergyMetric | string;
   name: string;
   unit: string | null;
+  /** Display decimals configured on the tag (null = automatic). */
+  roundoff_digits?: number | null;
   value: number | null;
   ts: IsoDateTime | null;
   quality: string | null;
@@ -78,6 +80,8 @@ export interface TrendSeries {
   metric: string;
   name: string;
   unit: string | null;
+  /** Display decimals configured on the tag (null = automatic). */
+  roundoff_digits?: number | null;
   asset_name: string;
   points: TrendPoint[];
 }
@@ -192,6 +196,8 @@ export interface DetailRow {
   metric: string;
   value: number | null;
   unit: string | null;
+  /** Display decimals configured on the tag (null = automatic). */
+  roundoff_digits?: number | null;
   quality: string | null;
 }
 
