@@ -15,6 +15,7 @@ import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from 
 
 import { routes } from './app.routes';
 import { apiCredentialsInterceptor } from './core/api/api-credentials.interceptor';
+import { errorToastInterceptor } from './core/api/error-toast.interceptor';
 import { authInterceptor } from './core/auth/auth.interceptor';
 import { AuthService } from './core/auth/auth.service';
 import { csrfInterceptor } from './core/auth/csrf.interceptor';
@@ -29,11 +30,17 @@ export const appConfig: ApplicationConfig = {
       withInMemoryScrolling({ scrollPositionRestoration: 'top' }),
     ),
     provideClientHydration(withEventReplay()),
-    // Order matters: the CSRF interceptor runs after the auth interceptor, so a request replayed
-    // after a session refresh carries the rotated CSRF token. Angular's own XSRF support is off.
+    // Order matters: the error toast interceptor wraps the auth interceptor, so it sees the final
+    // outcome after a session refresh; the CSRF interceptor runs after the auth interceptor, so a
+    // request replayed after a refresh carries the rotated CSRF token. Angular's own XSRF support is off.
     provideHttpClient(
       withFetch(),
-      withInterceptors([apiCredentialsInterceptor, authInterceptor, csrfInterceptor]),
+      withInterceptors([
+        apiCredentialsInterceptor,
+        errorToastInterceptor,
+        authInterceptor,
+        csrfInterceptor,
+      ]),
       withNoXsrfProtection(),
     ),
     // Is there a session (HttpOnly cookies)? Resolved before the first navigation; browser only.

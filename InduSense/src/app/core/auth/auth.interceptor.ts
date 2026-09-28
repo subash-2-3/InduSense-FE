@@ -3,11 +3,10 @@ import { inject } from '@angular/core';
 import { catchError, switchMap, throwError } from 'rxjs';
 
 import { APP_CONFIG } from '../config/app-config';
-import { AUTH_PATHS, AuthService } from './auth.service';
-import { TokenStorageService } from './token-storage.service';
+import { AuthService, SESSION_PATHS } from './auth.service';
 
 /** Endpoints whose 401 means "wrong credentials / no session", never "refresh and retry". */
-const NO_REFRESH = [AUTH_PATHS.login, AUTH_PATHS.refresh, AUTH_PATHS.logout];
+const NO_REFRESH = [SESSION_PATHS.create, SESSION_PATHS.refresh, SESSION_PATHS.logout];
 
 export function apiPath(url: string, apiBaseUrl: string): string | null {
   const base = apiBaseUrl.replace(/\/+$/, '');
@@ -17,35 +16,22 @@ export function apiPath(url: string, apiBaseUrl: string): string | null {
   return url.slice(base.length).split('?')[0] || '/';
 }
 
-const isUnauthorized = (error: unknown) => error instanceof HttpErrorResponse && error.status === 401;
+const isUnauthorized = (error: unknown) =>
+  error instanceof HttpErrorResponse && error.status === 401;
 
 /**
- * Attaches the Bearer token to API requests and handles token refresh on 401.
+ * On a 401 from the API: refresh the session once (shared by all failing requests), then replay
+ * the request once. If the refresh fails, or the replay is rejected again, the session has ended
+ * (AuthService.sessionExpired). The replay goes to the next handler, never back through here.
  */
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const path = apiPath(request.url, inject(APP_CONFIG).apiBaseUrl);
-  if (path === null) {
+  if (path === null || NO_REFRESH.some((p) => path === p)) {
     return next(request);
   }
-
-  const tokenStorage = inject(TokenStorageService);
   const auth = inject(AuthService);
 
-  let req = request;
-  const token = tokenStorage.getAccessToken();
-  if (token && !req.headers.has('Authorization')) {
-    req = req.clone({
-      setHeaders: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-  }
-
-  if (NO_REFRESH.some((p) => path === p)) {
-    return next(req);
-  }
-
-  return next(req).pipe(
+  return next(request).pipe(
     catchError((error: unknown) => {
       if (!isUnauthorized(error)) {
         return throwError(() => error);
@@ -55,20 +41,16 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
           auth.sessionExpired();
           return throwError(() => error);
         }),
-        switchMap(() => {
-          const newToken = tokenStorage.getAccessToken();
-          const replayedReq = newToken
-            ? request.clone({ setHeaders: { Authorization: `Bearer ${newToken}` } })
-            : request;
-          return next(replayedReq).pipe(
+        switchMap(() =>
+          next(request).pipe(
             catchError((replayError: unknown) => {
               if (isUnauthorized(replayError)) {
                 auth.sessionExpired();
               }
               return throwError(() => replayError);
             }),
-          );
-        }),
+          ),
+        ),
       );
     }),
   );

@@ -26,6 +26,14 @@ describe('AppHeaderComponent', () => {
     expect(el.querySelector('.avatar')?.textContent).toBe('PA');
   });
 
+  it('shows "Platform" instead of a company for a platform administrator', async () => {
+    const { el } = await setup(
+      fakeUser({ company_id: null, company_code: null, company_name: null, roles: ['SUPER_ADMIN'] }),
+    );
+    expect(el.querySelector('.company__name')?.textContent).toBe('Platform');
+    expect(el.querySelector('.company__code')).toBeNull();
+  });
+
   it('emits navToggle and reflects navOpen on the menu button', async () => {
     const { fixture, el } = await setup();
     let toggles = 0;

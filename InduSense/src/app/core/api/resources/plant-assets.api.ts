@@ -46,14 +46,20 @@ abstract class PlantAssetApi<T, F extends PlantAssetFilters, C = object, U = obj
     return this.api.patch<T>(`${this.path}/${id}`, body);
   }
 
-  deactivate(id: number): Observable<T> {
+  /** Soft delete (status `delete`). */
+  delete(id: number): Observable<T> {
     return this.api.delete<T>(`${this.path}/${id}`);
   }
 }
 
 /** `/machines` (requires `machines:view`). */
 @Injectable({ providedIn: 'root' })
-export class MachinesApi extends PlantAssetApi<Machine, MachineFilters, MachineCreate, MachineUpdate> {
+export class MachinesApi extends PlantAssetApi<
+  Machine,
+  MachineFilters,
+  MachineCreate,
+  MachineUpdate
+> {
   protected readonly path = '/machines';
 
   tagMappings(machineId: number): Observable<TagMappingResponse[]> {
@@ -61,7 +67,9 @@ export class MachinesApi extends PlantAssetApi<Machine, MachineFilters, MachineC
   }
 
   setTagMappings(machineId: number, mappings: TagMappingItem[]): Observable<TagMappingResponse[]> {
-    return this.api.put<TagMappingResponse[]>(`${this.path}/${machineId}/tag-mappings`, { mappings });
+    return this.api.put<TagMappingResponse[]>(`${this.path}/${machineId}/tag-mappings`, {
+      mappings,
+    });
   }
 }
 
@@ -81,6 +89,11 @@ export class MetersApi extends PlantAssetApi<Meter, MeterFilters, MeterCreate, M
 
 /** `/gateways` (requires `gateways:view`). */
 @Injectable({ providedIn: 'root' })
-export class GatewaysApi extends PlantAssetApi<Gateway, PlantAssetFilters, GatewayCreate, GatewayUpdate> {
+export class GatewaysApi extends PlantAssetApi<
+  Gateway,
+  PlantAssetFilters,
+  GatewayCreate,
+  GatewayUpdate
+> {
   protected readonly path = '/gateways';
 }

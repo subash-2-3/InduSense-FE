@@ -5,7 +5,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
 import { APP_CONFIG } from '../../config/app-config';
-import { Tag } from '../../models';
+import { RecordStatus, Tag } from '../../models';
 import {
   AuditLogsApi,
   CompaniesApi,
@@ -72,8 +72,8 @@ describe('API resources', () => {
       void firstValueFrom(devices.list({ search: 'box', page: 2, page_size: 20 }));
       expectGet('/api/v1/devices', 'search=box&page=2&page_size=20').flush(page([]));
 
-      void firstValueFrom(devices.listAll({ is_active: true }));
-      expectGet('/api/v1/devices', 'is_active=true&page=1&page_size=100').flush(page([]));
+      void firstValueFrom(devices.listAll({ status: 'active' }));
+      expectGet('/api/v1/devices', 'status=active&page=1&page_size=100').flush(page([]));
 
       const count = firstValueFrom(devices.count({ gateway_id: 2 }));
       expectGet('/api/v1/devices', 'gateway_id=2&page=1&page_size=1').flush(page([{}], 42));
@@ -83,7 +83,7 @@ describe('API resources', () => {
       expectGet('/api/v1/devices/7').flush(single({ id: 7 }));
     });
 
-    it('creates, updates and deactivates devices', () => {
+    it('creates, updates and deletes devices', () => {
       const devices = TestBed.inject(DevicesApi);
 
       void firstValueFrom(devices.create({ external_id: 'DEV-101', name: 'Device 101' }));
@@ -92,8 +92,8 @@ describe('API resources', () => {
       void firstValueFrom(devices.update(10, { name: 'Updated Device' }));
       expectPatch('/api/v1/devices/10').flush(single({ id: 10, name: 'Updated Device' }));
 
-      void firstValueFrom(devices.deactivate(10));
-      expectDelete('/api/v1/devices/10').flush(single({ id: 10, is_active: false }));
+      void firstValueFrom(devices.delete(10));
+      expectDelete('/api/v1/devices/10').flush(single({ id: 10, status: 'inactive' }));
     });
 
     it('manages device connection settings', () => {
@@ -109,7 +109,10 @@ describe('API resources', () => {
       expectPatch('/api/v1/devices/5/connections/1').flush(single({ id: 1, port: 1883 }));
 
       void firstValueFrom(devices.deleteConnection(5, 1));
-      expectDelete('/api/v1/devices/5/connections/1').flush(null, { status: 204, statusText: 'No Content' });
+      expectDelete('/api/v1/devices/5/connections/1').flush(null, {
+        status: 204,
+        statusText: 'No Content',
+      });
     });
   });
 
@@ -128,8 +131,8 @@ describe('API resources', () => {
       void firstValueFrom(machines.update(1, { name: 'Press 01 Updated' }));
       expectPatch('/api/v1/machines/1').flush(single({ id: 1, name: 'Press 01 Updated' }));
 
-      void firstValueFrom(machines.deactivate(1));
-      expectDelete('/api/v1/machines/1').flush(single({ id: 1, is_active: false }));
+      void firstValueFrom(machines.delete(1));
+      expectDelete('/api/v1/machines/1').flush(single({ id: 1, status: 'inactive' }));
 
       void firstValueFrom(meters.create({ plant_id: 1, meter_code: 'EM-01', name: 'Main Meter' }));
       expectPost('/api/v1/meters').flush(single({ id: 2, meter_code: 'EM-01' }));
@@ -157,7 +160,7 @@ describe('API resources', () => {
   });
 
   describe('LocationsApi', () => {
-    it('reads, creates, updates and deactivates plants and areas', () => {
+    it('reads, creates, updates and deletes plants and areas', () => {
       const locations = TestBed.inject(LocationsApi);
 
       void firstValueFrom(locations.listAllPlants());
@@ -169,8 +172,8 @@ describe('API resources', () => {
       void firstValueFrom(locations.updatePlant(1, { name: 'Plant 1 Updated' }));
       expectPatch('/api/v1/plants/1').flush(single({ id: 1, name: 'Plant 1 Updated' }));
 
-      void firstValueFrom(locations.deactivatePlant(1));
-      expectDelete('/api/v1/plants/1').flush(single({ id: 1, is_active: false }));
+      void firstValueFrom(locations.deletePlant(1));
+      expectDelete('/api/v1/plants/1').flush(single({ id: 1, status: 'inactive' }));
 
       void firstValueFrom(locations.createArea({ plant_id: 1, code: 'AR-01', name: 'Area 1' }));
       expectPost('/api/v1/areas').flush(single({ id: 10, code: 'AR-01' }));
@@ -178,21 +181,25 @@ describe('API resources', () => {
       void firstValueFrom(locations.updateArea(10, { name: 'Area 1 Updated' }));
       expectPatch('/api/v1/areas/10').flush(single({ id: 10, name: 'Area 1 Updated' }));
 
-      void firstValueFrom(locations.deactivateArea(10));
-      expectDelete('/api/v1/areas/10').flush(single({ id: 10, is_active: false }));
+      void firstValueFrom(locations.deleteArea(10));
+      expectDelete('/api/v1/areas/10').flush(single({ id: 10, status: 'inactive' }));
     });
   });
 
   describe('TagsApi', () => {
-    const tag = (id: number, tag_name: string, display_name: string | null, is_active = true) =>
-      ({ id, tag_name, display_name, is_active }) as Tag;
+    const tag = (
+      id: number,
+      tag_name: string,
+      display_name: string | null,
+      status: RecordStatus = 'active',
+    ) => ({ id, tag_name, display_name, status }) as Tag;
 
     it('finds a tag by exact name, preferring tag_name over display_name', async () => {
       const tags = TestBed.inject(TagsApi);
       const found = firstValueFrom(tags.findByName(' Watts ', 3));
       expectGet(
         '/api/v1/tags',
-        'search=Watts&device_id=3&is_active=true&page=1&page_size=100',
+        'search=Watts&device_id=3&status=active&page=1&page_size=100',
       ).flush(
         page([tag(1, 'watts_total', 'Watts'), tag(2, 'WATTS', null), tag(3, 'watts2', null)]),
       );
@@ -202,7 +209,7 @@ describe('API resources', () => {
     it('matches display names and ignores partial and inactive matches', () => {
       expect(matchTagByName([tag(1, 'p_act', 'Watts')], 'watts')?.id).toBe(1);
       expect(matchTagByName([tag(1, 'watts_total', null)], 'watts')).toBeNull();
-      expect(matchTagByName([tag(1, 'watts', null, false)], 'watts')).toBeNull();
+      expect(matchTagByName([tag(1, 'watts', null, 'inactive')], 'watts')).toBeNull();
     });
 
     it('lists, gets, creates and updates tags', () => {
@@ -324,11 +331,11 @@ describe('API resources', () => {
   });
 
   describe('Administration APIs', () => {
-    it('operates UsersApi (list, get, create, update, deactivate, roles, password reset)', () => {
+    it('operates UsersApi (list, get, create, update, delete, roles, password reset)', () => {
       const users = TestBed.inject(UsersApi);
 
-      void firstValueFrom(users.list({ is_active: true }));
-      expectGet('/api/v1/users', 'is_active=true').flush(page([]));
+      void firstValueFrom(users.list({ status: 'active' }));
+      expectGet('/api/v1/users', 'status=active').flush(page([]));
 
       void firstValueFrom(users.get(5));
       expectGet('/api/v1/users/5').flush(single({ id: 5 }));
@@ -339,8 +346,8 @@ describe('API resources', () => {
       void firstValueFrom(users.update(6, { first_name: 'John' }));
       expectPatch('/api/v1/users/6').flush(single({ id: 6, first_name: 'John' }));
 
-      void firstValueFrom(users.deactivate(6));
-      expectDelete('/api/v1/users/6').flush(single({ id: 6, is_active: false }));
+      void firstValueFrom(users.delete(6));
+      expectDelete('/api/v1/users/6').flush(single({ id: 6, status: 'inactive' }));
 
       void firstValueFrom(users.setRoles(6, ['OPERATOR']));
       expectPut('/api/v1/users/6/roles').flush(single({ id: 6, roles: ['OPERATOR'] }));
@@ -389,7 +396,9 @@ describe('API resources', () => {
       expectGet('/api/v1/loggers', 'unassigned=true').flush(page([]));
 
       void firstValueFrom(loggers.assign('logger-01', 2));
-      expectPatch('/api/v1/loggers/logger-01').flush(single({ logger_id: 'logger-01', company_id: 2 }));
+      expectPatch('/api/v1/loggers/logger-01').flush(
+        single({ logger_id: 'logger-01', company_id: 2 }),
+      );
 
       void firstValueFrom(audit.list({ action: 'login' }));
       expectGet('/api/v1/audit-logs', 'action=login').flush(page([]));

@@ -18,8 +18,8 @@ import {
 
 import { ApiService } from '../api/api.service';
 import { ApiError, NETWORK_ERROR } from '../api/api-error';
-import { CurrentUser, LoginRequest, TokenResponse } from '../models';
-import { TokenStorageService } from './token-storage.service';
+import { CurrentUser, LoginRequest } from '../models';
+import { ToastService } from '../../shared/ui/toast/toast.service';
 
 /** `unknown` until the session check at startup has finished (and always on the server). */
 export type SessionStatus = 'unknown' | 'authenticated' | 'anonymous';
@@ -29,26 +29,29 @@ export interface DisplayUser {
   name: string;
   email: string;
   role: string;
-  companyName: string;
-  companyCode: string;
+  /** `null` for a platform administrator, who belongs to no company. */
+  companyName: string | null;
+  companyCode: string | null;
 }
 
-/** Standard authentication endpoints (InduSense-BE `/auth/login`, `/auth/refresh`, `/auth/logout`). */
-export const AUTH_PATHS = {
-  login: '/auth/login',
-  refresh: '/auth/refresh',
-  logout: '/auth/logout',
+/** Browser-session endpoints (InduSense-BE `/auth/session`). */
+export const SESSION_PATHS = {
+  create: '/auth/session',
+  refresh: '/auth/session/refresh',
+  logout: '/auth/session/logout',
   me: '/auth/me',
 } as const;
-
-export const SESSION_PATHS = AUTH_PATHS;
 
 const AUTH_REQUEST_TIMEOUT_MS = 15_000;
 
 function mapAuthTimeout(error: unknown): Observable<never> {
   return throwError(() =>
     error instanceof TimeoutError
-      ? new ApiError(0, NETWORK_ERROR, "Can't reach the server. Check your connection and try again.")
+      ? new ApiError(
+          0,
+          NETWORK_ERROR,
+          "Can't reach the server. Check your connection and try again.",
+        )
       : error,
   );
 }
@@ -73,14 +76,14 @@ export function displayUserOf(user: CurrentUser): DisplayUser {
 }
 
 /**
- * Standard token-based authentication service.
- * Calls `POST /auth/login`, stores tokens securely, attaches Bearer token, and loads user from `GET /auth/me`.
+ * Cookie-based session. Tokens live in HttpOnly cookies set by the backend, so this service never
+ * sees or stores them: it only knows who is signed in (from `GET /auth/me`).
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
-  private readonly tokens = inject(TokenStorageService);
+  private readonly toast = inject(ToastService);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   private readonly userState = signal<CurrentUser | null>(null);
@@ -98,15 +101,11 @@ export class AuthService {
   private refreshInFlight: Observable<void> | null = null;
 
   /**
-   * Startup check (app initializer): if access token is stored, verify session via `GET /auth/me`.
-   * Skipped during server rendering.
+   * Startup check (app initializer): is there a session? A 401 is handled by the auth
+   * interceptor, which tries one refresh first. Never rejects; skipped during server rendering.
    */
   restoreSession(): Promise<void> {
     if (!this.isBrowser) {
-      return Promise.resolve();
-    }
-    if (!this.tokens.getAccessToken()) {
-      this.clearSession();
       return Promise.resolve();
     }
     return firstValueFrom(
@@ -123,7 +122,7 @@ export class AuthService {
   }
 
   loadMe(): Observable<CurrentUser> {
-    return this.api.get<CurrentUser>(AUTH_PATHS.me).pipe(
+    return this.api.get<CurrentUser>(SESSION_PATHS.me).pipe(
       tap((user) => {
         this.userState.set(user);
         this.statusState.set('authenticated');
@@ -131,30 +130,18 @@ export class AuthService {
     );
   }
 
-  /** Calls `POST /auth/login`, stores access and refresh tokens, and loads current user profile. */
+  /** Signs in (the backend sets the session cookies) and loads the user. Errors are ApiErrors. */
   login(credentials: LoginRequest): Observable<CurrentUser> {
-    return this.api
-      .post<TokenResponse>(AUTH_PATHS.login, credentials)
-      .pipe(
-        tap((tokens) => {
-          if (tokens?.access_token) {
-            this.tokens.setTokens(tokens.access_token, tokens.refresh_token);
-          }
-        }),
-        switchMap(() => this.loadMe()),
-        timeout({ first: AUTH_REQUEST_TIMEOUT_MS }),
-        catchError(mapAuthTimeout),
-      );
+    return this.api.post<unknown>(SESSION_PATHS.create, credentials).pipe(
+      switchMap(() => this.loadMe()),
+      timeout({ first: AUTH_REQUEST_TIMEOUT_MS }),
+      catchError(mapAuthTimeout),
+    );
   }
 
-  /** Calls `POST /auth/logout`, clears tokens and user state. */
+  /** Ends the session on the server and locally; the local session ends even if the call fails. */
   logout(allSessions = false): Observable<void> {
-    const refreshToken = this.tokens.getRefreshToken();
-    const body = refreshToken
-      ? { refresh_token: refreshToken, all_sessions: allSessions }
-      : { all_sessions: allSessions };
-
-    return this.api.post<void>(AUTH_PATHS.logout, body).pipe(
+    return this.api.post<void>(SESSION_PATHS.logout, { all_sessions: allSessions }).pipe(
       catchError(() => of(undefined)),
       map(() => undefined),
       finalize(() => this.clearSession()),
@@ -162,36 +149,29 @@ export class AuthService {
   }
 
   /**
-   * Rotates tokens via `POST /auth/refresh`. Single-flight: concurrent requests share the refresh call.
+   * Rotates the session cookies. Single-flight: concurrent callers share one request, because
+   * refresh tokens are single-use and a replay would end every session.
    */
   refreshSession(): Observable<void> {
-    const refreshToken = this.tokens.getRefreshToken();
-    if (!refreshToken) {
-      this.clearSession();
-      return throwError(() => new ApiError(401, 'INVALID_REFRESH_TOKEN', 'No active refresh token'));
-    }
-
     if (!this.refreshInFlight) {
-      this.refreshInFlight = this.api
-        .post<TokenResponse>(AUTH_PATHS.refresh, { refresh_token: refreshToken })
-        .pipe(
-          tap((tokens) => {
-            if (tokens?.access_token) {
-              this.tokens.setTokens(tokens.access_token, tokens.refresh_token);
-            }
-          }),
-          map(() => undefined),
-          finalize(() => (this.refreshInFlight = null)),
-          shareReplay({ bufferSize: 1, refCount: false }),
-        );
+      this.refreshInFlight = this.api.post<unknown>(SESSION_PATHS.refresh).pipe(
+        map(() => undefined),
+        finalize(() => (this.refreshInFlight = null)),
+        shareReplay({ bufferSize: 1, refCount: false }),
+      );
     }
     return this.refreshInFlight;
   }
 
+  /**
+   * The session could not be renewed. A user who was signed in is sent to the login page and
+   * returns to the current page afterwards; during the startup check nothing navigates.
+   */
   sessionExpired(): void {
     const wasSignedIn = this.isAuthenticated();
     this.clearSession();
     if (wasSignedIn) {
+      this.toast.error('Your session has ended. Please sign in again.');
       const returnUrl = this.router.url;
       void this.router.navigate(['/login'], {
         queryParams: returnUrl && !returnUrl.startsWith('/login') ? { returnUrl } : {},
@@ -204,7 +184,6 @@ export class AuthService {
   }
 
   private clearSession(): void {
-    this.tokens.clearTokens();
     this.userState.set(null);
     this.statusState.set('anonymous');
   }

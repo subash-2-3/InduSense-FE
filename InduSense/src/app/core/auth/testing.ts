@@ -5,7 +5,10 @@ import { CurrentUser, LoginRequest } from '../models';
 import { AuthService, SessionStatus, displayUserOf } from './auth.service';
 import { Permission } from './permissions';
 
-export const ALL_PERMISSIONS = Object.values(Permission);
+/** Every UI permission of a company user (tenant:all would make the test user a platform admin). */
+export const ALL_PERMISSIONS = Object.values(Permission).filter(
+  (code) => code !== Permission.TenantAll,
+);
 
 export function fakeUser(overrides: Partial<CurrentUser> = {}): CurrentUser {
   return {
@@ -14,10 +17,11 @@ export function fakeUser(overrides: Partial<CurrentUser> = {}): CurrentUser {
     email: 'plant.admin@indusense.com',
     first_name: 'Plant',
     last_name: 'Admin',
-    is_active: true,
+    status: 'active',
     is_verified: true,
     last_login_at: null,
     roles: ['COMPANY_ADMIN'],
+    plant_ids: [],
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     company_code: 'INDU',
@@ -32,7 +36,9 @@ export function fakeUser(overrides: Partial<CurrentUser> = {}): CurrentUser {
 export class FakeAuthService {
   private readonly userState = signal<CurrentUser | null>(null);
   readonly user = this.userState.asReadonly();
-  readonly status = computed<SessionStatus>(() => (this.userState() ? 'authenticated' : 'anonymous'));
+  readonly status = computed<SessionStatus>(() =>
+    this.userState() ? 'authenticated' : 'anonymous',
+  );
   readonly isAuthenticated = computed(() => this.userState() !== null);
   readonly permissions = computed(() => new Set(this.userState()?.permissions ?? []));
   readonly displayUser = computed(() => {

@@ -52,10 +52,15 @@ describe('ApiService', () => {
 
   it('unwraps a page and sends query parameters', async () => {
     const result = firstValueFrom(
-      api.getPage<number>('/devices', { page: 2, page_size: 10, search: 'press', is_active: true }),
+      api.getPage<number>('/devices', {
+        page: 2,
+        page_size: 10,
+        search: 'press',
+        status: 'active',
+      }),
     );
     const req = http.expectOne((r) => r.url === '/api/v1/devices');
-    expect(req.request.params.toString()).toBe('page=2&page_size=10&search=press&is_active=true');
+    expect(req.request.params.toString()).toBe('page=2&page_size=10&search=press&status=active');
     req.flush(page([11, 12], 2, 12, 10));
     expect(await result).toEqual({
       items: [11, 12],
@@ -194,9 +199,9 @@ describe('toHttpParams', () => {
       tag_id: [1, 2],
       search: undefined,
       quality: null,
-      is_active: false,
+      status: 'inactive',
     });
-    expect(params.toString()).toBe('device_id=3&tag_id=1&tag_id=2&is_active=false');
+    expect(params.toString()).toBe('device_id=3&tag_id=1&tag_id=2&status=inactive');
   });
 
   it('converts typed filter objects', () => {

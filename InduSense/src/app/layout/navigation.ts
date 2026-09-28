@@ -14,6 +14,8 @@ export interface NavItem {
 /** Sidebar entries, top to bottom. */
 export const PRIMARY_NAV: readonly NavItem[] = [
   { label: 'Dashboard', path: '/dashboard', icon: 'gauge' },
+  // Platform administration: every company (tenant:all only).
+  { label: 'Companies', path: '/companies', icon: 'building', permission: Permission.TenantAll },
   {
     label: 'Devices',
     path: '/devices',
@@ -23,13 +25,14 @@ export const PRIMARY_NAV: readonly NavItem[] = [
   },
   { label: 'Assets', path: '/assets', icon: 'lightbulb', permission: Permission.MachinesView },
   { label: 'Locations', path: '/locations', icon: 'map-pin', permission: Permission.PlantsView },
+  { label: 'Energy', path: '/energy', icon: 'zap', permission: Permission.DashboardsView },
   { label: 'Maps', path: '/maps', icon: 'map', permission: Permission.PlantsView },
   {
     label: 'Reports',
     path: '/reports',
     icon: 'line-chart',
     hasChildren: true,
-    permission: Permission.TelemetryView,
+    permission: Permission.ReportsView,
   },
   { label: 'Alarms', path: '/alarms', icon: 'bell', hasChildren: true },
   { label: 'More', path: '/more', icon: 'more-horizontal' },

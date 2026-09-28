@@ -1,6 +1,7 @@
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
-import { Injectable, PLATFORM_ID, inject } from '@angular/core';
+import { Injectable, PLATFORM_ID, Signal, computed, inject } from '@angular/core';
 
+import { ThemeService } from '../../core/browser/theme.service';
 import { StatusTone } from '../utils/status-colors';
 
 /**
@@ -60,21 +61,34 @@ type Token = keyof typeof FALLBACK;
 
 /**
  * Chart colors resolved from the CSS design tokens. ECharts renders with literal colors, so the
- * tokens are read once from the document (browser) and exposed as a plain object.
+ * tokens are read from the document (browser) into a plain object, again whenever the color theme
+ * (ThemeService) changes.
  */
 @Injectable({ providedIn: 'root' })
 export class ChartThemeService {
-  readonly theme: ChartTheme;
+  private readonly document = inject(DOCUMENT);
+  private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
+  private readonly mode = inject(ThemeService).mode;
 
-  constructor() {
-    const document = inject(DOCUMENT);
-    const isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
-    const view = isBrowser ? document.defaultView : null;
+  /** Current chart theme; charts that build options in a `computed` restyle on theme changes. */
+  readonly current: Signal<ChartTheme> = computed(() => {
+    this.mode();
+    return this.read();
+  });
+
+  /** The current chart theme (a snapshot, not reactive). */
+  get theme(): ChartTheme {
+    return this.current();
+  }
+
+  private read(): ChartTheme {
+    const document = this.document;
+    const view = this.isBrowser ? document.defaultView : null;
     const styles = view?.getComputedStyle(document.documentElement);
     const token = (name: Token) => styles?.getPropertyValue(name).trim() || FALLBACK[name];
     const reducedMotion = !!view?.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-    this.theme = {
+    return {
       surface: token('--bg-card'),
       popover: token('--bg-popover'),
       grid: token('--border-card'),

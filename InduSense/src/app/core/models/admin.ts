@@ -1,4 +1,4 @@
-import { IsoDateTime } from './common';
+import { EditableStatus, IsoDateTime, RecordStatus, StatusFilter } from './common';
 
 // ---------------------------------------------------------------------- Users ----
 
@@ -15,7 +15,7 @@ export interface UserCreate {
 export interface UserUpdate {
   first_name?: string | null;
   last_name?: string | null;
-  is_active?: boolean | null;
+  status?: EditableStatus;
   is_verified?: boolean | null;
 }
 
@@ -29,7 +29,7 @@ export interface PasswordReset {
 
 export interface UserFilters {
   company_id?: number;
-  is_active?: boolean;
+  status?: StatusFilter | null;
   search?: string;
 }
 
@@ -72,9 +72,30 @@ export interface Company {
   name: string;
   address: string | null;
   timezone: string;
-  is_active: boolean;
+  status: RecordStatus;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
+}
+
+/** Resources a platform administrator can cap per company (InduSense-BE `LimitedResource`). */
+export type LimitedResource =
+  'plants' | 'areas' | 'machines' | 'meters' | 'gateways' | 'devices' | 'users';
+
+export const LIMITED_RESOURCES: readonly LimitedResource[] = [
+  'plants',
+  'areas',
+  'machines',
+  'meters',
+  'gateways',
+  'devices',
+  'users',
+];
+
+/** `GET /companies/{id}/limits` row: `limit` null = unlimited; `used` = active + inactive records. */
+export interface CompanyLimitUsage {
+  resource: LimitedResource;
+  limit: number | null;
+  used: number;
 }
 
 export interface CompanyCreate {
@@ -82,17 +103,21 @@ export interface CompanyCreate {
   name: string;
   address?: string | null;
   timezone?: string;
+  /** Omitted resources are unlimited. */
+  limits?: Partial<Record<LimitedResource, number>>;
+  /** Module codes to enable (needs `modules:manage`). */
+  module_codes?: string[];
 }
 
 export interface CompanyUpdate {
   name?: string | null;
   address?: string | null;
   timezone?: string | null;
-  is_active?: boolean | null;
+  status?: EditableStatus;
 }
 
 export interface CompanyFilters {
-  is_active?: boolean;
+  status?: StatusFilter | null;
   search?: string;
 }
 
@@ -105,7 +130,7 @@ export interface Module {
   code: string;
   name: string;
   description: string | null;
-  is_active: boolean;
+  status: RecordStatus;
 }
 
 export interface ModuleCreate {
@@ -117,7 +142,7 @@ export interface ModuleCreate {
 export interface ModuleUpdate {
   name?: string | null;
   description?: string | null;
-  is_active?: boolean | null;
+  status?: EditableStatus;
 }
 
 // ---------------------------------------------------------------- DataLoggers ----

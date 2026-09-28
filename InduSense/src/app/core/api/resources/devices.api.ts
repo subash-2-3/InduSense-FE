@@ -44,7 +44,8 @@ export class DevicesApi {
     return this.api.patch<Device>(`/devices/${id}`, body);
   }
 
-  deactivate(id: number): Observable<Device> {
+  /** Soft delete (status `delete`): the DataLogger stops storing its telemetry. */
+  delete(id: number): Observable<Device> {
     return this.api.delete<Device>(`/devices/${id}`);
   }
 

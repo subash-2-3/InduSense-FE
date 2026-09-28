@@ -22,7 +22,7 @@ describe('AppSidebarComponent', () => {
     return harness.routeNativeElement!;
   }
 
-  it('renders the 9 navigation items with Quick Start pinned last', async () => {
+  it('renders the 10 navigation items with Quick Start pinned last', async () => {
     const el = await renderAt('/dashboard');
     const labels = Array.from(el.querySelectorAll('.nav-item__label')).map((l) => l.textContent);
     expect(labels).toEqual([
@@ -30,6 +30,7 @@ describe('AppSidebarComponent', () => {
       'Devices',
       'Assets',
       'Locations',
+      'Energy',
       'Maps',
       'Reports',
       'Alarms',

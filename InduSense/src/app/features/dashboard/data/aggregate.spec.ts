@@ -24,7 +24,7 @@ function fakeDevice(overrides: Partial<Device> = {}): Device {
     source: 'MQTT',
     ip_address: null,
     location: null,
-    is_active: true,
+    status: 'active',
     last_seen_at: '2026-09-25T12:00:00Z',
     connection_state: 'ONLINE',
     created_at: '2026-09-25T10:00:00Z',
@@ -37,9 +37,9 @@ describe('aggregate helpers', () => {
   describe('aggregateDeviceCount', () => {
     it('returns the total count', () => {
       expect(aggregateDeviceCount([])).toEqual({ value: 0 });
-      expect(
-        aggregateDeviceCount([fakeDevice({ id: 1 }), fakeDevice({ id: 2 })]),
-      ).toEqual({ value: 2 });
+      expect(aggregateDeviceCount([fakeDevice({ id: 1 }), fakeDevice({ id: 2 })])).toEqual({
+        value: 2,
+      });
     });
   });
 
@@ -132,8 +132,8 @@ describe('aggregate helpers', () => {
             manufacturer: 'Haas',
             model: 'VF-2',
             serial_number: 'SN-01',
-            status: 'RUNNING',
-            is_active: true,
+            operating_status: 'RUNNING',
+            status: 'active',
             created_at: '2026-09-01T00:00:00Z',
             updated_at: '2026-09-25T12:30:00Z',
           },
@@ -149,8 +149,8 @@ describe('aggregate helpers', () => {
             manufacturer: null,
             model: null,
             serial_number: null,
-            status: 'IDLE',
-            is_active: true,
+            operating_status: 'IDLE',
+            status: 'active',
             created_at: '2026-09-01T00:00:00Z',
             updated_at: '2026-09-25T11:00:00Z',
           },
@@ -158,9 +158,7 @@ describe('aggregate helpers', () => {
         pagination: { page: 1, page_size: 10, total: 2, total_pages: 1 },
       };
 
-      const devices: Device[] = [
-        fakeDevice({ id: 1, gateway_id: 50, connection_state: 'ONLINE' }),
-      ];
+      const devices: Device[] = [fakeDevice({ id: 1, gateway_id: 50, connection_state: 'ONLINE' })];
 
       const gateways: Gateway[] = [
         {
@@ -176,7 +174,7 @@ describe('aggregate helpers', () => {
           serial_number: null,
           ip_address: null,
           port: null,
-          is_active: true,
+          status: 'active',
           created_at: '2026-09-01T00:00:00Z',
           updated_at: '2026-09-01T00:00:00Z',
         },
@@ -190,7 +188,7 @@ describe('aggregate helpers', () => {
           name: 'Chennai Plant',
           address: null,
           timezone: null,
-          is_active: true,
+          status: 'active',
           created_at: '2026-09-01T00:00:00Z',
           updated_at: '2026-09-01T00:00:00Z',
         },
@@ -204,7 +202,7 @@ describe('aggregate helpers', () => {
           code: 'A-01',
           name: 'Line A',
           description: null,
-          is_active: true,
+          status: 'active',
           created_at: '2026-09-01T00:00:00Z',
           updated_at: '2026-09-01T00:00:00Z',
         },
@@ -256,7 +254,7 @@ describe('aggregate helpers', () => {
         category: null,
         is_counter: false,
         is_cumulative: false,
-        is_active: true,
+        status: 'active',
         data_id: null,
         monitor_id: null,
         register_address: null,

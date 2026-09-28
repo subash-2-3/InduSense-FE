@@ -39,7 +39,8 @@ export class LocationsApi {
     return this.api.patch<Plant>(`/plants/${id}`, body);
   }
 
-  deactivatePlant(id: number): Observable<Plant> {
+  /** Soft delete (status `delete`). */
+  deletePlant(id: number): Observable<Plant> {
     return this.api.delete<Plant>(`/plants/${id}`);
   }
 
@@ -63,7 +64,8 @@ export class LocationsApi {
     return this.api.patch<Area>(`/areas/${id}`, body);
   }
 
-  deactivateArea(id: number): Observable<Area> {
+  /** Soft delete (status `delete`). */
+  deleteArea(id: number): Observable<Area> {
     return this.api.delete<Area>(`/areas/${id}`);
   }
 }

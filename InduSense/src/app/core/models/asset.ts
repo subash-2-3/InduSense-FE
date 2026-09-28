@@ -1,4 +1,4 @@
-import { IsoDateTime } from './common';
+import { EditableStatus, IsoDateTime, RecordStatus, StatusFilter } from './common';
 
 export type MachineStatus = 'RUNNING' | 'IDLE' | 'STOPPED' | 'MAINTENANCE' | 'FAULT' | 'UNKNOWN';
 
@@ -26,8 +26,8 @@ export interface Machine {
   manufacturer: string | null;
   model: string | null;
   serial_number: string | null;
-  status: MachineStatus;
-  is_active: boolean;
+  operating_status: MachineStatus;
+  status: RecordStatus;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
 }
@@ -42,7 +42,7 @@ export interface MachineCreate {
   manufacturer?: string | null;
   model?: string | null;
   serial_number?: string | null;
-  status?: MachineStatus;
+  operating_status?: MachineStatus;
 }
 
 export interface MachineUpdate {
@@ -55,8 +55,8 @@ export interface MachineUpdate {
   manufacturer?: string | null;
   model?: string | null;
   serial_number?: string | null;
-  status?: MachineStatus;
-  is_active?: boolean;
+  operating_status?: MachineStatus;
+  status?: EditableStatus;
 }
 
 /** `MeterResponse`. */
@@ -73,7 +73,7 @@ export interface Meter {
   model: string | null;
   serial_number: string | null;
   unit: string | null;
-  is_active: boolean;
+  status: RecordStatus;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
 }
@@ -102,7 +102,7 @@ export interface MeterUpdate {
   model?: string | null;
   serial_number?: string | null;
   unit?: string | null;
-  is_active?: boolean;
+  status?: EditableStatus;
 }
 
 /** `GatewayResponse`. */
@@ -120,7 +120,7 @@ export interface Gateway {
   serial_number: string | null;
   ip_address: string | null;
   port: number | null;
-  is_active: boolean;
+  status: RecordStatus;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
 }
@@ -149,14 +149,14 @@ export interface GatewayUpdate {
   serial_number?: string | null;
   ip_address?: string | null;
   port?: number | null;
-  is_active?: boolean;
+  status?: EditableStatus;
 }
 
 /** List filters shared by plant assets. */
 export interface PlantAssetFilters {
   plant_id?: number;
   area_id?: number;
-  is_active?: boolean;
+  status?: StatusFilter | null;
   /** Matches code, name or serial number. */
   search?: string;
 }
@@ -173,7 +173,30 @@ export interface MeterFilters extends PlantAssetFilters {
 export interface TagMappingItem {
   metric: Metric;
   tag_id: number;
+  /** The device the tag was picked from; the backend rejects a tag of another device. */
+  device_id?: number | null;
 }
+
+/** Metrics a machine can map (meters: all but PRODUCTION_COUNTER and RUN_STATUS). */
+export const MACHINE_METRICS: readonly Metric[] = [
+  'PRODUCTION_COUNTER',
+  'RUN_STATUS',
+  'POWER',
+  'ENERGY',
+  'VOLTAGE',
+  'CURRENT',
+  'FREQUENCY',
+  'POWER_FACTOR',
+];
+
+export const METER_METRICS: readonly Metric[] = [
+  'POWER',
+  'ENERGY',
+  'VOLTAGE',
+  'CURRENT',
+  'FREQUENCY',
+  'POWER_FACTOR',
+];
 
 export interface TagMappingsUpdate {
   mappings: TagMappingItem[];

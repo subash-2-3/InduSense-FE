@@ -1,8 +1,9 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import {
   Observable,
   catchError,
+  from,
   map,
   mergeMap,
   of,
@@ -86,9 +87,26 @@ export class ApiService {
 
   /** `GET` the entire envelope response (e.g. for reports with data and pagination). */
   getRaw<T>(path: string, params?: QueryParams): Observable<T> {
-    return this.http.get<T>(this.url(path), { params: toHttpParams(params) }).pipe(
-      catchError(toApiError),
-    );
+    return this.http
+      .get<T>(this.url(path), { params: toHttpParams(params) })
+      .pipe(catchError(toApiError));
+  }
+
+  /** `GET` a file (e.g. a report export); the name comes from `Content-Disposition`. */
+  download(path: string, params?: QueryParams): Observable<Download> {
+    return this.http
+      .get(this.url(path), {
+        params: toHttpParams(params),
+        observe: 'response',
+        responseType: 'blob',
+      })
+      .pipe(
+        map((response) => ({
+          blob: response.body ?? new Blob(),
+          filename: filenameOf(response.headers.get('Content-Disposition')),
+        })),
+        catchError((error: unknown) => from(blobErrorAsJson(error)).pipe(switchMap(toApiError))),
+      );
   }
 
   /**
@@ -172,4 +190,34 @@ export class ApiService {
 
 function toApiError(error: unknown): Observable<never> {
   return throwError(() => ApiError.from(error));
+}
+
+export interface Download {
+  blob: Blob;
+  /** From `Content-Disposition`; null if the server sent none. */
+  filename: string | null;
+}
+
+export function filenameOf(disposition: string | null): string | null {
+  const match = disposition?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+/** A failed blob request carries its JSON error body as a Blob: parse it so ApiError sees it. */
+async function blobErrorAsJson(error: unknown): Promise<unknown> {
+  if (!(error instanceof HttpErrorResponse) || !(error.error instanceof Blob)) {
+    return error;
+  }
+  try {
+    const body = JSON.parse(await error.error.text());
+    return new HttpErrorResponse({
+      error: body,
+      headers: error.headers,
+      status: error.status,
+      statusText: error.statusText,
+      url: error.url ?? undefined,
+    });
+  } catch {
+    return error;
+  }
 }

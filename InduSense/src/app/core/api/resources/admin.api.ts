@@ -5,12 +5,14 @@ import {
   AuditLog,
   AuditLogFilters,
   Company,
+  CompanyLimitUsage,
   CompanyCreate,
   CompanyFilters,
   CompanyUpdate,
   LoggerAssign,
   LoggerFilters,
   LoggerStatus,
+  LimitedResource,
   Module,
   ModuleCreate,
   ModuleUpdate,
@@ -53,13 +55,19 @@ export class UsersApi {
     return this.api.patch<User>(`/users/${id}`, body);
   }
 
-  deactivate(id: number): Observable<User> {
+  /** Soft delete (status `delete`). */
+  delete(id: number): Observable<User> {
     return this.api.delete<User>(`/users/${id}`);
   }
 
   setRoles(id: number, roleCodes: string[]): Observable<User> {
     const body: UserRolesUpdate = { role_codes: roleCodes };
     return this.api.put<User>(`/users/${id}/roles`, body);
+  }
+
+  /** Limits the user to these plants; an empty list gives access to every plant of the company. */
+  setPlants(id: number, plantIds: number[]): Observable<User> {
+    return this.api.put<User>(`/users/${id}/plants`, { plant_ids: plantIds });
   }
 
   resetPassword(id: number, newPassword: string): Observable<void> {
@@ -119,7 +127,8 @@ export class CompaniesApi {
     return this.api.patch<Company>(`/companies/${id}`, body);
   }
 
-  deactivate(id: number): Observable<Company> {
+  /** Soft delete (status `delete`). */
+  delete(id: number): Observable<Company> {
     return this.api.delete<Company>(`/companies/${id}`);
   }
 
@@ -131,6 +140,19 @@ export class CompaniesApi {
     return this.api.put<string[]>(`/companies/${companyId}/modules`, {
       module_codes: moduleCodes,
     });
+  }
+
+  /** Limits and current use of every resource. */
+  limits(companyId: number): Observable<CompanyLimitUsage[]> {
+    return this.api.get<CompanyLimitUsage[]>(`/companies/${companyId}/limits`);
+  }
+
+  /** Changes only the given resources; `null` removes a limit (platform administrators). */
+  setLimits(
+    companyId: number,
+    limits: Partial<Record<LimitedResource, number | null>>,
+  ): Observable<CompanyLimitUsage[]> {
+    return this.api.put<CompanyLimitUsage[]>(`/companies/${companyId}/limits`, { limits });
   }
 
   listProductModules(): Observable<Module[]> {

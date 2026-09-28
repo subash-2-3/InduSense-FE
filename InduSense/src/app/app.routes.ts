@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
-import { authGuard, guestGuard } from './core/auth/auth.guards';
+import { authGuard, guestGuard, permissionGuard } from './core/auth/auth.guards';
+import { Permission } from './core/auth/permissions';
 import { IconName } from './shared/ui';
 
 const comingSoon = (path: string, section: string, icon: IconName) => ({
@@ -61,6 +62,26 @@ export const routes: Routes = [
             (m) => m.LocationsPageComponent,
           ),
       },
+      {
+        path: 'energy',
+        title: 'Energy · InduSense',
+        data: { section: 'Energy' },
+        canActivate: [permissionGuard(Permission.DashboardsView)],
+        loadComponent: () =>
+          import('./features/energy/energy-dashboard-page.component').then(
+            (m) => m.EnergyDashboardPageComponent,
+          ),
+      },
+      {
+        path: 'energy/reports',
+        title: 'Energy Reports · InduSense',
+        data: { section: 'Energy' },
+        canActivate: [permissionGuard(Permission.ReportsView)],
+        loadComponent: () =>
+          import('./features/energy/energy-reports-page.component').then(
+            (m) => m.EnergyReportsPageComponent,
+          ),
+      },
       comingSoon('maps', 'Maps', 'map'),
       {
         path: 'reports',
@@ -79,6 +100,16 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/settings/settings-page.component').then(
             (m) => m.SettingsPageComponent,
+          ),
+      },
+      {
+        path: 'companies',
+        title: 'Companies · InduSense',
+        data: { section: 'Companies' },
+        canActivate: [permissionGuard(Permission.TenantAll)],
+        loadComponent: () =>
+          import('./features/companies/companies-page.component').then(
+            (m) => m.CompaniesPageComponent,
           ),
       },
       comingSoon('help', 'Help', 'help-circle'),

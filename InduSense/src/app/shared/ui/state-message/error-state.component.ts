@@ -32,7 +32,7 @@ import { IconName } from '../icon/icons';
   styles: `
     .state__icon--error {
       background: color-mix(in srgb, var(--status-fault) 15%, transparent);
-      color: #f87171;
+      color: var(--status-fault-text);
     }
   `,
   host: { role: 'alert', '[class.state--compact]': 'compact()' },

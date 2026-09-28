@@ -14,3 +14,9 @@ export const authGuard: CanActivateFn = (_route, state) => {
 /** The login page is for signed-out users; signed-in users go to the dashboard. */
 export const guestGuard: CanActivateFn = () =>
   inject(AuthService).isAuthenticated() ? inject(Router).createUrlTree(['/dashboard']) : true;
+
+/** Users holding `permission` only; others go to the dashboard (the API enforces it as well). */
+export const permissionGuard =
+  (permission: string): CanActivateFn =>
+  () =>
+    inject(AuthService).hasPermission(permission) || inject(Router).createUrlTree(['/dashboard']);

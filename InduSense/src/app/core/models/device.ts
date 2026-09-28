@@ -1,4 +1,4 @@
-import { IsoDateTime } from './common';
+import { EditableStatus, IsoDateTime, RecordStatus, StatusFilter } from './common';
 
 /** Derived by the API from `last_seen_at` (OFFLINE after DEVICE_OFFLINE_AFTER_SECONDS). */
 export type ConnectionState = 'ONLINE' | 'OFFLINE' | 'NEVER_SEEN';
@@ -16,7 +16,7 @@ export interface Device {
   source: string | null;
   ip_address: string | null;
   location: string | null;
-  is_active: boolean;
+  status: RecordStatus;
   last_seen_at: IsoDateTime | null;
   connection_state: ConnectionState;
   created_at: IsoDateTime;
@@ -41,12 +41,12 @@ export interface DeviceUpdate {
   device_type?: string | null;
   ip_address?: string | null;
   location?: string | null;
-  is_active?: boolean | null;
+  status?: EditableStatus;
 }
 
 export interface DeviceFilters {
   gateway_id?: number;
-  is_active?: boolean;
+  status?: StatusFilter | null;
   /** Platform administrators only. */
   company_id?: number;
   /** Platform administrators only: devices not yet assigned to a company. */
@@ -64,7 +64,7 @@ export interface DeviceConnection {
   port: number | null;
   settings: Record<string, string | number | boolean | null> | null;
   secret_ref: string | null;
-  is_active: boolean;
+  status: RecordStatus;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
 }
@@ -82,7 +82,7 @@ export interface DeviceConnectionUpdate {
   port?: number | null;
   settings?: Record<string, string | number | boolean | null> | null;
   secret_ref?: string | null;
-  is_active?: boolean | null;
+  status?: EditableStatus;
 }
 
 /** `TagResponse`. */
@@ -96,7 +96,7 @@ export interface Tag {
   category: string | null;
   is_counter: boolean;
   is_cumulative: boolean;
-  is_active: boolean;
+  status: RecordStatus;
   data_id: number | null;
   monitor_id: number | null;
   register_address: string | null;
@@ -122,13 +122,13 @@ export interface TagUpdate {
   category?: string | null;
   is_counter?: boolean | null;
   is_cumulative?: boolean | null;
-  is_active?: boolean | null;
+  status?: EditableStatus;
 }
 
 export interface TagFilters {
   device_id?: number;
   category?: string;
-  is_active?: boolean;
+  status?: StatusFilter | null;
   /** Matches tag name or display name. */
   search?: string;
 }

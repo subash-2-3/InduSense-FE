@@ -129,6 +129,20 @@ export const ICONS = {
   ],
   check: ['M20 6L9 17l-5-5'],
   x: ['M18 6L6 18', 'M6 6l12 12'],
+
+  // Theme
+  sun: [
+    circle(12, 12, 5),
+    'M12 1v2',
+    'M12 21v2',
+    'M4.22 4.22l1.42 1.42',
+    'M18.36 18.36l1.42 1.42',
+    'M1 12h2',
+    'M21 12h2',
+    'M4.22 19.78l1.42-1.42',
+    'M18.36 5.64l1.42-1.42',
+  ],
+  moon: ['M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'],
 } as const satisfies Record<string, readonly string[]>;
 
 export type IconName = keyof typeof ICONS;

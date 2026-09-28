@@ -53,7 +53,7 @@ export class ColumnBarWidgetComponent {
 
   readonly retry = output<void>();
 
-  private readonly theme = inject(ChartThemeService).theme;
+  private readonly theme = inject(ChartThemeService).current;
   protected readonly width = signal(0);
 
   protected readonly hasData = computed(
@@ -62,7 +62,7 @@ export class ColumnBarWidgetComponent {
   protected readonly options = computed(() =>
     buildColumnBarOptions(
       this.data() ?? { categories: [], series: [] },
-      this.theme,
+      this.theme(),
       { xAxis: this.xAxisLabel(), yAxis: this.yAxisLabel() },
       this.width(),
     ),

@@ -40,7 +40,7 @@ export class RadialGaugeWidgetComponent {
 
   readonly retry = output<void>();
 
-  private readonly theme = inject(ChartThemeService).theme;
+  private readonly theme = inject(ChartThemeService).current;
   protected readonly size = signal<ChartSize>({ width: 0, height: 0 });
 
   protected readonly scale = computed(() => normaliseScale(this.min(), this.max()));
@@ -49,7 +49,7 @@ export class RadialGaugeWidgetComponent {
   protected readonly unit = computed(() => this.gauge()?.unit ?? '');
 
   protected readonly options = computed(() =>
-    buildGaugeOptions(this.value() ?? this.scale().min, this.scale(), this.theme, this.size()),
+    buildGaugeOptions(this.value() ?? this.scale().min, this.scale(), this.theme(), this.size()),
   );
   /** Width of the arc's base, so the min/max labels sit under its ends. */
   protected readonly arcWidth = computed(() => {

@@ -8,4 +8,6 @@ export * from './state-message/empty-state.component';
 export * from './state-message/error-state.component';
 export * from './modal/modal.component';
 export * from './status-pill/status-pill.component';
+export * from './toast/toast-container.component';
+export * from './toast/toast.service';
 export type { StatusTone } from '../utils/status-colors';

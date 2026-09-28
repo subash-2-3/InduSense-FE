@@ -15,10 +15,11 @@ import {
 import { Router, RouterLink } from '@angular/router';
 
 import { AuthService } from '../../core/auth/auth.service';
+import { ThemeService } from '../../core/browser/theme.service';
 import { initials } from '../../shared/utils/initials';
 import { ButtonComponent, DropdownMenuComponent, IconComponent, MenuItem } from '../../shared/ui';
 
-/** Top bar: brand, current section, company, search, settings and the user menu. */
+/** Top bar: brand, current section, company, search, theme toggle, settings and the user menu. */
 @Component({
   selector: 'app-header',
   imports: [ButtonComponent, DropdownMenuComponent, IconComponent, RouterLink],
@@ -34,10 +35,12 @@ export class AppHeaderComponent {
   readonly navToggle = output<void>();
 
   private readonly auth = inject(AuthService);
+  private readonly themes = inject(ThemeService);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
 
   protected readonly user = this.auth.displayUser;
+  protected readonly theme = this.themes.mode;
   protected readonly avatarText = computed(() => initials(this.user()?.name ?? ''));
   protected readonly searchOpen = signal(false);
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
@@ -54,6 +57,10 @@ export class AppHeaderComponent {
         injector: this.injector,
       });
     }
+  }
+
+  protected toggleTheme(): void {
+    this.themes.toggle();
   }
 
   protected closeSearch(): void {

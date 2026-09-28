@@ -1,9 +1,28 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { noop } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 
+import { CompaniesApi } from '../../core/api/resources/admin.api';
 import { DevicesApi } from '../../core/api/resources/devices.api';
-import { Device, DeviceCreate, DeviceUpdate } from '../../core/models';
+import { GatewaysApi } from '../../core/api/resources/plant-assets.api';
+import { AuthService } from '../../core/auth/auth.service';
+import { Permission } from '../../core/auth/permissions';
+import {
+  Company,
+  Device,
+  DeviceCreate,
+  DeviceUpdate,
+  Gateway,
+  RecordStatus,
+} from '../../core/models';
 import {
   ButtonComponent,
   CardComponent,
@@ -15,6 +34,15 @@ import {
   StatusPillComponent,
   StatusTone,
 } from '../../shared/ui';
+import { ToastService } from '../../shared/ui/toast/toast.service';
+import {
+  VISIBLE_STATUSES,
+  recordStatusLabel,
+  recordStatusTone,
+  toggledStatus,
+} from '../../shared/utils/record-status';
+import { DeviceConnectionsDialogComponent } from './device-connections-dialog.component';
+import { DeviceTagsDialogComponent } from './device-tags-dialog.component';
 import { formatDateTime } from '../../shared/utils/format';
 
 @Component({
@@ -30,13 +58,17 @@ import { formatDateTime } from '../../shared/utils/format';
     EmptyStateComponent,
     ErrorStateComponent,
     ModalComponent,
+    DeviceTagsDialogComponent,
+    DeviceConnectionsDialogComponent,
   ],
   template: `
     <div class="dev-page">
       <header class="dev-header">
         <div class="dev-header__titles">
           <h1 class="dev-header__title">Connected Devices</h1>
-          <p class="dev-header__subtitle">Manage edge data sources, gateways, and connection states</p>
+          <p class="dev-header__subtitle">
+            Manage edge data sources, gateways, and connection states
+          </p>
         </div>
         <div class="dev-header__actions">
           <button appButton variant="secondary" (click)="loadDevices()">
@@ -49,15 +81,6 @@ import { formatDateTime } from '../../shared/utils/format';
           </button>
         </div>
       </header>
-
-      @if (actionFeedback(); as fb) {
-        <div class="feedback-banner" [class.feedback-banner--error]="fb.type === 'error'">
-          <span>{{ fb.message }}</span>
-          <button class="clear-btn" type="button" (click)="actionFeedback.set(null)">
-            <app-icon name="x" [size]="14" />
-          </button>
-        </div>
-      }
 
       <div class="dev-toolbar">
         <div class="dev-search">
@@ -76,6 +99,17 @@ import { formatDateTime } from '../../shared/utils/format';
           }
         </div>
         <div class="dev-stats">
+          <select
+            class="form-select dev-filter"
+            aria-label="Device status"
+            [ngModel]="statusView()"
+            (ngModelChange)="setStatusView($event)"
+          >
+            <option value="visible">Active and inactive</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="delete">Deleted</option>
+          </select>
           <span class="stat-badge">Total: {{ totalCount() }} devices</span>
         </div>
       </div>
@@ -130,10 +164,18 @@ import { formatDateTime } from '../../shared/utils/format';
                         [label]="device.connection_state"
                         [tone]="statusTone(device.connection_state)"
                       />
+                      @if (device.status !== 'active') {
+                        <app-status-pill
+                          [label]="recordLabel(device.status)"
+                          [tone]="recordTone(device.status)"
+                        />
+                      }
                     </td>
                     <td>
                       <div class="cell-name">
-                        <span class="cell-name__primary">{{ device.name || 'Unnamed Device' }}</span>
+                        <span class="cell-name__primary">{{
+                          device.name || 'Unnamed Device'
+                        }}</span>
                         <span class="cell-name__secondary">{{ device.external_id }}</span>
                       </div>
                     </td>
@@ -151,24 +193,63 @@ import { formatDateTime } from '../../shared/utils/format';
                       </span>
                     </td>
                     <td class="text-right">
-                      <button
-                        appButton
-                        variant="ghost"
-                        size="sm"
-                        title="Edit Device"
-                        (click)="openEditModal(device)"
-                      >
-                        <app-icon name="edit" [size]="14" />
-                      </button>
-                      <button
-                        appButton
-                        variant="ghost"
-                        size="sm"
-                        title="Deactivate Device"
-                        (click)="deactivateDevice(device.id, device.name || device.external_id)"
-                      >
-                        <app-icon name="x" [size]="14" />
-                      </button>
+                      @if (device.status === 'delete') {
+                        <button appButton variant="ghost" size="sm" (click)="restoreDevice(device)">
+                          Restore
+                        </button>
+                      } @else {
+                        <button
+                          appButton
+                          variant="ghost"
+                          size="sm"
+                          title="Tags"
+                          (click)="tagsDevice.set(device)"
+                        >
+                          Tags
+                        </button>
+                        <button
+                          appButton
+                          variant="ghost"
+                          size="sm"
+                          title="Connections"
+                          (click)="connectionsDevice.set(device)"
+                        >
+                          Connections
+                        </button>
+                        <button
+                          appButton
+                          variant="ghost"
+                          size="sm"
+                          title="Edit Device"
+                          [attr.aria-label]="'Edit ' + (device.name || device.external_id)"
+                          (click)="openEditModal(device)"
+                        >
+                          <app-icon name="edit" [size]="14" />
+                        </button>
+                        <button
+                          appButton
+                          variant="ghost"
+                          size="sm"
+                          [title]="device.status === 'active' ? 'Deactivate' : 'Activate'"
+                          [attr.aria-label]="
+                            (device.status === 'active' ? 'Deactivate ' : 'Activate ') +
+                            (device.name || device.external_id)
+                          "
+                          (click)="toggleDevice(device)"
+                        >
+                          <app-icon name="settings" [size]="14" />
+                        </button>
+                        <button
+                          appButton
+                          variant="ghost"
+                          size="sm"
+                          title="Delete Device"
+                          [attr.aria-label]="'Delete ' + (device.name || device.external_id)"
+                          (click)="deleteDevice(device.id, device.name || device.external_id)"
+                        >
+                          <app-icon name="x" [size]="14" />
+                        </button>
+                      }
                     </td>
                   </tr>
                 }
@@ -177,7 +258,9 @@ import { formatDateTime } from '../../shared/utils/format';
           </div>
 
           <footer class="dev-footer">
-            <span class="dev-footer__total">Showing {{ devices().length }} of {{ totalCount() }}</span>
+            <span class="dev-footer__total"
+              >Showing {{ devices().length }} of {{ totalCount() }}</span
+            >
             <div class="dev-footer__pager">
               <button
                 appButton
@@ -209,10 +292,25 @@ import { formatDateTime } from '../../shared/utils/format';
       <app-modal
         [open]="modalOpen()"
         [title]="editingDeviceId() ? 'Edit Device' : 'Register New Device'"
-        [subtitle]="editingDeviceId() ? 'Update connection details' : 'Register an industrial edge device or PLC'"
+        [subtitle]="
+          editingDeviceId()
+            ? 'Update connection details'
+            : 'Register an industrial edge device or PLC'
+        "
         (close)="modalOpen.set(false)"
       >
         <form (ngSubmit)="saveDevice()" class="modal-form">
+          @if (isPlatformAdmin()) {
+            <div class="form-group">
+              <label class="form-label">Company</label>
+              <select class="form-select" [(ngModel)]="deviceForm.company_id" name="company_id">
+                <option [ngValue]="null">Unassigned</option>
+                @for (c of companies(); track c.id) {
+                  <option [ngValue]="c.id">{{ c.name }} ({{ c.code }})</option>
+                }
+              </select>
+            </div>
+          }
           <div class="form-group">
             <label class="form-label">External ID (Unique Hardware Identifier) *</label>
             <input
@@ -245,6 +343,7 @@ import { formatDateTime } from '../../shared/utils/format';
                 class="form-input"
                 placeholder="e.g. MODBUS_TCP, MQTT, OPC_UA"
                 [(ngModel)]="deviceForm.source"
+                [disabled]="!!editingDeviceId()"
                 name="source"
               />
             </div>
@@ -260,6 +359,28 @@ import { formatDateTime } from '../../shared/utils/format';
             </div>
           </div>
 
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label class="form-label">Device type</label>
+              <input
+                type="text"
+                class="form-input"
+                placeholder="e.g. PLC, Energy Meter"
+                [(ngModel)]="deviceForm.device_type"
+                name="device_type"
+              />
+            </div>
+            <div class="form-group flex-1">
+              <label class="form-label">Gateway</label>
+              <select class="form-select" [(ngModel)]="deviceForm.gateway_id" name="gateway_id">
+                <option [ngValue]="null">None</option>
+                @for (g of gatewaysForForm(); track g.id) {
+                  <option [ngValue]="g.id">{{ g.name }} ({{ g.gateway_code }})</option>
+                }
+              </select>
+            </div>
+          </div>
+
           <div class="form-group">
             <label class="form-label">Physical Location</label>
             <input
@@ -272,12 +393,7 @@ import { formatDateTime } from '../../shared/utils/format';
           </div>
 
           <div class="modal-actions">
-            <button
-              appButton
-              variant="secondary"
-              type="button"
-              (click)="modalOpen.set(false)"
-            >
+            <button appButton variant="secondary" type="button" (click)="modalOpen.set(false)">
               Cancel
             </button>
             <button
@@ -292,8 +408,18 @@ import { formatDateTime } from '../../shared/utils/format';
         </form>
       </app-modal>
     </div>
+
+    <app-device-tags-dialog [device]="tagsDevice()" (closed)="tagsDevice.set(null)" />
+    <app-device-connections-dialog
+      [device]="connectionsDevice()"
+      (closed)="connectionsDevice.set(null)"
+    />
   `,
   styles: `
+    .dev-filter {
+      width: auto;
+    }
+
     .dev-page {
       display: flex;
       flex-direction: column;
@@ -398,24 +524,6 @@ import { formatDateTime } from '../../shared/utils/format';
       border: 1px solid var(--border-light);
       border-radius: var(--radius-sm);
       font-family: var(--font-mono);
-    }
-
-    .feedback-banner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 16px;
-      border-radius: var(--radius-sm);
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: #34d399;
-      font-size: var(--text-sm);
-    }
-
-    .feedback-banner--error {
-      background: rgba(239, 68, 68, 0.12);
-      border-color: rgba(239, 68, 68, 0.3);
-      color: #f87171;
     }
 
     .table-container {
@@ -608,21 +716,52 @@ export class DevicesPageComponent implements OnInit {
   readonly totalPages = signal(1);
   readonly pageSize = 20;
 
-  readonly actionFeedback = signal<{ message: string; type: 'success' | 'error' } | null>(null);
+  private readonly toast = inject(ToastService);
+
+  private readonly auth = inject(AuthService);
+  private readonly companiesApi = inject(CompaniesApi);
+  private readonly gatewaysApi = inject(GatewaysApi);
+  protected readonly isPlatformAdmin = computed(() =>
+    this.auth.hasPermission(Permission.TenantAll),
+  );
+  readonly companies = signal<Company[]>([]);
+  readonly gateways = signal<Gateway[]>([]);
+  readonly statusView = signal<'visible' | RecordStatus>('visible');
+  readonly tagsDevice = signal<Device | null>(null);
+  readonly connectionsDevice = signal<Device | null>(null);
+  protected readonly recordLabel = recordStatusLabel;
+  protected readonly recordTone = recordStatusTone;
 
   // Modal
   readonly modalOpen = signal(false);
   readonly editingDeviceId = signal<number | null>(null);
-  deviceForm = {
-    external_id: '',
-    name: '',
-    source: 'MODBUS_TCP',
-    ip_address: '',
-    location: '',
-  };
+  deviceForm = this.blankForm();
 
   ngOnInit(): void {
     this.loadDevices();
+    this.gatewaysApi.listAll().subscribe({
+      next: (gateways) => this.gateways.set(gateways),
+      error: () => this.gateways.set([]),
+    });
+    if (this.isPlatformAdmin()) {
+      this.companiesApi.listAll().subscribe({
+        next: (companies) => this.companies.set(companies),
+        error: (err) => this.toast.error(err, 'Unable to load companies.'),
+      });
+    }
+  }
+
+  setStatusView(view: 'visible' | RecordStatus): void {
+    this.statusView.set(view);
+    this.currentPage.set(1);
+    this.loadDevices();
+  }
+
+  /** A device's gateway must belong to the device's company. */
+  gatewaysForForm(): Gateway[] {
+    const companyId = this.deviceForm.company_id;
+    if (!this.isPlatformAdmin()) return this.gateways();
+    return companyId ? this.gateways().filter((g) => g.company_id === companyId) : [];
   }
 
   loadDevices(): void {
@@ -631,6 +770,7 @@ export class DevicesPageComponent implements OnInit {
 
     this.devicesApi
       .list({
+        status: this.statusView() === 'visible' ? VISIBLE_STATUSES : this.listStatus(),
         page: this.currentPage(),
         page_size: this.pageSize,
         search: this.searchTerm().trim() || undefined,
@@ -664,21 +804,18 @@ export class DevicesPageComponent implements OnInit {
 
   openCreateModal(): void {
     this.editingDeviceId.set(null);
-    this.deviceForm = {
-      external_id: '',
-      name: '',
-      source: 'MODBUS_TCP',
-      ip_address: '',
-      location: '',
-    };
+    this.deviceForm = this.blankForm();
     this.modalOpen.set(true);
   }
 
   openEditModal(device: Device): void {
     this.editingDeviceId.set(device.id);
     this.deviceForm = {
+      company_id: device.company_id,
+      gateway_id: device.gateway_id,
       external_id: device.external_id,
       name: device.name || '',
+      device_type: device.device_type || '',
       source: device.source || '',
       ip_address: device.ip_address || '',
       location: device.location || '',
@@ -693,28 +830,36 @@ export class DevicesPageComponent implements OnInit {
     const editingId = this.editingDeviceId();
     if (editingId) {
       const payload: DeviceUpdate = {
-        name: this.deviceForm.name.trim() || undefined,
-        location: this.deviceForm.location.trim() || undefined,
+        name: this.deviceForm.name.trim() || null,
+        device_type: this.deviceForm.device_type.trim() || null,
+        ip_address: this.deviceForm.ip_address.trim() || null,
+        location: this.deviceForm.location.trim() || null,
+        gateway_id: this.deviceForm.gateway_id,
       };
+      if (this.isPlatformAdmin()) {
+        payload.company_id = this.deviceForm.company_id; // reassigning needs an unlinked device
+      }
       this.devicesApi.update(editingId, payload).subscribe({
         next: (updated) => {
           this.devices.update((list) => list.map((d) => (d.id === updated.id ? updated : d)));
           this.modalOpen.set(false);
           this.saving.set(false);
-          this.setFeedback(`Device "${updated.name || updated.external_id}" updated.`);
+          this.toast.success(`Device "${updated.name || updated.external_id}" updated.`);
         },
-        error: (err) => {
+        error: () => {
           this.saving.set(false);
-          this.setFeedback(err?.message || 'Failed to update device.', 'error');
         },
       });
     } else {
       const payload: DeviceCreate = {
         external_id: this.deviceForm.external_id.trim(),
-        name: this.deviceForm.name.trim() || undefined,
+        name: this.deviceForm.name.trim() || null,
+        device_type: this.deviceForm.device_type.trim() || null,
         source: this.deviceForm.source.trim() || 'MODBUS_TCP',
-        ip_address: this.deviceForm.ip_address.trim() || undefined,
-        location: this.deviceForm.location.trim() || undefined,
+        ip_address: this.deviceForm.ip_address.trim() || null,
+        location: this.deviceForm.location.trim() || null,
+        gateway_id: this.deviceForm.gateway_id,
+        company_id: this.isPlatformAdmin() ? this.deviceForm.company_id : undefined,
       };
       this.devicesApi.create(payload).subscribe({
         next: (created) => {
@@ -722,28 +867,78 @@ export class DevicesPageComponent implements OnInit {
           this.totalCount.update((n) => n + 1);
           this.modalOpen.set(false);
           this.saving.set(false);
-          this.setFeedback(`Device "${created.name || created.external_id}" registered.`);
+          this.toast.success(`Device "${created.name || created.external_id}" registered.`);
         },
-        error: (err) => {
+        error: () => {
           this.saving.set(false);
-          this.setFeedback(err?.message || 'Failed to register device.', 'error');
         },
       });
     }
   }
 
-  deactivateDevice(id: number, name: string): void {
-    if (!confirm(`Are you sure you want to deactivate device "${name}"?`)) return;
+  deleteDevice(id: number, name: string): void {
+    if (!confirm(`Are you sure you want to delete device "${name}"?`)) return;
 
-    this.devicesApi.deactivate(id).subscribe({
-      next: (updated) => {
-        this.devices.update((list) => list.map((d) => (d.id === id ? updated : d)));
-        this.setFeedback(`Device "${name}" has been deactivated.`);
+    this.devicesApi.delete(id).subscribe({
+      next: () => {
+        this.devices.update((list) => list.filter((d) => d.id !== id));
+        this.toast.success(`Device \"${name}\" deleted.`);
       },
-      error: (err) => {
-        this.setFeedback(err?.message || 'Failed to deactivate device.', 'error');
-      },
+      error: noop, // the error toast comes from errorToastInterceptor
     });
+  }
+
+  toggleDevice(device: Device): void {
+    const status = toggledStatus(device.status);
+    const name = device.name || device.external_id;
+    this.devicesApi.update(device.id, { status }).subscribe({
+      next: (updated) => {
+        this.devices.update((list) => list.map((d) => (d.id === updated.id ? updated : d)));
+        this.toast.success(
+          status === 'active'
+            ? `Device "${name}" activated.`
+            : `Device "${name}" deactivated: its telemetry is no longer stored.`,
+        );
+      },
+      error: noop, // the error toast comes from errorToastInterceptor
+    });
+  }
+
+  restoreDevice(device: Device): void {
+    this.devicesApi.update(device.id, { status: 'active' }).subscribe({
+      next: () => {
+        this.devices.update((list) => list.filter((d) => d.id !== device.id));
+        this.toast.success(`Device "${device.name || device.external_id}" restored.`);
+      },
+      error: noop, // the error toast comes from errorToastInterceptor
+    });
+  }
+
+  private listStatus(): RecordStatus {
+    const view = this.statusView();
+    return view === 'visible' ? 'active' : view;
+  }
+
+  private blankForm(): {
+    company_id: number | null;
+    gateway_id: number | null;
+    external_id: string;
+    name: string;
+    device_type: string;
+    source: string;
+    ip_address: string;
+    location: string;
+  } {
+    return {
+      company_id: null,
+      gateway_id: null,
+      external_id: '',
+      name: '',
+      device_type: '',
+      source: 'MODBUS_TCP',
+      ip_address: '',
+      location: '',
+    };
   }
 
   statusTone(state: string): StatusTone {
@@ -759,12 +954,5 @@ export class DevicesPageComponent implements OnInit {
 
   formatTime(iso: string | null): string {
     return iso ? formatDateTime(iso) : 'Never seen';
-  }
-
-  private setFeedback(message: string, type: 'success' | 'error' = 'success'): void {
-    this.actionFeedback.set({ message, type });
-    setTimeout(() => {
-      this.actionFeedback.set(null);
-    }, 5000);
   }
 }

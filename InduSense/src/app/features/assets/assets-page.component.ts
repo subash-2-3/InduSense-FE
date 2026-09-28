@@ -1,20 +1,33 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  WritableSignal,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { forkJoin, of } from 'rxjs';
+import { Observable, forkJoin, noop, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
+import { DevicesApi } from '../../core/api/resources/devices.api';
 import { LocationsApi } from '../../core/api/resources/locations.api';
 import { GatewaysApi, MachinesApi, MetersApi } from '../../core/api/resources/plant-assets.api';
 import {
   Area,
+  Device,
+  EditableStatus,
   Gateway,
   GatewayCreate,
   Machine,
   MachineCreate,
+  MachineStatus,
   Meter,
   MeterCreate,
   Plant,
+  RecordStatus,
 } from '../../core/models';
 import {
   ButtonComponent,
@@ -27,8 +40,27 @@ import {
   StatusPillComponent,
   StatusTone,
 } from '../../shared/ui';
+import { ToastService } from '../../shared/ui/toast/toast.service';
+import { AssetTagsDialogComponent, MappedAsset } from './asset-tags-dialog.component';
+import {
+  VISIBLE_STATUSES,
+  recordStatusLabel,
+  recordStatusTone,
+  toggledStatus,
+} from '../../shared/utils/record-status';
 
 type AssetTab = 'machines' | 'meters' | 'gateways';
+
+/** What the shared status actions need from a machine, meter or gateway. */
+interface AssetRow {
+  id: number;
+  name: string;
+  status: RecordStatus;
+}
+
+interface AssetStatusApi {
+  update(id: number, body: { status: EditableStatus }): Observable<AssetRow>;
+}
 
 @Component({
   selector: 'app-assets-page',
@@ -43,13 +75,16 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
     EmptyStateComponent,
     ErrorStateComponent,
     ModalComponent,
+    AssetTagsDialogComponent,
   ],
   template: `
     <div class="assets-page">
       <header class="assets-header">
         <div class="assets-header__titles">
           <h1 class="assets-header__title">Plant Assets</h1>
-          <p class="assets-header__subtitle">Manage industrial machinery, submeters, and edge telemetry gateways</p>
+          <p class="assets-header__subtitle">
+            Manage industrial machinery, submeters, and edge telemetry gateways
+          </p>
         </div>
         <div class="assets-header__actions">
           <button appButton variant="secondary" (click)="loadCurrentTab()">
@@ -132,23 +167,15 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
           <select
             class="filter-select"
             [ngModel]="statusFilter()"
-            (ngModelChange)="statusFilter.set($event)"
+            (ngModelChange)="setStatusFilter($event)"
           >
-            <option value="all">All Assets</option>
+            <option value="all">Active and inactive</option>
             <option value="active">Active Only</option>
             <option value="inactive">Inactive Only</option>
+            <option value="delete">Deleted</option>
           </select>
         </div>
       </div>
-
-      @if (actionFeedback(); as fb) {
-        <div class="feedback-banner" [class.feedback-banner--error]="fb.type === 'error'">
-          <span>{{ fb.message }}</span>
-          <button class="clear-btn" type="button" (click)="actionFeedback.set(null)">
-            <app-icon name="x" [size]="14" />
-          </button>
-        </div>
-      }
 
       <app-card [padded]="false">
         @if (loading()) {
@@ -198,7 +225,16 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
                       @for (m of filteredMachines(); track m.id) {
                         <tr>
                           <td>
-                            <app-status-pill [label]="m.status" [tone]="machineStatusTone(m.status)" />
+                            <app-status-pill
+                              [label]="m.operating_status"
+                              [tone]="machineStatusTone(m.operating_status)"
+                            />
+                            @if (m.status !== 'active') {
+                              <app-status-pill
+                                [label]="statusLabel(m.status)"
+                                [tone]="statusTone(m.status)"
+                              />
+                            }
                           </td>
                           <td>
                             <div class="cell-name">
@@ -207,9 +243,7 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
                             </div>
                           </td>
                           <td>{{ m.machine_type || '—' }}</td>
-                          <td>
-                            {{ m.manufacturer || '—' }} {{ m.model ? '/ ' + m.model : '' }}
-                          </td>
+                          <td>{{ m.manufacturer || '—' }} {{ m.model ? '/ ' + m.model : '' }}</td>
                           <td>
                             <span class="cell-mono">{{ m.serial_number || '—' }}</span>
                           </td>
@@ -217,15 +251,58 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
                             <span class="cell-location">{{ getPlantName(m.plant_id) }}</span>
                           </td>
                           <td class="text-right">
-                            <button
-                              appButton
-                              variant="ghost"
-                              size="sm"
-                              title="Deactivate Machine"
-                              (click)="deactivateMachine(m.id, m.name)"
-                            >
-                              <app-icon name="x" [size]="14" />
-                            </button>
+                            @if (m.status === 'delete') {
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                (click)="restoreAsset('machines', m)"
+                              >
+                                Restore
+                              </button>
+                            } @else {
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                title="Asset tags"
+                                (click)="openAssetTags('machine', m)"
+                              >
+                                Tags
+                              </button>
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                [attr.aria-label]="'Edit ' + m.name"
+                                title="Edit"
+                                (click)="openEditMachineModal(m)"
+                              >
+                                <app-icon name="edit" [size]="14" />
+                              </button>
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                [attr.aria-label]="
+                                  (m.status === 'active' ? 'Deactivate ' : 'Activate ') + m.name
+                                "
+                                [title]="m.status === 'active' ? 'Deactivate' : 'Activate'"
+                                (click)="toggleAsset('machines', m)"
+                              >
+                                <app-icon name="settings" [size]="14" />
+                              </button>
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                [attr.aria-label]="'Delete ' + m.name"
+                                title="Delete"
+                                (click)="deleteMachine(m.id, m.name)"
+                              >
+                                <app-icon name="x" [size]="14" />
+                              </button>
+                            }
                           </td>
                         </tr>
                       }
@@ -267,8 +344,8 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
                         <tr>
                           <td>
                             <app-status-pill
-                              [label]="meter.is_active ? 'Active' : 'Inactive'"
-                              [tone]="meter.is_active ? 'running' : 'stopped'"
+                              [label]="statusLabel(meter.status)"
+                              [tone]="statusTone(meter.status)"
                             />
                           </td>
                           <td>
@@ -282,30 +359,66 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
                             <span class="unit-badge">{{ meter.unit || 'kWh' }}</span>
                           </td>
                           <td>
-                            {{ meter.manufacturer || '—' }} {{ meter.model ? '/ ' + meter.model : '' }}
+                            {{ meter.manufacturer || '—' }}
+                            {{ meter.model ? '/ ' + meter.model : '' }}
                           </td>
                           <td>
                             <span class="cell-mono">{{ meter.serial_number || '—' }}</span>
                           </td>
                           <td class="text-right">
-                            <button
-                              appButton
-                              variant="ghost"
-                              size="sm"
-                              title="Toggle Active Status"
-                              (click)="toggleMeterStatus(meter)"
-                            >
-                              <app-icon name="settings" [size]="14" />
-                            </button>
-                            <button
-                              appButton
-                              variant="ghost"
-                              size="sm"
-                              title="Deactivate Meter"
-                              (click)="deactivateMeter(meter.id, meter.name)"
-                            >
-                              <app-icon name="x" [size]="14" />
-                            </button>
+                            @if (meter.status === 'delete') {
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                (click)="restoreAsset('meters', meter)"
+                              >
+                                Restore
+                              </button>
+                            } @else {
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                title="Asset tags"
+                                (click)="openAssetTags('meter', meter)"
+                              >
+                                Tags
+                              </button>
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                [attr.aria-label]="'Edit ' + meter.name"
+                                title="Edit"
+                                (click)="openEditMeterModal(meter)"
+                              >
+                                <app-icon name="edit" [size]="14" />
+                              </button>
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                [attr.aria-label]="
+                                  (meter.status === 'active' ? 'Deactivate ' : 'Activate ') +
+                                  meter.name
+                                "
+                                [title]="meter.status === 'active' ? 'Deactivate' : 'Activate'"
+                                (click)="toggleAsset('meters', meter)"
+                              >
+                                <app-icon name="settings" [size]="14" />
+                              </button>
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                [attr.aria-label]="'Delete ' + meter.name"
+                                title="Delete"
+                                (click)="deleteMeter(meter.id, meter.name)"
+                              >
+                                <app-icon name="x" [size]="14" />
+                              </button>
+                            }
                           </td>
                         </tr>
                       }
@@ -346,8 +459,8 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
                         <tr>
                           <td>
                             <app-status-pill
-                              [label]="g.is_active ? 'Active' : 'Inactive'"
-                              [tone]="g.is_active ? 'running' : 'stopped'"
+                              [label]="statusLabel(g.status)"
+                              [tone]="statusTone(g.status)"
                             />
                           </td>
                           <td>
@@ -366,15 +479,49 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
                           </td>
                           <td>{{ getPlantName(g.plant_id) }}</td>
                           <td class="text-right">
-                            <button
-                              appButton
-                              variant="ghost"
-                              size="sm"
-                              title="Deactivate Gateway"
-                              (click)="deactivateGateway(g.id, g.name)"
-                            >
-                              <app-icon name="x" [size]="14" />
-                            </button>
+                            @if (g.status === 'delete') {
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                (click)="restoreAsset('gateways', g)"
+                              >
+                                Restore
+                              </button>
+                            } @else {
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                [attr.aria-label]="'Edit ' + g.name"
+                                title="Edit"
+                                (click)="openEditGatewayModal(g)"
+                              >
+                                <app-icon name="edit" [size]="14" />
+                              </button>
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                [attr.aria-label]="
+                                  (g.status === 'active' ? 'Deactivate ' : 'Activate ') + g.name
+                                "
+                                [title]="g.status === 'active' ? 'Deactivate' : 'Activate'"
+                                (click)="toggleAsset('gateways', g)"
+                              >
+                                <app-icon name="settings" [size]="14" />
+                              </button>
+                              <button
+                                appButton
+                                variant="ghost"
+                                size="sm"
+                                [attr.aria-label]="'Delete ' + g.name"
+                                title="Delete"
+                                (click)="deleteGateway(g.id, g.name)"
+                              >
+                                <app-icon name="x" [size]="14" />
+                              </button>
+                            }
                           </td>
                         </tr>
                       }
@@ -390,8 +537,8 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
       <!-- New Machine Modal -->
       <app-modal
         [open]="machineModalOpen()"
-        title="Add New Machine"
-        subtitle="Register industrial machinery to monitor states and production"
+        [title]="editingMachineId() ? 'Edit Machine' : 'Add New Machine'"
+        subtitle="Industrial machinery monitored for state and production"
         (close)="machineModalOpen.set(false)"
       >
         <form (ngSubmit)="saveMachine()" class="modal-form">
@@ -483,14 +630,36 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
             </div>
             <div class="form-group flex-1">
               <label class="form-label">Area (Optional)</label>
-              <select
-                class="form-select"
-                [(ngModel)]="machineForm.area_id"
-                name="area_id"
-              >
+              <select class="form-select" [(ngModel)]="machineForm.area_id" name="area_id">
                 <option [ngValue]="null">None</option>
                 @for (a of availableAreasForPlant(machineForm.plant_id); track a.id) {
                   <option [ngValue]="a.id">{{ a.name }} ({{ a.code }})</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label class="form-label">Data source (device)</label>
+              <select class="form-select" [(ngModel)]="machineForm.device_id" name="device_id">
+                <option [ngValue]="null">None</option>
+                @for (d of devicesForPlant(machineForm.plant_id); track d.id) {
+                  <option [ngValue]="d.id">
+                    {{ d.name || d.external_id }} ({{ d.external_id }})
+                  </option>
+                }
+              </select>
+            </div>
+            <div class="form-group flex-1">
+              <label class="form-label">Operating state</label>
+              <select
+                class="form-select"
+                [(ngModel)]="machineForm.operating_status"
+                name="operating_status"
+              >
+                @for (state of machineStates; track state) {
+                  <option [ngValue]="state">{{ state }}</option>
                 }
               </select>
             </div>
@@ -509,9 +678,14 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
               appButton
               variant="primary"
               type="submit"
-              [disabled]="saving() || !machineForm.name.trim() || !machineForm.machine_code.trim() || !machineForm.plant_id"
+              [disabled]="
+                saving() ||
+                !machineForm.name.trim() ||
+                !machineForm.machine_code.trim() ||
+                !machineForm.plant_id
+              "
             >
-              {{ saving() ? 'Creating...' : 'Create Machine' }}
+              {{ saving() ? 'Saving...' : editingMachineId() ? 'Save Machine' : 'Create Machine' }}
             </button>
           </div>
         </form>
@@ -520,8 +694,8 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
       <!-- New Meter Modal -->
       <app-modal
         [open]="meterModalOpen()"
-        title="Add Energy / Utility Meter"
-        subtitle="Register power, gas, or water meter for telemetry analysis"
+        [title]="editingMeterId() ? 'Edit Meter' : 'Add Energy / Utility Meter'"
+        subtitle="Power, gas, or water meter for telemetry analysis"
         (close)="meterModalOpen.set(false)"
       >
         <form (ngSubmit)="saveMeter()" class="modal-form">
@@ -575,12 +749,7 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
 
           <div class="form-group">
             <label class="form-label">Plant *</label>
-            <select
-              class="form-select"
-              [(ngModel)]="meterForm.plant_id"
-              name="plant_id"
-              required
-            >
+            <select class="form-select" [(ngModel)]="meterForm.plant_id" name="plant_id" required>
               <option [ngValue]="null" disabled>Select Plant</option>
               @for (p of plants(); track p.id) {
                 <option [ngValue]="p.id">{{ p.name }} ({{ p.code }})</option>
@@ -588,22 +757,45 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
             </select>
           </div>
 
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label class="form-label">Area (Optional)</label>
+              <select class="form-select" [(ngModel)]="meterForm.area_id" name="area_id">
+                <option [ngValue]="null">None</option>
+                @for (a of availableAreasForPlant(meterForm.plant_id); track a.id) {
+                  <option [ngValue]="a.id">{{ a.name }} ({{ a.code }})</option>
+                }
+              </select>
+            </div>
+            <div class="form-group flex-1">
+              <label class="form-label">Data source (device)</label>
+              <select class="form-select" [(ngModel)]="meterForm.device_id" name="device_id">
+                <option [ngValue]="null">None</option>
+                @for (d of devicesForPlant(meterForm.plant_id); track d.id) {
+                  <option [ngValue]="d.id">
+                    {{ d.name || d.external_id }} ({{ d.external_id }})
+                  </option>
+                }
+              </select>
+            </div>
+          </div>
+
           <div class="modal-actions">
-            <button
-              appButton
-              variant="secondary"
-              type="button"
-              (click)="meterModalOpen.set(false)"
-            >
+            <button appButton variant="secondary" type="button" (click)="meterModalOpen.set(false)">
               Cancel
             </button>
             <button
               appButton
               variant="primary"
               type="submit"
-              [disabled]="saving() || !meterForm.name.trim() || !meterForm.meter_code.trim() || !meterForm.plant_id"
+              [disabled]="
+                saving() ||
+                !meterForm.name.trim() ||
+                !meterForm.meter_code.trim() ||
+                !meterForm.plant_id
+              "
             >
-              {{ saving() ? 'Creating...' : 'Create Meter' }}
+              {{ saving() ? 'Saving...' : editingMeterId() ? 'Save Meter' : 'Create Meter' }}
             </button>
           </div>
         </form>
@@ -612,8 +804,8 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
       <!-- New Gateway Modal -->
       <app-modal
         [open]="gatewayModalOpen()"
-        title="Add Edge Gateway"
-        subtitle="Register field gateway collecting sensor / PLC data"
+        [title]="editingGatewayId() ? 'Edit Gateway' : 'Add Edge Gateway'"
+        subtitle="Field gateway collecting sensor / PLC data"
         (close)="gatewayModalOpen.set(false)"
       >
         <form (ngSubmit)="saveGateway()" class="modal-form">
@@ -668,17 +860,36 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
 
           <div class="form-group">
             <label class="form-label">Plant *</label>
-            <select
-              class="form-select"
-              [(ngModel)]="gatewayForm.plant_id"
-              name="plant_id"
-              required
-            >
+            <select class="form-select" [(ngModel)]="gatewayForm.plant_id" name="plant_id" required>
               <option [ngValue]="null" disabled>Select Plant</option>
               @for (p of plants(); track p.id) {
                 <option [ngValue]="p.id">{{ p.name }} ({{ p.code }})</option>
               }
             </select>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label class="form-label">Area (Optional)</label>
+              <select class="form-select" [(ngModel)]="gatewayForm.area_id" name="area_id">
+                <option [ngValue]="null">None</option>
+                @for (a of availableAreasForPlant(gatewayForm.plant_id); track a.id) {
+                  <option [ngValue]="a.id">{{ a.name }} ({{ a.code }})</option>
+                }
+              </select>
+            </div>
+            <div class="form-group flex-1">
+              <label class="form-label">Port</label>
+              <input
+                type="number"
+                min="1"
+                max="65535"
+                class="form-input"
+                placeholder="e.g. 502"
+                [(ngModel)]="gatewayForm.port"
+                name="port"
+              />
+            </div>
           </div>
 
           <div class="modal-actions">
@@ -694,14 +905,21 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
               appButton
               variant="primary"
               type="submit"
-              [disabled]="saving() || !gatewayForm.name.trim() || !gatewayForm.gateway_code.trim() || !gatewayForm.plant_id"
+              [disabled]="
+                saving() ||
+                !gatewayForm.name.trim() ||
+                !gatewayForm.gateway_code.trim() ||
+                !gatewayForm.plant_id
+              "
             >
-              {{ saving() ? 'Creating...' : 'Create Gateway' }}
+              {{ saving() ? 'Saving...' : editingGatewayId() ? 'Save Gateway' : 'Create Gateway' }}
             </button>
           </div>
         </form>
       </app-modal>
     </div>
+
+    <app-asset-tags-dialog [asset]="mappedAsset()" (closed)="mappedAsset.set(null)" />
   `,
   styles: `
     .assets-page {
@@ -846,24 +1064,6 @@ type AssetTab = 'machines' | 'meters' | 'gateways';
       border-radius: var(--radius-sm);
       color: var(--text-primary);
       font-size: var(--text-sm);
-    }
-
-    .feedback-banner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 16px;
-      border-radius: var(--radius-sm);
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: #34d399;
-      font-size: var(--text-sm);
-    }
-
-    .feedback-banner--error {
-      background: rgba(239, 68, 68, 0.12);
-      border-color: rgba(239, 68, 68, 0.3);
-      color: #f87171;
     }
 
     .table-container {
@@ -1026,8 +1226,25 @@ export class AssetsPageComponent implements OnInit {
   readonly error = signal<string | null>(null);
 
   readonly searchTerm = signal('');
-  readonly statusFilter = signal<'all' | 'active' | 'inactive'>('all');
-  readonly actionFeedback = signal<{ message: string; type: 'success' | 'error' } | null>(null);
+  readonly statusFilter = signal<'all' | RecordStatus>('all');
+  private readonly devicesApi = inject(DevicesApi);
+  readonly devices = signal<Device[]>([]);
+  protected readonly machineStates: readonly MachineStatus[] = [
+    'UNKNOWN',
+    'RUNNING',
+    'IDLE',
+    'STOPPED',
+    'MAINTENANCE',
+    'FAULT',
+  ];
+  readonly editingMachineId = signal<number | null>(null);
+  /** Machine or meter whose asset tags are being configured. */
+  readonly mappedAsset = signal<MappedAsset | null>(null);
+  readonly editingMeterId = signal<number | null>(null);
+  readonly editingGatewayId = signal<number | null>(null);
+  private readonly toast = inject(ToastService);
+  protected readonly statusLabel = recordStatusLabel;
+  protected readonly statusTone = recordStatusTone;
 
   readonly machines = signal<Machine[]>([]);
   readonly meters = signal<Meter[]>([]);
@@ -1050,6 +1267,8 @@ export class AssetsPageComponent implements OnInit {
     serial_number: string;
     plant_id: number | null;
     area_id: number | null;
+    device_id: number | null;
+    operating_status: MachineStatus;
   } = {
     name: '',
     machine_code: '',
@@ -1059,6 +1278,8 @@ export class AssetsPageComponent implements OnInit {
     serial_number: '',
     plant_id: null,
     area_id: null,
+    device_id: null,
+    operating_status: 'UNKNOWN',
   };
 
   readonly meterModalOpen = signal(false);
@@ -1071,6 +1292,8 @@ export class AssetsPageComponent implements OnInit {
     model: string;
     serial_number: string;
     plant_id: number | null;
+    area_id: number | null;
+    device_id: number | null;
   } = {
     name: '',
     meter_code: '',
@@ -1080,6 +1303,8 @@ export class AssetsPageComponent implements OnInit {
     model: '',
     serial_number: '',
     plant_id: null,
+    area_id: null,
+    device_id: null,
   };
 
   readonly gatewayModalOpen = signal(false);
@@ -1088,13 +1313,17 @@ export class AssetsPageComponent implements OnInit {
     gateway_code: string;
     gateway_type: string;
     ip_address: string;
+    port: number | null;
     plant_id: number | null;
+    area_id: number | null;
   } = {
     name: '',
     gateway_code: '',
     gateway_type: 'EdgeGateway',
     ip_address: '',
+    port: null,
     plant_id: null,
+    area_id: null,
   };
 
   // Filtered views
@@ -1110,10 +1339,7 @@ export class AssetsPageComponent implements OnInit {
         (m.serial_number && m.serial_number.toLowerCase().includes(term)) ||
         (m.manufacturer && m.manufacturer.toLowerCase().includes(term));
 
-      const matchesStatus =
-        filter === 'all' ||
-        (filter === 'active' && m.is_active) ||
-        (filter === 'inactive' && !m.is_active);
+      const matchesStatus = filter === 'all' || m.status === filter;
 
       return matchesSearch && matchesStatus;
     });
@@ -1130,10 +1356,7 @@ export class AssetsPageComponent implements OnInit {
         m.meter_code.toLowerCase().includes(term) ||
         (m.serial_number && m.serial_number.toLowerCase().includes(term));
 
-      const matchesStatus =
-        filter === 'all' ||
-        (filter === 'active' && m.is_active) ||
-        (filter === 'inactive' && !m.is_active);
+      const matchesStatus = filter === 'all' || m.status === filter;
 
       return matchesSearch && matchesStatus;
     });
@@ -1150,10 +1373,7 @@ export class AssetsPageComponent implements OnInit {
         g.gateway_code.toLowerCase().includes(term) ||
         (g.ip_address && g.ip_address.toLowerCase().includes(term));
 
-      const matchesStatus =
-        filter === 'all' ||
-        (filter === 'active' && g.is_active) ||
-        (filter === 'inactive' && !g.is_active);
+      const matchesStatus = filter === 'all' || g.status === filter;
 
       return matchesSearch && matchesStatus;
     });
@@ -1168,9 +1388,11 @@ export class AssetsPageComponent implements OnInit {
     forkJoin({
       plants: this.locationsApi.listAllPlants().pipe(catchError(() => of([] as Plant[]))),
       areas: this.locationsApi.listAllAreas().pipe(catchError(() => of([] as Area[]))),
-    }).subscribe(({ plants, areas }) => {
+      devices: this.devicesApi.listAll().pipe(catchError(() => of([] as Device[]))),
+    }).subscribe(({ plants, areas, devices }) => {
       this.plants.set(plants);
       this.areas.set(areas);
+      this.devices.set(devices);
     });
   }
 
@@ -1186,10 +1408,10 @@ export class AssetsPageComponent implements OnInit {
 
     switch (this.activeTab()) {
       case 'machines':
-        this.machinesApi.list({ page: 1, page_size: 50 }).subscribe({
-          next: (page) => {
-            this.machines.set(page.items);
-            this.machinesTotal.set(page.pagination.total);
+        this.machinesApi.listAll({ status: this.listStatuses() }).subscribe({
+          next: (items) => {
+            this.machines.set(items);
+            this.machinesTotal.set(items.length);
             this.loading.set(false);
           },
           error: (err) => {
@@ -1200,10 +1422,10 @@ export class AssetsPageComponent implements OnInit {
         break;
 
       case 'meters':
-        this.metersApi.list({ page: 1, page_size: 50 }).subscribe({
-          next: (page) => {
-            this.meters.set(page.items);
-            this.metersTotal.set(page.pagination.total);
+        this.metersApi.listAll({ status: this.listStatuses() }).subscribe({
+          next: (items) => {
+            this.meters.set(items);
+            this.metersTotal.set(items.length);
             this.loading.set(false);
           },
           error: (err) => {
@@ -1214,10 +1436,10 @@ export class AssetsPageComponent implements OnInit {
         break;
 
       case 'gateways':
-        this.gatewaysApi.list({ page: 1, page_size: 50 }).subscribe({
-          next: (page) => {
-            this.gateways.set(page.items);
-            this.gatewaysTotal.set(page.pagination.total);
+        this.gatewaysApi.listAll({ status: this.listStatuses() }).subscribe({
+          next: (items) => {
+            this.gateways.set(items);
+            this.gatewaysTotal.set(items.length);
             this.loading.set(false);
           },
           error: (err) => {
@@ -1234,6 +1456,72 @@ export class AssetsPageComponent implements OnInit {
     return plant ? plant.name : `Plant #${plantId}`;
   }
 
+  /** Devices of the plant's company (machines and meters may only use those). */
+  devicesForPlant(plantId: number | null): Device[] {
+    const plant = this.plants().find((p) => p.id === plantId);
+    return plant ? this.devices().filter((d) => d.company_id === plant.company_id) : [];
+  }
+
+  openAssetTags(kind: 'machine' | 'meter', asset: Machine | Meter): void {
+    this.mappedAsset.set({
+      kind,
+      id: asset.id,
+      name: asset.name,
+      company_id: asset.company_id,
+      device_id: asset.device_id,
+    });
+  }
+
+  setStatusFilter(filter: 'all' | RecordStatus): void {
+    const reload = filter === 'delete' || this.statusFilter() === 'delete';
+    this.statusFilter.set(filter);
+    if (reload) this.loadCurrentTab();
+  }
+
+  private listStatuses(): RecordStatus | RecordStatus[] {
+    return this.statusFilter() === 'delete' ? 'delete' : VISIBLE_STATUSES;
+  }
+
+  // Shared status actions (the three asset types behave the same)
+  private assetApi(kind: AssetTab): AssetStatusApi {
+    return { machines: this.machinesApi, meters: this.metersApi, gateways: this.gatewaysApi }[
+      kind
+    ] as unknown as AssetStatusApi;
+  }
+
+  private assetList(kind: AssetTab): WritableSignal<AssetRow[]> {
+    return { machines: this.machines, meters: this.meters, gateways: this.gateways }[
+      kind
+    ] as unknown as WritableSignal<AssetRow[]>;
+  }
+
+  toggleAsset(kind: AssetTab, item: AssetRow): void {
+    const status = toggledStatus(item.status);
+    this.assetApi(kind)
+      .update(item.id, { status })
+      .subscribe({
+        next: (updated) => {
+          this.assetList(kind).update((list) => list.map((a) => (a.id === item.id ? updated : a)));
+          this.toast.success(
+            `"${item.name}" ${status === 'active' ? 'activated' : 'deactivated'}.`,
+          );
+        },
+        error: noop, // the error toast comes from errorToastInterceptor
+      });
+  }
+
+  restoreAsset(kind: AssetTab, item: AssetRow): void {
+    this.assetApi(kind)
+      .update(item.id, { status: 'active' })
+      .subscribe({
+        next: () => {
+          this.assetList(kind).update((list) => list.filter((a) => a.id !== item.id));
+          this.toast.success(`"${item.name}" restored.`);
+        },
+        error: noop, // the error toast comes from errorToastInterceptor
+      });
+  }
+
   availableAreasForPlant(plantId: number | null): Area[] {
     if (!plantId) return [];
     return this.areas().filter((a) => a.plant_id === plantId);
@@ -1241,6 +1529,7 @@ export class AssetsPageComponent implements OnInit {
 
   // Machine actions
   openCreateMachineModal(): void {
+    this.editingMachineId.set(null);
     this.machineForm = {
       name: '',
       machine_code: '',
@@ -1250,12 +1539,35 @@ export class AssetsPageComponent implements OnInit {
       serial_number: '',
       plant_id: this.plants()[0]?.id ?? null,
       area_id: null,
+      device_id: null,
+      operating_status: 'UNKNOWN',
+    };
+    this.machineModalOpen.set(true);
+  }
+
+  openEditMachineModal(m: Machine): void {
+    this.editingMachineId.set(m.id);
+    this.machineForm = {
+      name: m.name,
+      machine_code: m.machine_code,
+      machine_type: m.machine_type ?? '',
+      manufacturer: m.manufacturer ?? '',
+      model: m.model ?? '',
+      serial_number: m.serial_number ?? '',
+      plant_id: m.plant_id,
+      area_id: m.area_id,
+      device_id: m.device_id,
+      operating_status: m.operating_status,
     };
     this.machineModalOpen.set(true);
   }
 
   saveMachine(): void {
-    if (!this.machineForm.name.trim() || !this.machineForm.machine_code.trim() || !this.machineForm.plant_id) {
+    if (
+      !this.machineForm.name.trim() ||
+      !this.machineForm.machine_code.trim() ||
+      !this.machineForm.plant_id
+    ) {
       return;
     }
     this.saving.set(true);
@@ -1263,13 +1575,31 @@ export class AssetsPageComponent implements OnInit {
     const payload: MachineCreate = {
       name: this.machineForm.name.trim(),
       machine_code: this.machineForm.machine_code.trim(),
-      machine_type: this.machineForm.machine_type.trim() || undefined,
-      manufacturer: this.machineForm.manufacturer.trim() || undefined,
-      model: this.machineForm.model.trim() || undefined,
-      serial_number: this.machineForm.serial_number.trim() || undefined,
+      machine_type: this.machineForm.machine_type.trim() || null,
+      manufacturer: this.machineForm.manufacturer.trim() || null,
+      model: this.machineForm.model.trim() || null,
+      serial_number: this.machineForm.serial_number.trim() || null,
       plant_id: this.machineForm.plant_id,
-      area_id: this.machineForm.area_id || undefined,
+      area_id: this.machineForm.area_id,
+      device_id: this.machineForm.device_id,
+      operating_status: this.machineForm.operating_status,
     };
+
+    const editingId = this.editingMachineId();
+    if (editingId) {
+      this.machinesApi.update(editingId, payload).subscribe({
+        next: (updated) => {
+          this.machines.update((list) => list.map((m) => (m.id === updated.id ? updated : m)));
+          this.machineModalOpen.set(false);
+          this.saving.set(false);
+          this.toast.success(`Machine "${updated.name}" updated.`);
+        },
+        error: () => {
+          this.saving.set(false);
+        },
+      });
+      return;
+    }
 
     this.machinesApi.create(payload).subscribe({
       next: (created) => {
@@ -1277,31 +1607,29 @@ export class AssetsPageComponent implements OnInit {
         this.machinesTotal.update((n) => n + 1);
         this.machineModalOpen.set(false);
         this.saving.set(false);
-        this.setFeedback(`Machine "${created.name}" created successfully.`);
+        this.toast.success(`Machine "${created.name}" created successfully.`);
       },
-      error: (err) => {
+      error: () => {
         this.saving.set(false);
-        this.setFeedback(err?.message || 'Failed to create machine.', 'error');
       },
     });
   }
 
-  deactivateMachine(id: number, name: string): void {
-    if (!confirm(`Are you sure you want to deactivate machine "${name}"?`)) return;
+  deleteMachine(id: number, name: string): void {
+    if (!confirm(`Are you sure you want to delete machine "${name}"?`)) return;
 
-    this.machinesApi.deactivate(id).subscribe({
-      next: (updated) => {
-        this.machines.update((list) => list.map((m) => (m.id === id ? updated : m)));
-        this.setFeedback(`Machine "${name}" has been deactivated.`);
+    this.machinesApi.delete(id).subscribe({
+      next: () => {
+        this.machines.update((list) => list.filter((m) => m.id !== id));
+        this.toast.success(`Machine \"${name}\" deleted.`);
       },
-      error: (err) => {
-        this.setFeedback(err?.message || 'Failed to deactivate machine.', 'error');
-      },
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
   // Meter actions
   openCreateMeterModal(): void {
+    this.editingMeterId.set(null);
     this.meterForm = {
       name: '',
       meter_code: '',
@@ -1311,12 +1639,35 @@ export class AssetsPageComponent implements OnInit {
       model: '',
       serial_number: '',
       plant_id: this.plants()[0]?.id ?? null,
+      area_id: null,
+      device_id: null,
+    };
+    this.meterModalOpen.set(true);
+  }
+
+  openEditMeterModal(m: Meter): void {
+    this.editingMeterId.set(m.id);
+    this.meterForm = {
+      name: m.name,
+      meter_code: m.meter_code,
+      meter_type: m.meter_type ?? '',
+      unit: m.unit ?? '',
+      manufacturer: m.manufacturer ?? '',
+      model: m.model ?? '',
+      serial_number: m.serial_number ?? '',
+      plant_id: m.plant_id,
+      area_id: m.area_id,
+      device_id: m.device_id,
     };
     this.meterModalOpen.set(true);
   }
 
   saveMeter(): void {
-    if (!this.meterForm.name.trim() || !this.meterForm.meter_code.trim() || !this.meterForm.plant_id) {
+    if (
+      !this.meterForm.name.trim() ||
+      !this.meterForm.meter_code.trim() ||
+      !this.meterForm.plant_id
+    ) {
       return;
     }
     this.saving.set(true);
@@ -1324,13 +1675,31 @@ export class AssetsPageComponent implements OnInit {
     const payload: MeterCreate = {
       name: this.meterForm.name.trim(),
       meter_code: this.meterForm.meter_code.trim(),
-      meter_type: this.meterForm.meter_type.trim() || undefined,
+      meter_type: this.meterForm.meter_type.trim() || null,
       unit: this.meterForm.unit.trim() || 'kWh',
-      manufacturer: this.meterForm.manufacturer.trim() || undefined,
-      model: this.meterForm.model.trim() || undefined,
-      serial_number: this.meterForm.serial_number.trim() || undefined,
+      manufacturer: this.meterForm.manufacturer.trim() || null,
+      model: this.meterForm.model.trim() || null,
+      serial_number: this.meterForm.serial_number.trim() || null,
       plant_id: this.meterForm.plant_id,
+      area_id: this.meterForm.area_id,
+      device_id: this.meterForm.device_id,
     };
+
+    const editingId = this.editingMeterId();
+    if (editingId) {
+      this.metersApi.update(editingId, payload).subscribe({
+        next: (updated) => {
+          this.meters.update((list) => list.map((m) => (m.id === updated.id ? updated : m)));
+          this.meterModalOpen.set(false);
+          this.saving.set(false);
+          this.toast.success(`Meter "${updated.name}" updated.`);
+        },
+        error: () => {
+          this.saving.set(false);
+        },
+      });
+      return;
+    }
 
     this.metersApi.create(payload).subscribe({
       next: (created) => {
@@ -1338,56 +1707,61 @@ export class AssetsPageComponent implements OnInit {
         this.metersTotal.update((n) => n + 1);
         this.meterModalOpen.set(false);
         this.saving.set(false);
-        this.setFeedback(`Meter "${created.name}" created successfully.`);
+        this.toast.success(`Meter "${created.name}" created successfully.`);
       },
-      error: (err) => {
+      error: () => {
         this.saving.set(false);
-        this.setFeedback(err?.message || 'Failed to create meter.', 'error');
       },
     });
   }
 
-  toggleMeterStatus(meter: Meter): void {
-    const newStatus = !meter.is_active;
-    this.metersApi.update(meter.id, { is_active: newStatus }).subscribe({
-      next: (updated) => {
-        this.meters.update((list) => list.map((m) => (m.id === meter.id ? updated : m)));
-        this.setFeedback(`Meter "${meter.name}" status updated.`);
-      },
-      error: (err) => {
-        this.setFeedback(err?.message || 'Failed to update meter status.', 'error');
-      },
-    });
-  }
+  deleteMeter(id: number, name: string): void {
+    if (!confirm(`Are you sure you want to delete meter "${name}"?`)) return;
 
-  deactivateMeter(id: number, name: string): void {
-    if (!confirm(`Are you sure you want to deactivate meter "${name}"?`)) return;
-
-    this.metersApi.deactivate(id).subscribe({
-      next: (updated) => {
-        this.meters.update((list) => list.map((m) => (m.id === id ? updated : m)));
-        this.setFeedback(`Meter "${name}" has been deactivated.`);
+    this.metersApi.delete(id).subscribe({
+      next: () => {
+        this.meters.update((list) => list.filter((m) => m.id !== id));
+        this.toast.success(`Meter \"${name}\" deleted.`);
       },
-      error: (err) => {
-        this.setFeedback(err?.message || 'Failed to deactivate meter.', 'error');
-      },
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
   // Gateway actions
   openCreateGatewayModal(): void {
+    this.editingGatewayId.set(null);
     this.gatewayForm = {
       name: '',
       gateway_code: '',
       gateway_type: 'EdgeGateway',
       ip_address: '',
+      port: null,
       plant_id: this.plants()[0]?.id ?? null,
+      area_id: null,
+    };
+    this.gatewayModalOpen.set(true);
+  }
+
+  openEditGatewayModal(g: Gateway): void {
+    this.editingGatewayId.set(g.id);
+    this.gatewayForm = {
+      name: g.name,
+      gateway_code: g.gateway_code,
+      gateway_type: g.gateway_type,
+      ip_address: g.ip_address ?? '',
+      port: g.port,
+      plant_id: g.plant_id,
+      area_id: g.area_id,
     };
     this.gatewayModalOpen.set(true);
   }
 
   saveGateway(): void {
-    if (!this.gatewayForm.name.trim() || !this.gatewayForm.gateway_code.trim() || !this.gatewayForm.plant_id) {
+    if (
+      !this.gatewayForm.name.trim() ||
+      !this.gatewayForm.gateway_code.trim() ||
+      !this.gatewayForm.plant_id
+    ) {
       return;
     }
     this.saving.set(true);
@@ -1396,9 +1770,27 @@ export class AssetsPageComponent implements OnInit {
       name: this.gatewayForm.name.trim(),
       gateway_code: this.gatewayForm.gateway_code.trim(),
       gateway_type: this.gatewayForm.gateway_type.trim(),
-      ip_address: this.gatewayForm.ip_address.trim() || undefined,
+      ip_address: this.gatewayForm.ip_address.trim() || null,
+      port: this.gatewayForm.port || null,
       plant_id: this.gatewayForm.plant_id,
+      area_id: this.gatewayForm.area_id,
     };
+
+    const editingId = this.editingGatewayId();
+    if (editingId) {
+      this.gatewaysApi.update(editingId, payload).subscribe({
+        next: (updated) => {
+          this.gateways.update((list) => list.map((g) => (g.id === updated.id ? updated : g)));
+          this.gatewayModalOpen.set(false);
+          this.saving.set(false);
+          this.toast.success(`Gateway "${updated.name}" updated.`);
+        },
+        error: () => {
+          this.saving.set(false);
+        },
+      });
+      return;
+    }
 
     this.gatewaysApi.create(payload).subscribe({
       next: (created) => {
@@ -1406,26 +1798,23 @@ export class AssetsPageComponent implements OnInit {
         this.gatewaysTotal.update((n) => n + 1);
         this.gatewayModalOpen.set(false);
         this.saving.set(false);
-        this.setFeedback(`Gateway "${created.name}" created successfully.`);
+        this.toast.success(`Gateway "${created.name}" created successfully.`);
       },
-      error: (err) => {
+      error: () => {
         this.saving.set(false);
-        this.setFeedback(err?.message || 'Failed to create gateway.', 'error');
       },
     });
   }
 
-  deactivateGateway(id: number, name: string): void {
-    if (!confirm(`Are you sure you want to deactivate gateway "${name}"?`)) return;
+  deleteGateway(id: number, name: string): void {
+    if (!confirm(`Are you sure you want to delete gateway "${name}"?`)) return;
 
-    this.gatewaysApi.deactivate(id).subscribe({
-      next: (updated) => {
-        this.gateways.update((list) => list.map((g) => (g.id === id ? updated : g)));
-        this.setFeedback(`Gateway "${name}" has been deactivated.`);
+    this.gatewaysApi.delete(id).subscribe({
+      next: () => {
+        this.gateways.update((list) => list.filter((g) => g.id !== id));
+        this.toast.success(`Gateway \"${name}\" deleted.`);
       },
-      error: (err) => {
-        this.setFeedback(err?.message || 'Failed to deactivate gateway.', 'error');
-      },
+      error: noop, // the error toast comes from errorToastInterceptor
     });
   }
 
@@ -1441,12 +1830,5 @@ export class AssetsPageComponent implements OnInit {
       default:
         return 'stopped';
     }
-  }
-
-  private setFeedback(message: string, type: 'success' | 'error' = 'success'): void {
-    this.actionFeedback.set({ message, type });
-    setTimeout(() => {
-      this.actionFeedback.set(null);
-    }, 5000);
   }
 }
