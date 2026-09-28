@@ -98,7 +98,14 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/reports/reports-page.component').then((m) => m.ReportsPageComponent),
       },
-      comingSoon('alarms', 'Alarms', 'bell'),
+      {
+        path: 'alarms',
+        title: 'Alarms · InduSense',
+        data: { section: 'Alarms' },
+        canActivate: [permissionGuard(Permission.AlarmsView)],
+        loadComponent: () =>
+          import('./features/alarms/alarms-page.component').then((m) => m.AlarmsPageComponent),
+      },
       comingSoon('more', 'More', 'more-horizontal'),
       comingSoon('quick-start', 'Quick Start', 'wand'),
       {

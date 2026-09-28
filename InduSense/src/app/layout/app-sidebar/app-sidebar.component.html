@@ -24,6 +24,11 @@
       @if (item.hasChildren) {
         <app-icon name="chevron-right" class="nav-item__chevron" [size]="10" [strokeWidth]="3" />
       }
+      @if (badge(item); as count) {
+        <span class="nav-item__badge" [attr.aria-label]="count + ' active'">{{
+          count > 99 ? '99+' : count
+        }}</span>
+      }
     </span>
     <span class="nav-item__label">{{ item.label }}</span>
   </a>

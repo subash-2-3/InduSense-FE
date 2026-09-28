@@ -46,9 +46,9 @@ describe('app routes', () => {
   });
 
   it('renders the coming-soon page with the section from route data', async () => {
-    const { el } = await navigate('/alarms');
-    expect(el.querySelector('app-coming-soon-page h1')?.textContent).toBe('Alarms');
-    expect(document.title).toBe('Alarms · InduSense');
+    const { el } = await navigate('/more');
+    expect(el.querySelector('app-coming-soon-page h1')?.textContent).toBe('More');
+    expect(document.title).toBe('More · InduSense');
   });
 
   it('sends signed-out visitors to login and keeps them out of the app', async () => {

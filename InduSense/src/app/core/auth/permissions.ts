@@ -15,6 +15,8 @@ export const Permission = {
   TelemetryView: 'telemetry:view',
   ReportsView: 'reports:view',
   DashboardsView: 'dashboards:view',
+  AlarmsView: 'alarms:view',
+  AlarmsManage: 'alarms:manage',
 } as const;
 
 export type PermissionCode = (typeof Permission)[keyof typeof Permission];

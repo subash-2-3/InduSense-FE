@@ -89,3 +89,16 @@ export function formatRelativeTime(value: DateInput, now: DateInput = Date.now()
   }
   return `${Math.floor(hours / 24)}d ago`;
 }
+
+/** Compact duration: `45s`, `12m 05s`, `3h 07m`, `2d 04h`. */
+export function formatDuration(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds) || seconds < 0) {
+    return EMPTY_VALUE;
+  }
+  const s = Math.floor(seconds);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${pad(s % 60)}s`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ${pad(Math.floor((s % 3600) / 60))}m`;
+  return `${Math.floor(s / 86400)}d ${pad(Math.floor((s % 86400) / 3600))}h`;
+}

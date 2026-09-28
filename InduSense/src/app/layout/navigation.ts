@@ -9,6 +9,8 @@ export interface NavItem {
   hasChildren?: boolean;
   /** Hidden unless the user has this permission. */
   permission?: PermissionCode;
+  /** Shows a live count next to the entry. */
+  badge?: 'alarms';
 }
 
 /** Sidebar entries, top to bottom. */
@@ -35,7 +37,14 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     hasChildren: true,
     permission: Permission.ReportsView,
   },
-  { label: 'Alarms', path: '/alarms', icon: 'bell', hasChildren: true },
+  {
+    label: 'Alarms',
+    path: '/alarms',
+    icon: 'bell',
+    hasChildren: true,
+    permission: Permission.AlarmsView,
+    badge: 'alarms',
+  },
   { label: 'More', path: '/more', icon: 'more-horizontal' },
 ];
 

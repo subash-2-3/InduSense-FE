@@ -8,3 +8,4 @@ export * from './dashboard';
 export * from './report';
 export * from './admin';
 export * from './energy';
+export * from './alarm';

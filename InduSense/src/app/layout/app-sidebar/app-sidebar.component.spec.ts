@@ -59,6 +59,6 @@ describe('AppSidebarComponent', () => {
   it('hides sections the user has no permission for', async () => {
     const el = await renderAt('/dashboard', ['devices:view']);
     const labels = Array.from(el.querySelectorAll('.nav-item__label')).map((l) => l.textContent);
-    expect(labels).toEqual(['Dashboard', 'Devices', 'Alarms', 'More', 'Quick Start']);
+    expect(labels).toEqual(['Dashboard', 'Devices', 'More', 'Quick Start']); // Alarms needs alarms:view
   });
 });
