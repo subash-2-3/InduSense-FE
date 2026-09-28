@@ -12,3 +12,4 @@ export * from './resources/reports.api';
 export * from './resources/admin.api';
 export * from './resources/energy.api';
 export * from './resources/alarms.api';
+export * from './resources/commands.api';

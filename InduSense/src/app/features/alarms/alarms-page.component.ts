@@ -15,6 +15,8 @@ import { AlarmTag } from '../../core/models';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { ActiveAlarmsComponent } from './active-alarms.component';
 import { AlarmHistoryComponent } from './alarm-history.component';
+import { ButtonComponent } from '../../shared/ui';
+import { MachineControlDialogComponent } from '../machines/machine-control-dialog.component';
 import { AlarmSetupComponent } from './alarm-setup.component';
 
 type Tab = 'active' | 'history' | 'setup';
@@ -22,7 +24,14 @@ type Tab = 'active' | 'history' | 'setup';
 /** Alarms from the machines' PLC alarm words: active now, history, and bit names (setup). */
 @Component({
   selector: 'app-alarms-page',
-  imports: [FormsModule, ActiveAlarmsComponent, AlarmHistoryComponent, AlarmSetupComponent],
+  imports: [
+    FormsModule,
+    ButtonComponent,
+    ActiveAlarmsComponent,
+    AlarmHistoryComponent,
+    AlarmSetupComponent,
+    MachineControlDialogComponent,
+  ],
   template: `
     <div class="page">
       <header class="head">
@@ -43,7 +52,21 @@ type Tab = 'active' | 'history' | 'setup';
             </select>
           </label>
         }
+        @if (canControl() && controlTarget(); as target) {
+          <button
+            appButton
+            variant="secondary"
+            type="button"
+            (click)="controlledMachineId.set(target)"
+          >
+            Machine controls
+          </button>
+        }
       </header>
+      <app-machine-control-dialog
+        [machineId]="controlledMachineId()"
+        (closed)="controlledMachineId.set(null)"
+      />
 
       <div class="tabs" role="tablist" aria-label="Alarms">
         @for (t of tabs(); track t.value) {
@@ -156,6 +179,16 @@ export class AlarmsPageComponent implements OnInit {
   private readonly toast = inject(ToastService);
 
   protected readonly canManage = computed(() => this.auth.hasPermission(Permission.AlarmsManage));
+  protected readonly canControl = computed(() =>
+    this.auth.hasPermission(Permission.DevicesControl),
+  );
+  /** Machine whose control panel is open. */
+  protected readonly controlledMachineId = signal<number | null>(null);
+  /** The machine the controls button opens: the selected one, else the only one. */
+  protected readonly controlTarget = computed(() => {
+    const machines = this.machines();
+    return this.machineId() ?? (machines.length === 1 ? machines[0].id : null);
+  });
   protected readonly tab = signal<Tab>('active');
   protected readonly tabs = computed(() => [
     { value: 'active' as const, label: 'Active alarms' },

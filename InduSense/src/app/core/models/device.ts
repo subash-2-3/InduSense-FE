@@ -113,6 +113,12 @@ export interface Tag {
    * null: non-zero = running, 0 = stopped.
    */
   state_map: Record<string, string> | null;
+  /** Commands may write this register (through the DataLogger). */
+  writable?: boolean;
+  /** pulse: write 1, the PLC resets it; latched: the value stays. */
+  write_mode?: 'pulse' | 'latched' | null;
+  /** The only values that may be written. */
+  write_values?: number[] | null;
   is_counter: boolean;
   is_cumulative: boolean;
   status: RecordStatus;
@@ -135,6 +141,9 @@ export interface TagCreate {
   roundoff_digits?: number | null;
   description?: string | null;
   state_map?: Record<string, string> | null;
+  writable?: boolean;
+  write_mode?: 'pulse' | 'latched' | null;
+  write_values?: number[] | null;
   is_counter?: boolean;
   is_cumulative?: boolean;
   status?: EditableStatus;
@@ -151,6 +160,9 @@ export interface TagUpdate {
   roundoff_digits?: number | null;
   description?: string | null;
   state_map?: Record<string, string> | null;
+  writable?: boolean;
+  write_mode?: 'pulse' | 'latched' | null;
+  write_values?: number[] | null;
   is_counter?: boolean | null;
   is_cumulative?: boolean | null;
   status?: EditableStatus;

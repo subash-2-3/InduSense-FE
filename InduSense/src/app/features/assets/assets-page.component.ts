@@ -41,6 +41,9 @@ import {
   StatusTone,
 } from '../../shared/ui';
 import { ToastService } from '../../shared/ui/toast/toast.service';
+import { AuthService } from '../../core/auth/auth.service';
+import { Permission } from '../../core/auth/permissions';
+import { MachineControlDialogComponent } from '../machines/machine-control-dialog.component';
 import { AssetTagsDialogComponent, MappedAsset } from './asset-tags-dialog.component';
 import {
   VISIBLE_STATUSES,
@@ -76,6 +79,7 @@ interface AssetStatusApi {
     ErrorStateComponent,
     ModalComponent,
     AssetTagsDialogComponent,
+    MachineControlDialogComponent,
   ],
   template: `
     <div class="assets-page">
@@ -270,6 +274,17 @@ interface AssetStatusApi {
                               >
                                 Tags
                               </button>
+                              @if (canControl() && m.device_id && m.status === 'active') {
+                                <button
+                                  appButton
+                                  variant="ghost"
+                                  size="sm"
+                                  title="Send commands to the machine's PLC"
+                                  (click)="controlledMachineId.set(m.id)"
+                                >
+                                  Controls
+                                </button>
+                              }
                               <button
                                 appButton
                                 variant="ghost"
@@ -920,6 +935,10 @@ interface AssetStatusApi {
     </div>
 
     <app-asset-tags-dialog [asset]="mappedAsset()" (closed)="mappedAsset.set(null)" />
+    <app-machine-control-dialog
+      [machineId]="controlledMachineId()"
+      (closed)="controlledMachineId.set(null)"
+    />
   `,
   styles: `
     .assets-page {
@@ -1240,6 +1259,12 @@ export class AssetsPageComponent implements OnInit {
   readonly editingMachineId = signal<number | null>(null);
   /** Machine or meter whose asset tags are being configured. */
   readonly mappedAsset = signal<MappedAsset | null>(null);
+  /** Machine whose control panel (PLC commands) is open. */
+  readonly controlledMachineId = signal<number | null>(null);
+  protected readonly canControl = computed(() =>
+    this.auth.hasPermission(Permission.DevicesControl),
+  );
+  private readonly auth = inject(AuthService);
   readonly editingMeterId = signal<number | null>(null);
   readonly editingGatewayId = signal<number | null>(null);
   private readonly toast = inject(ToastService);

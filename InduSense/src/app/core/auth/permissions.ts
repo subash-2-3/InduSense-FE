@@ -4,6 +4,8 @@ export const Permission = {
   TenantAll: 'tenant:all',
   CompaniesView: 'companies:view',
   DevicesView: 'devices:view',
+  /** Send commands to devices (write PLC registers). */
+  DevicesControl: 'devices:control',
   MachinesView: 'machines:view',
   GatewaysView: 'gateways:view',
   PlantsView: 'plants:view',

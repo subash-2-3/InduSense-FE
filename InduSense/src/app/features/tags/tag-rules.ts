@@ -137,3 +137,25 @@ export function parseStateMap(
   }
   return { map, error: null };
 }
+
+/** `0, 1` -> [0, 1] (sorted, unique); empty = the server's default for the write mode. */
+export function parseWriteValues(text: string): { values: number[] | null; error: string | null } {
+  const parts = text
+    .split(/[,;\s]+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (!parts.length) {
+    return { values: null, error: null };
+  }
+  const values: number[] = [];
+  for (const part of parts) {
+    if (!/^\d+$/.test(part) || Number(part) > 65535) {
+      return { values: null, error: `"${part}" is not a whole number from 0 to 65535.` };
+    }
+    values.push(Number(part));
+  }
+  if (values.length > 16) {
+    return { values: null, error: 'At most 16 values.' };
+  }
+  return { values: [...new Set(values)].sort((a, b) => a - b), error: null };
+}

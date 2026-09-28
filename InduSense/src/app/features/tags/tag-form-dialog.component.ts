@@ -30,6 +30,7 @@ import {
   definitionsOf,
   formatStateMap,
   parseStateMap,
+  parseWriteValues,
   roundoffError,
   roundoffValue,
 } from './tag-rules';
@@ -49,6 +50,10 @@ export interface TagForm {
   status: EditableStatus;
   /** `0=RUNNING, 1=IDLE, 2=ALARM`; empty = non-zero is running. */
   state_map: string;
+  writable: boolean;
+  write_mode: 'pulse' | 'latched';
+  /** `0, 1`; empty = default for the mode. */
+  write_values: string;
 }
 
 export function emptyForm(type: TagType, deviceId: number | null = null): TagForm {
@@ -66,6 +71,9 @@ export function emptyForm(type: TagType, deviceId: number | null = null): TagFor
     is_cumulative: false,
     status: 'active',
     state_map: '',
+    writable: false,
+    write_mode: 'pulse',
+    write_values: '',
   };
 }
 
@@ -84,6 +92,9 @@ export function formOf(tag: Tag): TagForm {
     is_cumulative: tag.is_cumulative,
     status: tag.status === 'inactive' ? 'inactive' : 'active',
     state_map: formatStateMap(tag.state_map),
+    writable: !!tag.writable,
+    write_mode: tag.write_mode ?? 'pulse',
+    write_values: (tag.write_values ?? []).join(', '),
   };
 }
 
@@ -266,6 +277,37 @@ const text = (value: string) => value.trim() || null;
           </fieldset>
         }
 
+        <fieldset class="group">
+          <legend>Commands (PLC writes)</legend>
+          <label class="f f--wide checks">
+            <input type="checkbox" name="writable" [(ngModel)]="form.writable" />
+            Writable: users with the control permission may write this register
+          </label>
+          @if (form.writable) {
+            <label class="f">
+              <span>Write mode</span>
+              <select name="write_mode" [(ngModel)]="form.write_mode">
+                <option value="pulse">Pulse (write 1, the PLC resets it)</option>
+                <option value="latched">Latched (the value stays, e.g. interlock)</option>
+              </select>
+            </label>
+            <label class="f">
+              <span>Allowed values</span>
+              <input
+                name="write_values"
+                [(ngModel)]="form.write_values"
+                maxlength="120"
+                [placeholder]="form.write_mode === 'pulse' ? '1' : '0, 1'"
+              />
+              @if (errors().write_values; as e) {
+                <small class="err" role="alert">{{ e }}</small>
+              } @else {
+                <small>Only these values can be sent. Only 16-bit registers are written.</small>
+              }
+            </label>
+          }
+        </fieldset>
+
         @if (serverError(); as e) {
           <p class="err" role="alert">{{ e }}</p>
         }
@@ -405,8 +447,18 @@ export class TagFormDialogComponent {
     });
   }
 
-  protected errors(): { code?: string; roundoff?: string; state_map?: string } {
-    const result: { code?: string; roundoff?: string; state_map?: string } = {};
+  protected errors(): {
+    code?: string;
+    roundoff?: string;
+    state_map?: string;
+    write_values?: string;
+  } {
+    const result: { code?: string; roundoff?: string; state_map?: string; write_values?: string } =
+      {};
+    const writeValues = this.form.writable ? parseWriteValues(this.form.write_values).error : null;
+    if (writeValues) {
+      result.write_values = writeValues;
+    }
     const stateMap = parseStateMap(this.form.state_map, this.states()).error;
     if (stateMap) {
       result.state_map = stateMap;
@@ -430,7 +482,8 @@ export class TagFormDialogComponent {
       !!this.form.tag_name.trim() &&
       !e.code &&
       !e.roundoff &&
-      !e.state_map
+      !e.state_map &&
+      !e.write_values
     );
   }
 
@@ -460,6 +513,9 @@ export class TagFormDialogComponent {
       roundoff_digits: roundoffValue(f.roundoff),
       description: text(f.description),
       state_map: parseStateMap(f.state_map, this.states()).map,
+      writable: f.writable,
+      write_mode: f.writable ? f.write_mode : null,
+      write_values: f.writable ? parseWriteValues(f.write_values).values : null,
       is_counter: f.is_counter,
       is_cumulative: f.is_cumulative,
       status: f.status,
