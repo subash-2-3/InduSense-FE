@@ -147,7 +147,7 @@ describe('MachineControlDialogComponent', () => {
               register_address: '40253',
               last_command: command({ tag_id: 5, state: 'sent' }),
             }),
-            control({}), // alarm_reset: hidden
+            control({}), // alarm_reset
             control({
               tag_id: 6,
               tag_name: 'run_stop_reset',
@@ -195,11 +195,11 @@ describe('MachineControlDialogComponent', () => {
     fixture.destroy();
   });
 
-  it('does not offer Alarm Reset or Run/Stop Seconds Reset', async () => {
+  it('offers Alarm Reset but not Run/Stop Seconds Reset', async () => {
     const { fixture, el } = await open();
-    expect(button(el, 'Alarm Reset')).toBeUndefined();
+    expect(button(el, 'Alarm Reset')).toBeDefined();
     expect(button(el, 'Run/Stop Seconds Reset')).toBeUndefined();
-    expect(el.textContent).not.toContain('40254');
+    expect(el.textContent).toContain('40254');
     expect(el.textContent).not.toContain('40255');
     expect(button(el, 'Count Reset')).toBeDefined();
     fixture.destroy();

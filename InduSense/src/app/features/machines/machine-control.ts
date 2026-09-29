@@ -13,7 +13,7 @@ export interface ControlAction {
 const ON_OFF: Readonly<Record<number, string>> = { 0: 'Off', 1: 'On' };
 
 /** Writable tags (by code) not offered in the control panel. */
-export const HIDDEN_CONTROL_CODES: ReadonlySet<string> = new Set(['alarm_reset', 'run_stop_reset']);
+export const HIDDEN_CONTROL_CODES: ReadonlySet<string> = new Set(['run_stop_reset']);
 
 /** The controls the panel shows. */
 export function visibleControls(controls: readonly ControlTag[]): ControlTag[] {
