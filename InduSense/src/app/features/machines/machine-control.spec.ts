@@ -136,7 +136,25 @@ describe('MachineControlDialogComponent', () => {
           device_id: 4,
           device_name: 'Delta PLC',
           can_write: true,
-          controls: [START_STOP, INTERLOCK, control({ last_command: command({ state: 'sent' }) })],
+          controls: [
+            START_STOP,
+            INTERLOCK,
+            control({
+              tag_id: 5,
+              tag_name: 'count_reset',
+              code: 'count_reset',
+              label: 'Count Reset',
+              register_address: '40253',
+              last_command: command({ tag_id: 5, state: 'sent' }),
+            }),
+            control({}), // alarm_reset: hidden
+            control({
+              tag_id: 6,
+              tag_name: 'run_stop_reset',
+              code: 'run_stop_reset',
+              label: 'Run/Stop Seconds Reset',
+            }),
+          ],
           notes: [],
           ...panel,
         }),
@@ -172,8 +190,18 @@ describe('MachineControlDialogComponent', () => {
     button(el, 'Off').click();
     http.expectNone((r) => r.method === 'POST');
     expect(button(el, 'On').disabled).toBe(true); // already on
-    expect(button(el, 'Alarm Reset').disabled).toBe(true); // a command is in progress
+    expect(button(el, 'Count Reset').disabled).toBe(true); // a command is in progress
     expect(el.textContent).toContain('Writing to the PLC');
+    fixture.destroy();
+  });
+
+  it('does not offer Alarm Reset or Run/Stop Seconds Reset', async () => {
+    const { fixture, el } = await open();
+    expect(button(el, 'Alarm Reset')).toBeUndefined();
+    expect(button(el, 'Run/Stop Seconds Reset')).toBeUndefined();
+    expect(el.textContent).not.toContain('40254');
+    expect(el.textContent).not.toContain('40255');
+    expect(button(el, 'Count Reset')).toBeDefined();
     fixture.destroy();
   });
 

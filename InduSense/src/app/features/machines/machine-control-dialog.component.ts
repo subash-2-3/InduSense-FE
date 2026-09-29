@@ -24,7 +24,13 @@ import {
 } from '../../shared/ui';
 import { formatDateTime } from '../../shared/utils/format';
 import { statusLabel, statusTone } from '../../shared/utils/status-colors';
-import { ControlAction, actionsFor, commandSummary, isOpen } from './machine-control';
+import {
+  ControlAction,
+  actionsFor,
+  commandSummary,
+  isOpen,
+  visibleControls,
+} from './machine-control';
 
 /** The control panel refreshes this often while open (command progress, register values). */
 export const CONTROLS_REFRESH_MS = 2_000;
@@ -63,7 +69,7 @@ export const CONTROLS_REFRESH_MS = 2_000;
           <p class="note">{{ n }}</p>
         }
         <ul class="controls">
-          @for (c of d.controls; track c.tag_id) {
+          @for (c of shown(d.controls); track c.tag_id) {
             <li class="control">
               <div class="control__head">
                 <div>
@@ -269,6 +275,7 @@ export class MachineControlDialogComponent {
   }
 
   protected summary = commandSummary;
+  protected shown = visibleControls;
   protected label = statusLabel;
   protected tone = statusTone;
 

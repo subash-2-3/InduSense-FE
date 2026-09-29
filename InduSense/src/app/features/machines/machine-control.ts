@@ -12,6 +12,14 @@ export interface ControlAction {
 
 const ON_OFF: Readonly<Record<number, string>> = { 0: 'Off', 1: 'On' };
 
+/** Writable tags (by code) not offered in the control panel. */
+export const HIDDEN_CONTROL_CODES: ReadonlySet<string> = new Set(['alarm_reset', 'run_stop_reset']);
+
+/** The controls the panel shows. */
+export function visibleControls(controls: readonly ControlTag[]): ControlTag[] {
+  return controls.filter((c) => !c.code || !HIDDEN_CONTROL_CODES.has(c.code));
+}
+
 /**
  * The buttons of one writable tag.
  * - Start/Stop (a toggle pulse): "Start" unless the machine is running, then "Stop".
