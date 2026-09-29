@@ -65,9 +65,9 @@ export const ACTIVE_REFRESH_MS = 10_000;
             <table class="table">
               <thead>
                 <tr>
-                  <th scope="col">Alarm</th>
+                  <th scope="col" class="num">Bit No</th>
+                  <th scope="col">Alarm explanation</th>
                   <th scope="col">Machine</th>
-                  <th scope="col" class="num">Bit</th>
                   <th scope="col">Active since</th>
                   <th scope="col" class="num">Duration</th>
                   <th scope="col">Data</th>
@@ -76,6 +76,7 @@ export const ACTIVE_REFRESH_MS = 10_000;
               <tbody>
                 @for (a of d.alarms; track a.tag_id + '-' + a.bit) {
                   <tr>
+                    <td class="num mono">{{ a.bit }}</td>
                     <td>
                       <span class="alarm-name" [class.alarm-name--unnamed]="!a.named">{{
                         a.name
@@ -90,10 +91,11 @@ export const ACTIVE_REFRESH_MS = 10_000;
                         {{ a.plant_name }}{{ a.area_name ? ' · ' + a.area_name : '' }}
                       </div>
                     </td>
-                    <td class="num mono">{{ a.bit }}</td>
                     <td>
                       {{
-                        a.since ? (a.since_is_estimate ? 'at least since ' : '') + dateTime(a.since) : '—'
+                        a.since
+                          ? (a.since_is_estimate ? 'at least since ' : '') + dateTime(a.since)
+                          : '—'
                       }}
                     </td>
                     <td class="num mono">{{ duration(a.since) }}</td>

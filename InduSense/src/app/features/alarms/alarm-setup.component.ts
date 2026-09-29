@@ -106,7 +106,7 @@ export function isSet(word: number | null | undefined, bit: number): boolean {
               [disabled]="saving() || loading()"
               (click)="save()"
             >
-              Save names
+              Save alarm master
             </button>
           </div>
         }
@@ -120,28 +120,21 @@ export function isSet(word: number | null | undefined, bit: number): boolean {
             <table class="table">
               <thead>
                 <tr>
-                  <th scope="col" class="num">Bit</th>
-                  <th scope="col">Now</th>
-                  <th scope="col">Alarm name</th>
-                  <th scope="col">Message / action</th>
+                  <th scope="col" class="num">Bit No</th>
+                  <th scope="col">Alarm explanation</th>
+                  <th scope="col">Action / note (optional)</th>
                   <th scope="col">Enabled</th>
+                  <th scope="col">Now</th>
                 </tr>
               </thead>
               <tbody>
                 @for (r of rows(); track r.bit) {
-                  <tr>
+                  <tr [class.row--on]="on(r.bit)">
                     <td class="num mono">{{ r.bit }}</td>
                     <td>
-                      @if (on(r.bit)) {
-                        <span class="pill pill--on">active</span>
-                      } @else {
-                        <span class="muted">—</span>
-                      }
-                    </td>
-                    <td>
                       <input
-                        class="control"
-                        [attr.aria-label]="'Name of bit ' + r.bit"
+                        class="control control--wide"
+                        [attr.aria-label]="'Explanation of bit ' + r.bit"
                         maxlength="200"
                         [placeholder]="'Alarm bit ' + r.bit"
                         [readonly]="!canManage()"
@@ -151,7 +144,7 @@ export function isSet(word: number | null | undefined, bit: number): boolean {
                     <td>
                       <input
                         class="control control--wide"
-                        [attr.aria-label]="'Message of bit ' + r.bit"
+                        [attr.aria-label]="'Note of bit ' + r.bit"
                         maxlength="500"
                         [readonly]="!canManage()"
                         [(ngModel)]="r.message"
@@ -165,14 +158,22 @@ export function isSet(word: number | null | undefined, bit: number): boolean {
                         [(ngModel)]="r.active"
                       />
                     </td>
+                    <td>
+                      @if (on(r.bit)) {
+                        <span class="pill pill--on">active</span>
+                      } @else {
+                        <span class="muted">—</span>
+                      }
+                    </td>
                   </tr>
                 }
               </tbody>
             </table>
           </div>
           <p class="muted pad">
-            Bit 0 is the least significant bit. Unnamed bits still appear as "Alarm bit N"; a
-            disabled bit is ignored in active alarms and history.
+            The alarm master: when bit N of the alarm word is set, Active alarms and History show
+            its explanation. Bit 0 is the least significant bit. Bits without an explanation appear
+            as "Alarm bit N"; a disabled bit is ignored.
           </p>
         }
       </app-card>
@@ -183,6 +184,9 @@ export function isSet(word: number | null | undefined, bit: number): boolean {
     .control--wide {
       width: 100%;
       min-width: 240px;
+    }
+    .row--on td {
+      background: rgb(239 68 68 / 6%);
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,

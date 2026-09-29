@@ -142,6 +142,7 @@ describe('ActiveAlarmsComponent', () => {
     const rows = el.querySelectorAll('tbody tr');
     expect(rows).toHaveLength(2);
     expect(rows[1].querySelector('.alarm-name')?.textContent?.trim()).toBe('Emergency stop');
+    expect(rows[1].querySelector('td')?.textContent?.trim()).toBe('0'); // Bit No first
     expect(rows[1].textContent).toContain('Release the e-stop');
     expect(rows[1].textContent).toContain('at least since '); // since_is_estimate
     expect(rows[1].textContent).toContain('last known');
@@ -244,14 +245,14 @@ describe('AlarmSetupComponent', () => {
     expect(rows[0].querySelector('.pill--on')).not.toBeNull(); // 1025: bits 0 and 10
     expect(rows[10].querySelector('.pill--on')).not.toBeNull();
     expect(rows[1].querySelector('.pill--on')).toBeNull();
-    const name10 = el.querySelector<HTMLInputElement>('input[aria-label="Name of bit 10"]')!;
+    const name10 = el.querySelector<HTMLInputElement>('input[aria-label="Explanation of bit 10"]')!;
     name10.value = 'Door open';
     name10.dispatchEvent(new Event('input'));
     await fixture.whenStable();
     const saved = vi.fn();
     fixture.componentInstance.saved.subscribe(saved);
     [...el.querySelectorAll<HTMLButtonElement>('button')]
-      .find((b) => b.textContent?.includes('Save names'))!
+      .find((b) => b.textContent?.includes('Save alarm master'))!
       .click();
     const req = http.expectOne(
       (r) => r.method === 'PUT' && r.url === '/api/v1/alarms/tags/7/definitions',
@@ -268,11 +269,11 @@ describe('AlarmSetupComponent', () => {
   it('is read-only without alarms:manage', () => {
     const http = setup();
     const { el } = render(false, http);
-    expect(el.querySelector<HTMLInputElement>('input[aria-label="Name of bit 0"]')!.readOnly).toBe(
-      true,
-    );
     expect(
-      [...el.querySelectorAll('button')].some((b) => b.textContent?.includes('Save names')),
+      el.querySelector<HTMLInputElement>('input[aria-label="Explanation of bit 0"]')!.readOnly,
+    ).toBe(true);
+    expect(
+      [...el.querySelectorAll('button')].some((b) => b.textContent?.includes('Save alarm master')),
     ).toBe(false);
     http.verify();
   });

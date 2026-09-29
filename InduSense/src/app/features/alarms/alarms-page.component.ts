@@ -193,7 +193,7 @@ export class AlarmsPageComponent implements OnInit {
   protected readonly tabs = computed(() => [
     { value: 'active' as const, label: 'Active alarms' },
     { value: 'history' as const, label: 'History' },
-    { value: 'setup' as const, label: this.canManage() ? 'Setup' : 'Alarm names' },
+    { value: 'setup' as const, label: 'Alarm master' },
   ]);
   protected readonly tags = signal<AlarmTag[]>([]);
   protected readonly machineId = signal<number | null>(null);
