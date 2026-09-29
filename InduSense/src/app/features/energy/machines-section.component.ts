@@ -37,10 +37,8 @@ import {
   EmptyStateComponent,
   ErrorStateComponent,
   SkeletonComponent,
-  StatusPillComponent,
 } from '../../shared/ui';
 import { formatDuration, formatNumber, formatPercent } from '../../shared/utils/format';
-import { statusLabel, statusTone } from '../../shared/utils/status-colors';
 import { MachineControlDialogComponent } from '../machines/machine-control-dialog.component';
 import { formatQuantity } from './energy-charts';
 import { EnergyFilterState } from './energy-filters.component';
@@ -49,17 +47,49 @@ import { rangeFor } from './energy-range';
 /** Machine state and counts refresh this often while the tab is visible. */
 export const MACHINES_REFRESH_MS = 10_000;
 
-/** Order of the state chips in the summary (others follow alphabetically). */
-const STATE_ORDER = ['RUNNING', 'IDLE', 'STOPPED', 'ALARM', 'OFFLINE', 'UNKNOWN'];
+export type LampTone = 'run' | 'idle' | 'stop' | 'none';
 
-export function stateChips(byState: Record<string, number>): { state: string; count: number }[] {
-  return Object.entries(byState)
-    .map(([state, count]) => ({ state, count }))
-    .sort((a, b) => {
-      const ia = STATE_ORDER.indexOf(a.state);
-      const ib = STATE_ORDER.indexOf(b.state);
-      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.state.localeCompare(b.state);
-    });
+export interface MachineLamp {
+  label: string;
+  tone: LampTone;
+}
+
+/**
+ * The status light of a machine: machine_status 0 = Run (green), 1 = Idle (yellow), 2 = Stop (red).
+ * The state map turns those values into RUNNING / IDLE / ALARM; a stopped or faulted machine is
+ * also shown as Stop. Without current data: Offline / Unknown (grey).
+ */
+export function machineLamp(status: string | null | undefined): MachineLamp {
+  switch ((status ?? '').toUpperCase()) {
+    case 'RUNNING':
+      return { label: 'Run', tone: 'run' };
+    case 'IDLE':
+      return { label: 'Idle', tone: 'idle' };
+    case 'ALARM':
+    case 'STOPPED':
+    case 'FAULT':
+      return { label: 'Stop', tone: 'stop' };
+    case 'OFFLINE':
+      return { label: 'Offline', tone: 'none' };
+    default:
+      return { label: 'Unknown', tone: 'none' };
+  }
+}
+
+const LAMP_ORDER = ['Run', 'Idle', 'Stop', 'Offline', 'Unknown'];
+
+/** Machines per status light, in the order Run, Idle, Stop, Offline, Unknown. */
+export function lampChips(byState: Record<string, number>): (MachineLamp & { count: number })[] {
+  const counts = new Map<string, MachineLamp & { count: number }>();
+  for (const [state, count] of Object.entries(byState)) {
+    const lamp = machineLamp(state);
+    const entry = counts.get(lamp.label) ?? { ...lamp, count: 0 };
+    entry.count += count;
+    counts.set(lamp.label, entry);
+  }
+  return [...counts.values()].sort(
+    (a, b) => LAMP_ORDER.indexOf(a.label) - LAMP_ORDER.indexOf(b.label),
+  );
 }
 
 /** Machines of the combined dashboard: state, production count, availability, alarms, controls. */
@@ -72,7 +102,6 @@ export function stateChips(byState: Record<string, number>): { state: string; co
     EmptyStateComponent,
     ErrorStateComponent,
     SkeletonComponent,
-    StatusPillComponent,
     MachineControlDialogComponent,
   ],
   template: `
@@ -80,15 +109,15 @@ export function stateChips(byState: Record<string, number>): { state: string; co
       <div class="section__head">
         <h2 id="machines-title" class="section__title">Machines</h2>
         @if (data(); as d) {
-          <div class="chips" aria-label="Machines per state">
-            @for (c of chips(); track c.state) {
-              <app-status-pill
-                dot
-                [label]="label(c.state) + ' ' + c.count"
-                [tone]="tone(c.state)"
-              />
+          <ul class="chips" aria-label="Machines per status">
+            @for (c of chips(); track c.label) {
+              <li class="lamp lamp--chip" [attr.data-tone]="c.tone">
+                <span class="lamp__light" aria-hidden="true"></span>
+                <span class="lamp__label">{{ c.label }}</span>
+                <span class="lamp__count">{{ c.count }}</span>
+              </li>
             }
-          </div>
+          </ul>
         }
       </div>
 
@@ -133,19 +162,28 @@ export function stateChips(byState: Record<string, number>): { state: string; co
             @for (m of d.machines; track m.machine_id) {
               <app-card>
                 <div class="machine" [attr.data-state]="m.state.status">
+                  @let lamp = lampOf(m.state.status);
                   <div class="machine__head">
-                    <div>
-                      <h3 class="machine__name">{{ m.machine_name }}</h3>
-                      <p class="machine__meta">
-                        {{ m.machine_code }} · {{ m.plant_name
-                        }}{{ m.area_name ? ' · ' + m.area_name : '' }}
-                      </p>
+                    <div class="machine__title">
+                      <span
+                        class="lamp lamp--big"
+                        [attr.data-tone]="lamp.tone"
+                        role="img"
+                        [attr.aria-label]="m.machine_name + ' status: ' + lamp.label"
+                      >
+                        <span class="lamp__light"></span>
+                      </span>
+                      <div>
+                        <h3 class="machine__name">{{ m.machine_name }}</h3>
+                        <p class="machine__meta">
+                          {{ m.machine_code }} · {{ m.plant_name
+                          }}{{ m.area_name ? ' · ' + m.area_name : '' }}
+                        </p>
+                      </div>
                     </div>
-                    <app-status-pill
-                      dot
-                      [label]="label(m.state.status)"
-                      [tone]="tone(m.state.status)"
-                    />
+                    <span class="lamp lamp--label" [attr.data-tone]="lamp.tone">{{
+                      lamp.label
+                    }}</span>
                   </div>
 
                   <dl class="figures">
@@ -241,6 +279,70 @@ export function stateChips(byState: Record<string, number>): { state: string; co
       display: flex;
       flex-wrap: wrap;
       gap: var(--space-2);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    /* Status light: 0 Run = green, 1 Idle = yellow, 2 Stop = red, no data = grey. */
+    .lamp {
+      --lamp: var(--status-stopped);
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .lamp[data-tone='run'] {
+      --lamp: var(--status-running);
+    }
+    .lamp[data-tone='idle'] {
+      --lamp: var(--status-warning);
+    }
+    .lamp[data-tone='stop'] {
+      --lamp: var(--status-fault);
+    }
+    .lamp__light {
+      flex: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--lamp);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--lamp) 25%, transparent);
+    }
+    .lamp--big .lamp__light {
+      width: 22px;
+      height: 22px;
+      box-shadow:
+        0 0 0 4px color-mix(in srgb, var(--lamp) 22%, transparent),
+        0 0 14px color-mix(in srgb, var(--lamp) 55%, transparent);
+    }
+    .lamp[data-tone='none'] .lamp__light {
+      box-shadow: none;
+    }
+    .lamp--chip {
+      padding: 4px 10px;
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-pill);
+      background: var(--bg-card);
+      font-size: var(--fs-sm);
+      color: var(--text-primary);
+    }
+    .lamp__count {
+      font-family: var(--font-mono);
+      font-weight: var(--fw-bold);
+    }
+    .lamp--label {
+      padding: 2px 12px;
+      border-radius: var(--radius-pill);
+      background: color-mix(in srgb, var(--lamp) 16%, transparent);
+      color: var(--lamp);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-bold);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .machine__title {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
     }
     .kpis {
       display: grid;
@@ -375,7 +477,8 @@ export class MachinesSectionComponent {
   protected readonly data = signal<MachinesOverview | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly controlled = signal<number | null>(null);
-  protected readonly chips = computed(() => stateChips(this.data()?.summary.by_state ?? {}));
+  protected readonly chips = computed(() => lampChips(this.data()?.summary.by_state ?? {}));
+  protected readonly lampOf = machineLamp;
   private readonly filters$ = new Subject<EnergyFilterState>();
   private readonly refresh$ = new Subject<void>();
 
@@ -421,8 +524,6 @@ export class MachinesSectionComponent {
     this.refresh$.next();
   }
 
-  protected label = statusLabel;
-  protected tone = statusTone;
   protected quantity = formatQuantity;
 
   protected number(value: number | null | undefined): string {

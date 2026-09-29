@@ -5,7 +5,7 @@ import { provideRouter } from '@angular/router';
 
 import { ALL_PERMISSIONS, fakeUser, provideFakeAuth } from '../../core/auth/testing';
 import { MachinesOverview } from '../../core/models';
-import { MachinesSectionComponent, stateChips } from './machines-section.component';
+import { MachinesSectionComponent, lampChips, machineLamp } from './machines-section.component';
 
 const NOW = new Date().toISOString();
 const META = {
@@ -97,12 +97,23 @@ async function render(http: HttpTestingController) {
 }
 
 describe('MachinesSectionComponent', () => {
-  it('orders state chips', () => {
-    expect(stateChips({ ALARM: 1, RUNNING: 2, ZED: 1, IDLE: 3 }).map((c) => c.state)).toEqual([
-      'RUNNING',
-      'IDLE',
-      'ALARM',
-      'ZED',
+  it('maps machine_status to a Run / Idle / Stop light', () => {
+    // state map of the PLC: 0 -> RUNNING, 1 -> IDLE, 2 -> ALARM
+    expect(machineLamp('RUNNING')).toEqual({ label: 'Run', tone: 'run' }); // green
+    expect(machineLamp('IDLE')).toEqual({ label: 'Idle', tone: 'idle' }); // yellow
+    expect(machineLamp('ALARM')).toEqual({ label: 'Stop', tone: 'stop' }); // red
+    expect(machineLamp('STOPPED')).toEqual({ label: 'Stop', tone: 'stop' });
+    expect(machineLamp('OFFLINE')).toEqual({ label: 'Offline', tone: 'none' });
+    expect(machineLamp(null).label).toBe('Unknown');
+  });
+
+  it('counts machines per light in Run, Idle, Stop order', () => {
+    const chips = lampChips({ ALARM: 1, STOPPED: 2, RUNNING: 2, UNKNOWN: 1, IDLE: 3 });
+    expect(chips.map((c) => [c.label, c.count])).toEqual([
+      ['Run', 2],
+      ['Idle', 3],
+      ['Stop', 3],
+      ['Unknown', 1],
     ]);
   });
 
@@ -119,6 +130,17 @@ describe('MachinesSectionComponent', () => {
     const cards = el.querySelectorAll('.machine');
     expect(cards).toHaveLength(2);
     expect(cards[0].getAttribute('data-state')).toBe('ALARM');
+    const light = cards[0].querySelector('.lamp--big');
+    expect(light?.getAttribute('data-tone')).toBe('stop');
+    expect(light?.getAttribute('aria-label')).toBe('Delta PLC Machine status: Stop');
+    expect(cards[0].querySelector('.lamp--label')?.textContent?.trim()).toBe('Stop');
+    expect(cards[1].querySelector('.lamp--label')?.textContent?.trim()).toBe('Run');
+    expect(cards[1].querySelector('.lamp--big')?.getAttribute('data-tone')).toBe('run');
+    const chips = [...el.querySelectorAll('.lamp--chip')].map(
+      (c) =>
+        `${c.querySelector('.lamp__label')?.textContent?.trim()} ${c.querySelector('.lamp__count')?.textContent?.trim()}`,
+    );
+    expect(chips).toEqual(['Run 1', 'Stop 1']);
     expect(
       cards[0].querySelector('.figure--big dd')?.textContent?.replace(/\s+/g, ' ').trim(),
     ).toBe('70 count');
