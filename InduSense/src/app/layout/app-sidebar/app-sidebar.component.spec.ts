@@ -31,7 +31,7 @@ describe('AppSidebarComponent', () => {
       'Tags',
       'Assets',
       'Locations',
-      'Energy',
+      'Energy & OEE',
       'Reports',
       'Alarms',
       'More',

@@ -17,6 +17,7 @@ import {
   EnergyReportSummary,
   EnergyTrendFilters,
   EnergyTrends,
+  MachinesOverview,
 } from '../../models';
 import { ApiService, Download, queryOf } from '../api.service';
 
@@ -44,6 +45,11 @@ export class EnergyApi {
     filters: EnergyRangeFilters & { group_by?: EnergyGroupBy } = {},
   ): Observable<EnergyDistribution> {
     return this.api.get<EnergyDistribution>('/dashboards/energy/distribution', queryOf(filters));
+  }
+
+  /** Machines of the selection: state, production, availability, active alarms. */
+  machines(filters: EnergyRangeFilters = {}): Observable<MachinesOverview> {
+    return this.api.get<MachinesOverview>('/dashboards/machines', queryOf(filters));
   }
 
   reportSummary(filters: EnergyRangeFilters = {}): Observable<EnergyReportSummary> {

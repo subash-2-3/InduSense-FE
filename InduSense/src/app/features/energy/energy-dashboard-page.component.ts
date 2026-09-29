@@ -6,6 +6,7 @@ import {
   computed,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
@@ -65,6 +66,7 @@ import {
   trendTitle,
 } from './energy-charts';
 import { EnergyFilterState, EnergyFiltersComponent } from './energy-filters.component';
+import { MachinesSectionComponent } from './machines-section.component';
 import { TimeRange, rangeFor } from './energy-range';
 
 /** Live values refresh this often while the tab is visible. */
@@ -95,6 +97,7 @@ function message(error: unknown): string {
     RouterLink,
     EchartDirective,
     EnergyFiltersComponent,
+    MachinesSectionComponent,
     ButtonComponent,
     CardComponent,
     EmptyStateComponent,
@@ -107,9 +110,9 @@ function message(error: unknown): string {
     <div class="energy">
       <header class="energy__header">
         <div>
-          <h1 class="energy__title">Energy Dashboard</h1>
+          <h1 class="energy__title">Energy &amp; Machines</h1>
           <p class="energy__subtitle">
-            Live values and trends of the energy parameters mapped to your meters and machines
+            Machine status, production and availability, with the live energy values of your meters
           </p>
         </div>
         <div class="energy__actions">
@@ -133,9 +136,12 @@ function message(error: unknown): string {
         <app-energy-filters (changed)="onFilters($event)" />
       </app-card>
 
-      <!-- Summary ------------------------------------------------------------ -->
-      <section aria-labelledby="energy-summary">
-        <h2 id="energy-summary" class="sr-only">Summary</h2>
+      <!-- Machines (OEE) ----------------------------------------------------- -->
+      <app-machines-section [filters]="filterState()" />
+
+      <!-- Energy summary ----------------------------------------------------- -->
+      <section aria-labelledby="energy-summary" class="section">
+        <h2 id="energy-summary" class="section__title">Energy</h2>
         @if (overviewError(); as err) {
           <app-card
             ><app-error-state heading="Summary unavailable" [message]="err" (retry)="refresh()"
@@ -482,6 +488,9 @@ export class EnergyDashboardPageComponent {
   });
 
   private filters: EnergyFilterState | null = null;
+  /** The same filters for the machines section. */
+  protected readonly filterState = signal<EnergyFilterState | null>(null);
+  private readonly machinesSection = viewChild(MachinesSectionComponent);
   private readonly filters$ = new Subject<EnergyFilterState>();
   private readonly refresh$ = new Subject<void>();
   private readonly trends$ = new Subject<void>();
@@ -540,6 +549,7 @@ export class EnergyDashboardPageComponent {
   protected onFilters(state: EnergyFilterState): void {
     const scopeChanged = JSON.stringify(state.scope) !== JSON.stringify(this.filters?.scope);
     this.filters = state;
+    this.filterState.set(state);
     if (scopeChanged) {
       this.selectedTags.set(null); // tags of another selection
     }
@@ -548,6 +558,7 @@ export class EnergyDashboardPageComponent {
 
   protected refresh(): void {
     this.refresh$.next();
+    this.machinesSection()?.refresh();
   }
 
   protected setGroupBy(value: EnergyGroupBy): void {

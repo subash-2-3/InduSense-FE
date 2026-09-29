@@ -96,6 +96,23 @@ describe('EnergyDashboardPageComponent', () => {
     flushFilterLists(http);
     await new Promise((resolve) => setTimeout(resolve)); // timer(0) of the polling streams
     http
+      .expectOne((r) => r.url === '/api/v1/dashboards/machines')
+      .flush(
+        ok({
+          summary: {
+            machines: 0,
+            by_state: {},
+            running: 0,
+            in_alarm: 0,
+            production: { total: null, unit: null, by_unit: {} },
+            availability: null,
+            active_alarms: 0,
+          },
+          machines: [],
+          metadata: { ...META, notes: ['no active machine in this selection'] },
+        }),
+      );
+    http
       .expectOne((r) => r.url === '/api/v1/dashboards/energy/live')
       .flush(
         ok({

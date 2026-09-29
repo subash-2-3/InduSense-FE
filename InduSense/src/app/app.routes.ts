@@ -72,7 +72,7 @@ export const routes: Routes = [
       },
       {
         path: 'energy',
-        title: 'Energy · InduSense',
+        title: 'Energy & Machines · InduSense',
         data: { section: 'Energy' },
         canActivate: [permissionGuard(Permission.DashboardsView)],
         loadComponent: () =>

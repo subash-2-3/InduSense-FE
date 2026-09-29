@@ -1,5 +1,5 @@
 import { IsoDateTime } from './common';
-import { KpiValue, Metadata, Quantity } from './dashboard';
+import { KpiValue, MachineState, Metadata, Quantity } from './dashboard';
 
 /** InduSense-BE `app/schemas/energy.py`: `/dashboards/energy/*` and `/reports/energy/*`. */
 
@@ -220,4 +220,44 @@ export interface EnergyExportFilters extends EnergyRangeFilters {
   report: EnergyExportReport;
   format: EnergyExportFormat;
   tag_id?: number[];
+}
+
+// ------------------------------------------------------------------- machines ----
+
+/** One machine on the combined dashboard (`GET /dashboards/machines`). */
+export interface MachineCard {
+  machine_id: number;
+  machine_code: string;
+  machine_name: string;
+  plant_id: number;
+  plant_name: string | null;
+  area_name: string | null;
+  state: MachineState;
+  /** Parts counted in the period (reset-aware). */
+  production: KpiValue | null;
+  /** Latest raw counter value. */
+  counter: KpiValue | null;
+  run_seconds: number | null;
+  stop_seconds: number | null;
+  /** run / (run + stop), 0..1. */
+  availability: number | null;
+  active_alarms: number;
+  alarm_names: string[];
+  has_controls: boolean;
+}
+
+export interface MachinesSummary {
+  machines: number;
+  by_state: Record<string, number>;
+  running: number;
+  in_alarm: number;
+  production: Quantity;
+  availability: number | null;
+  active_alarms: number;
+}
+
+export interface MachinesOverview {
+  summary: MachinesSummary;
+  machines: MachineCard[];
+  metadata: Metadata;
 }
