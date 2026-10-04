@@ -52,12 +52,13 @@ Runtime settings live in `src/environments/` and are injected through the `APP_C
 
 ### Backend proxy (development)
 
-`ng serve` forwards `/api/*` to the backend (`proxy.conf.mjs`), so the browser only talks to the Angular origin. That means no CORS setup, and auth cookies stay first-party. The target defaults to `http://localhost:8000`; override it with `INDUSENSE_API_URL`:
+`ng serve` forwards `/api/*` to the backend (`proxy.conf.mjs`), so the browser only talks to the Angular origin. That means no CORS setup, and auth cookies stay first-party. The target defaults to `http://127.0.0.1:8000` (matching `PORT=8000` in `InduSense-BE/.env`). Override it with `INDUSENSE_API_URL` or `PORT`:
 
 ```bash
-INDUSENSE_API_URL=http://127.0.0.1:8001 npm start          # bash
-$env:INDUSENSE_API_URL="http://127.0.0.1:8001"; npm start   # PowerShell
+INDUSENSE_API_URL=http://127.0.0.1:8000 npm start          # bash
+$env:INDUSENSE_API_URL="http://127.0.0.1:8000"; npm start   # PowerShell
 ```
+Or create a `.env` in `InduSense-FE/InduSense` based on [.env.example](.env.example).
 
 > On the development machine used so far, port 8000 was taken by an unrelated application ("Finance Management App"). Run InduSense-BE on a free port (e.g. `uvicorn app.main:app --port 8001`) and point the proxy at it.
 
