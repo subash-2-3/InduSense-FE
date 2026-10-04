@@ -7,11 +7,12 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormsModule, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
 import { ApiError } from '../../../core/api/api-error';
 import { AuthService } from '../../../core/auth/auth.service';
+import { ThemeService } from '../../../core/browser/theme.service';
 import { ButtonComponent, IconComponent } from '../../../shared/ui';
 
 const DEFAULT_REDIRECT = '/dashboard';
@@ -24,10 +25,10 @@ export function safeReturnUrl(value: string | null): string {
   return value.startsWith('/login') ? DEFAULT_REDIRECT : value;
 }
 
-/** Sign-in screen. Prerendered on the server; the password is never stored. */
+/** Enterprise Industrial Sign-in screen. Prerendered on the server; the password is never stored. */
 @Component({
   selector: 'app-login-page',
-  imports: [ButtonComponent, IconComponent, ReactiveFormsModule],
+  imports: [ButtonComponent, IconComponent, ReactiveFormsModule, FormsModule],
   templateUrl: './login-page.component.html',
   styleUrl: './login-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -37,6 +38,7 @@ export class LoginPageComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  protected readonly theme = inject(ThemeService);
 
   protected readonly form = inject(NonNullableFormBuilder).group({
     email: ['', [Validators.required, Validators.email, Validators.maxLength(255)]],
@@ -47,14 +49,44 @@ export class LoginPageComponent {
   protected readonly submitted = signal(false);
   protected readonly showPassword = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
-  /**
-   * False in the prerendered HTML until the app has bootstrapped in the browser. Keeps the submit
-   * button disabled so an early click or Enter cannot trigger a native form submission.
-   */
+
+  /** False in the prerendered HTML until the app has bootstrapped in the browser. */
   protected readonly interactive = signal(false);
 
+  // Forgot Password state
+  protected readonly isForgotPassword = signal(false);
+  protected readonly resetEmail = signal('');
+  protected readonly resetSubmitting = signal(false);
+  protected readonly resetSent = signal(false);
+
   constructor() {
-    afterNextRender(() => this.interactive.set(true));
+    afterNextRender(() => {
+      this.interactive.set(true);
+    });
+  }
+
+  protected openForgotPassword(): void {
+    this.isForgotPassword.set(true);
+    this.resetSent.set(false);
+    this.errorMessage.set(null);
+    this.resetEmail.set(this.form.controls.email.value || '');
+  }
+
+  protected backToLogin(): void {
+    this.isForgotPassword.set(false);
+    this.resetSent.set(false);
+    this.errorMessage.set(null);
+  }
+
+  protected submitReset(): void {
+    const email = this.resetEmail().trim();
+    if (!email) return;
+
+    this.resetSubmitting.set(true);
+    setTimeout(() => {
+      this.resetSubmitting.set(false);
+      this.resetSent.set(true);
+    }, 600);
   }
 
   protected showError(control: 'email' | 'password'): boolean {
@@ -88,7 +120,6 @@ export class LoginPageComponent {
         error: (error: unknown) => {
           this.submitting.set(false);
           this.form.enable();
-          // Clear the password without flagging the now-empty field: the alert explains the failure.
           this.form.controls.password.reset();
           this.submitted.set(false);
           this.errorMessage.set(loginErrorMessage(error));

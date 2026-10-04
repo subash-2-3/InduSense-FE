@@ -30,24 +30,28 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
+  margin: 0 6px;
   padding: var(--space-2) 2px;
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
   transition:
     color var(--transition-fast),
-    background-color var(--transition-fast);
+    background-color var(--transition-fast),
+    transform var(--transition-fast);
 
   &::before {
     content: '';
     position: absolute;
-    inset: 4px auto 4px 0;
+    inset: 6px auto 6px -6px;
     width: 3px;
     border-radius: 0 3px 3px 0;
     background: transparent;
+    transition: background-color var(--transition-fast);
   }
 
   &:hover {
-    background: var(--bg-card);
+    background: var(--bg-card-hover);
     color: var(--text-primary);
   }
 
@@ -59,6 +63,7 @@
 .nav-item--active {
   background: var(--accent-cyan-soft);
   color: var(--accent-cyan);
+  font-weight: var(--fw-semibold);
 
   &::before {
     background: var(--accent-cyan);

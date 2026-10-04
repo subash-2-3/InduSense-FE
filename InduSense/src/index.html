@@ -6,12 +6,15 @@
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="InduSense industrial IoT monitoring" />
-    <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#0b0f19" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f4f6fa" />
     <script>
-      // Saved color theme (ThemeService), applied before the first paint to avoid a flash.
+      // Saved color theme (ThemeService), default is light.
       try {
-        if (localStorage.getItem('indusense-theme') === 'light') {
+        const saved = localStorage.getItem('indusense-theme');
+        if (saved === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
           document.documentElement.setAttribute('data-theme', 'light');
         }
       } catch {}

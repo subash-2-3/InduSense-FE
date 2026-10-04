@@ -39,22 +39,22 @@ export interface ChartTheme {
 
 /** Token values from _tokens.scss; used on the server, in tests, or if a variable is missing. */
 const FALLBACK = {
-  '--bg-app': '#0b0f19',
-  '--bg-card': '#111827',
-  '--bg-popover': '#0f172a',
-  '--border-card': '#1f293d',
-  '--border-light': '#334155',
-  '--text-primary': '#f8fafc',
-  '--text-secondary': '#94a3b8',
-  '--text-muted': '#8190a6',
+  '--bg-app': '#f4f6fa',
+  '--bg-card': '#ffffff',
+  '--bg-popover': '#ffffff',
+  '--border-card': '#e2e8f0',
+  '--border-light': '#cbd5e1',
+  '--text-primary': '#0f172a',
+  '--text-secondary': '#475569',
+  '--text-muted': '#64748b',
   '--font-sans': "'Inter', system-ui, sans-serif",
   '--font-mono': "'JetBrains Mono', monospace",
-  '--status-running': '#10b981',
-  '--status-warning': '#f59e0b',
-  '--status-fault': '#ef4444',
+  '--status-running': '#059669',
+  '--status-warning': '#d97706',
+  '--status-fault': '#dc2626',
   '--status-stopped': '#64748b',
-  '--accent-cyan': '#06b6d4',
-  '--accent-orange': '#f97316',
+  '--accent-cyan': '#0891b2',
+  '--accent-orange': '#ea580c',
 } as const;
 
 type Token = keyof typeof FALLBACK;

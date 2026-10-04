@@ -15,6 +15,7 @@ import { CompaniesApi, RolesApi, UsersApi } from '../../core/api/resources/admin
 import { LocationsApi } from '../../core/api/resources/locations.api';
 import { AuthService } from '../../core/auth/auth.service';
 import { Permission } from '../../core/auth/permissions';
+import { ThemeMode, ThemeService } from '../../core/browser/theme.service';
 import {
   Company,
   Permission as PermissionModel,
@@ -44,7 +45,7 @@ import {
 } from '../../shared/utils/record-status';
 import { formatDateTime } from '../../shared/utils/format';
 
-type SettingsTab = 'users' | 'roles';
+type SettingsTab = 'users' | 'roles' | 'appearance';
 
 interface UserForm {
   company_id: number | null;
@@ -134,43 +135,54 @@ function blankUserForm(): UserForm {
           <app-icon name="lock" [size]="16" />
           Roles & Permissions ({{ roles().length }})
         </button>
+        <button
+          type="button"
+          class="tab-btn"
+          [class.tab-btn--active]="activeTab() === 'appearance'"
+          (click)="setTab('appearance')"
+        >
+          <app-icon name="sun" [size]="16" />
+          Appearance & Theme
+        </button>
       </div>
 
       <!-- Action Feedback Banner -->
 
-      <div class="settings-toolbar">
-        <div class="search-box">
-          <app-icon name="search" [size]="16" class="search-icon" />
-          <input
-            type="text"
-            class="search-input"
-            [placeholder]="'Search ' + activeTab() + '...'"
-            [ngModel]="searchTerm()"
-            (ngModelChange)="searchTerm.set($event)"
-          />
-          @if (searchTerm()) {
-            <button class="clear-btn" type="button" (click)="searchTerm.set('')">
-              <app-icon name="x" [size]="14" />
-            </button>
+      @if (activeTab() !== 'appearance') {
+        <div class="settings-toolbar">
+          <div class="search-box">
+            <app-icon name="search" [size]="16" class="search-icon" />
+            <input
+              type="text"
+              class="search-input"
+              [placeholder]="'Search ' + activeTab() + '...'"
+              [ngModel]="searchTerm()"
+              (ngModelChange)="searchTerm.set($event)"
+            />
+            @if (searchTerm()) {
+              <button class="clear-btn" type="button" (click)="searchTerm.set('')">
+                <app-icon name="x" [size]="14" />
+              </button>
+            }
+          </div>
+          @if (activeTab() === 'users') {
+            <label class="status-filter">
+              Show
+              <select
+                class="form-select"
+                [ngModel]="userStatusView()"
+                (ngModelChange)="setUserStatusView($event)"
+                aria-label="User status"
+              >
+                <option value="visible">Active and inactive</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="delete">Deleted</option>
+              </select>
+            </label>
           }
         </div>
-        @if (activeTab() === 'users') {
-          <label class="status-filter">
-            Show
-            <select
-              class="form-select"
-              [ngModel]="userStatusView()"
-              (ngModelChange)="setUserStatusView($event)"
-              aria-label="User status"
-            >
-              <option value="visible">Active and inactive</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="delete">Deleted</option>
-            </select>
-          </label>
-        }
-      </div>
+      }
 
       <app-card [padded]="false">
         @if (loading()) {
@@ -189,6 +201,98 @@ function blankUserForm(): UserForm {
           </div>
         } @else {
           @switch (activeTab()) {
+            @case ('appearance') {
+              <div class="appearance-panel">
+                <div class="appearance-panel__header">
+                  <h2 class="appearance-panel__title">Theme Preference</h2>
+                  <p class="appearance-panel__subtitle">
+                    Select your preferred interface color theme. InduSense defaults to Light Theme for maximum clarity in industrial monitoring.
+                  </p>
+                </div>
+
+                <div class="theme-grid">
+                  <div
+                    class="theme-card"
+                    [class.theme-card--selected]="currentTheme() === 'light'"
+                    tabindex="0"
+                    role="button"
+                    (click)="setTheme('light')"
+                    (keydown.enter)="setTheme('light')"
+                    (keydown.space)="setTheme('light')"
+                  >
+                    <div class="theme-card__preview theme-card__preview--light">
+                      <div class="preview-header">
+                        <div class="preview-dot"></div>
+                        <div class="preview-dot"></div>
+                        <div class="preview-dot"></div>
+                      </div>
+                      <div class="preview-body">
+                        <div class="preview-sidebar"></div>
+                        <div class="preview-main">
+                          <div class="preview-metric"></div>
+                          <div class="preview-metric"></div>
+                          <div class="preview-chart"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="theme-card__footer">
+                      <div class="theme-card__texts">
+                        <div class="theme-card__title">
+                          Light Theme
+                          <span class="theme-card__badge-default">Default</span>
+                        </div>
+                        <div class="theme-card__desc">Optimized daylight palette with high-contrast metrics and clean surfaces.</div>
+                      </div>
+                      <div class="theme-card__radio" [class.theme-card__radio--checked]="currentTheme() === 'light'">
+                        @if (currentTheme() === 'light') {
+                          <app-icon name="check" [size]="14" />
+                        }
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    class="theme-card"
+                    [class.theme-card--selected]="currentTheme() === 'dark'"
+                    tabindex="0"
+                    role="button"
+                    (click)="setTheme('dark')"
+                    (keydown.enter)="setTheme('dark')"
+                    (keydown.space)="setTheme('dark')"
+                  >
+                    <div class="theme-card__preview theme-card__preview--dark">
+                      <div class="preview-header">
+                        <div class="preview-dot"></div>
+                        <div class="preview-dot"></div>
+                        <div class="preview-dot"></div>
+                      </div>
+                      <div class="preview-body">
+                        <div class="preview-sidebar"></div>
+                        <div class="preview-main">
+                          <div class="preview-metric"></div>
+                          <div class="preview-metric"></div>
+                          <div class="preview-chart"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="theme-card__footer">
+                      <div class="theme-card__texts">
+                        <div class="theme-card__title">
+                          Dark Theme
+                          <span class="theme-card__badge-cyber">Cyber-Industrial</span>
+                        </div>
+                        <div class="theme-card__desc">Obsidian dark mode tailored for low-light control rooms and night shifts.</div>
+                      </div>
+                      <div class="theme-card__radio" [class.theme-card__radio--checked]="currentTheme() === 'dark'">
+                        @if (currentTheme() === 'dark') {
+                          <app-icon name="check" [size]="14" />
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            }
             @case ('users') {
               @if (filteredUsers().length === 0) {
                 <div class="settings-state">
@@ -916,13 +1020,196 @@ function blankUserForm(): UserForm {
         transform: rotate(360deg);
       }
     }
+
+    .appearance-panel {
+      padding: var(--space-5);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .appearance-panel__header {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .appearance-panel__title {
+      font-size: var(--fs-lg);
+      font-weight: var(--fw-bold);
+      color: var(--text-primary);
+    }
+
+    .appearance-panel__subtitle {
+      font-size: var(--fs-sm);
+      color: var(--text-secondary);
+    }
+
+    .theme-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 360px));
+      gap: var(--space-4);
+      margin-top: var(--space-2);
+    }
+
+    .theme-card {
+      border: 2px solid var(--border-card);
+      border-radius: var(--radius-card);
+      background: var(--bg-card);
+      padding: var(--space-4);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      transition: all var(--transition-fast);
+      box-shadow: var(--shadow-card);
+
+      &:hover {
+        border-color: var(--accent-cyan);
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-card-hover);
+      }
+    }
+
+    .theme-card--selected {
+      border-color: var(--accent-cyan);
+      background: var(--bg-card);
+      box-shadow: 0 0 0 1px var(--accent-cyan), var(--shadow-card-hover);
+    }
+
+    .theme-card__preview {
+      height: 140px;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--border-light);
+    }
+
+    .theme-card__preview--light {
+      background: #f4f6fa;
+      .preview-header { background: #ffffff; border-bottom: 1px solid #e2e8f0; }
+      .preview-sidebar { background: #ffffff; border-right: 1px solid #e2e8f0; }
+      .preview-metric { background: #ffffff; border: 1px solid #e2e8f0; }
+      .preview-chart { background: #ffffff; border: 1px solid #e2e8f0; }
+    }
+
+    .theme-card__preview--dark {
+      background: #0b0f19;
+      .preview-header { background: #0f172a; border-bottom: 1px solid #1f293d; }
+      .preview-sidebar { background: #090d16; border-right: 1px solid #1f293d; }
+      .preview-metric { background: #111827; border: 1px solid #1f293d; }
+      .preview-chart { background: #111827; border: 1px solid #1f293d; }
+    }
+
+    .preview-header {
+      height: 24px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0 8px;
+    }
+
+    .preview-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #94a3b8;
+      opacity: 0.5;
+    }
+
+    .preview-body {
+      flex: 1;
+      display: flex;
+    }
+
+    .preview-sidebar {
+      width: 32px;
+    }
+
+    .preview-main {
+      flex: 1;
+      padding: 6px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 24px 1fr;
+      gap: 6px;
+    }
+
+    .preview-chart {
+      grid-column: span 2;
+    }
+
+    .theme-card__footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+    }
+
+    .theme-card__texts {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .theme-card__title {
+      font-size: var(--fs-md);
+      font-weight: var(--fw-bold);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .theme-card__badge-default {
+      font-size: var(--fs-2xs);
+      font-weight: var(--fw-semibold);
+      padding: 1px 6px;
+      border-radius: var(--radius-pill);
+      background: var(--status-running-soft);
+      color: var(--status-running);
+    }
+
+    .theme-card__badge-cyber {
+      font-size: var(--fs-2xs);
+      font-weight: var(--fw-semibold);
+      padding: 1px 6px;
+      border-radius: var(--radius-pill);
+      background: var(--accent-cyan-soft);
+      color: var(--accent-cyan);
+    }
+
+    .theme-card__desc {
+      font-size: var(--fs-xs);
+      color: var(--text-secondary);
+    }
+
+    .theme-card__radio {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid var(--border-light);
+      display: grid;
+      place-items: center;
+      color: #fff;
+      flex: none;
+      transition: all var(--transition-fast);
+    }
+
+    .theme-card__radio--checked {
+      background: var(--accent-cyan);
+      border-color: var(--accent-cyan);
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsPageComponent implements OnInit {
   private readonly usersApi = inject(UsersApi);
   private readonly rolesApi = inject(RolesApi);
+  private readonly themeService = inject(ThemeService);
 
+  readonly currentTheme = this.themeService.mode;
   readonly activeTab = signal<SettingsTab>('users');
   readonly loading = signal(true);
   readonly saving = signal(false);
@@ -1030,6 +1317,11 @@ export class SettingsPageComponent implements OnInit {
     }
   }
 
+  setTheme(mode: ThemeMode): void {
+    this.themeService.set(mode);
+    this.toast.success(`Theme switched to ${mode} mode`);
+  }
+
   setTab(tab: SettingsTab): void {
     this.activeTab.set(tab);
     this.searchTerm.set('');
@@ -1041,6 +1333,11 @@ export class SettingsPageComponent implements OnInit {
     this.error.set(null);
 
     switch (this.activeTab()) {
+      case 'appearance': {
+        this.loading.set(false);
+        break;
+      }
+
       case 'users': {
         const view = this.userStatusView();
         this.usersApi.listAll({ status: view === 'visible' ? VISIBLE_STATUSES : view }).subscribe({

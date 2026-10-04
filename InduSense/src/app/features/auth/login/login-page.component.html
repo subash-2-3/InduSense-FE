@@ -1,89 +1,201 @@
-<main class="login">
-  <section class="login__card" aria-labelledby="login-title">
-    <div class="login__brand">
-      <span class="login__mark" aria-hidden="true">IS</span>
-      <span class="login__product">InduSense</span>
-    </div>
+<main class="auth-page">
+  <!-- LEFT: Single Full-Bleed Automation & Digitalization GIF -->
+  <aside class="auth-visual" aria-label="Industrial Automation and Digitalization">
+    <img
+      src="/assets/images/automation_digitalization.gif"
+      alt="Industrial Smart Automation & Digitalization"
+      class="auth-visual__gif"
+      loading="eager"
+    />
+  </aside>
 
-    <header class="login__header">
-      <h1 id="login-title">Sign in</h1>
-      <p class="login__subtitle">Monitor your plant's devices and assets in real time.</p>
-    </header>
-
-    @if (errorMessage(); as message) {
-      <div class="login__alert" role="alert">
-        <app-icon name="alert-triangle" [size]="16" />
-        <span>{{ message }}</span>
-      </div>
-    }
-
-    <form class="login__form" novalidate [formGroup]="form" (ngSubmit)="submit()">
-      <div class="field">
-        <label class="field__label" for="login-email">Email</label>
-        <div class="field__control" [class.field__control--invalid]="showError('email')">
-          <app-icon name="mail" [size]="16" class="field__icon" />
-          <input
-            id="login-email"
-            type="email"
-            formControlName="email"
-            autocomplete="username"
-            inputmode="email"
-            spellcheck="false"
-            placeholder="you@company.com"
-            [attr.aria-invalid]="showError('email')"
-            [attr.aria-describedby]="showError('email') ? 'login-email-error' : null"
-          />
-        </div>
-        @if (showError('email')) {
-          <p id="login-email-error" class="field__error">
-            @if (form.controls.email.hasError('required')) {
-              Enter your email address.
-            } @else {
-              Enter a valid email address.
-            }
-          </p>
-        }
-      </div>
-
-      <div class="field">
-        <label class="field__label" for="login-password">Password</label>
-        <div class="field__control" [class.field__control--invalid]="showError('password')">
-          <app-icon name="lock" [size]="16" class="field__icon" />
-          <input
-            id="login-password"
-            formControlName="password"
-            autocomplete="current-password"
-            [type]="showPassword() ? 'text' : 'password'"
-            [attr.aria-invalid]="showError('password')"
-            [attr.aria-describedby]="showError('password') ? 'login-password-error' : null"
-          />
-          <button
-            type="button"
-            class="field__toggle"
-            [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'"
-            [attr.aria-pressed]="showPassword()"
-            [disabled]="submitting()"
-            (click)="showPassword.set(!showPassword())"
-          >
-            <app-icon [name]="showPassword() ? 'eye-off' : 'eye'" [size]="16" />
-          </button>
-        </div>
-        @if (showError('password')) {
-          <p id="login-password-error" class="field__error">Enter your password.</p>
-        }
+  <!-- RIGHT: Enterprise Authentication Portal -->
+  <section class="auth-panel" aria-labelledby="login-title">
+    <!-- Top Bar with Theme Toggle -->
+    <header class="auth-panel__topbar">
+      <div class="brand-lockup">
+        <span class="brand-lockup__mark" aria-hidden="true">IS</span>
+        <span class="brand-lockup__name">InduSense</span>
       </div>
 
       <button
-        appButton
-        variant="primary"
-        type="submit"
-        class="login__submit"
-        [loading]="submitting()"
-        [disabled]="submitting() || !interactive()"
+        type="button"
+        class="theme-toggle"
+        [attr.aria-label]="theme.mode() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+        (click)="theme.toggle()"
       >
-        {{ submitting() ? 'Signing in…' : 'Sign in' }}
+        <app-icon [name]="theme.mode() === 'dark' ? 'sun' : 'moon'" [size]="15" />
+        <span class="theme-toggle__text">{{ theme.mode() === 'dark' ? 'Light' : 'Dark' }}</span>
       </button>
-    </form>
+    </header>
 
+    <!-- Center Card / Form Body -->
+    <div class="auth-panel__container">
+      @if (!isForgotPassword()) {
+        <!-- SIGN IN VIEW -->
+        <div class="form-header">
+          <h1 id="login-title">Sign in</h1>
+          <p class="form-subtitle">Enter your credentials to access your industrial plant dashboard.</p>
+        </div>
+
+        @if (errorMessage(); as message) {
+          <div class="auth-alert" role="alert">
+            <app-icon name="alert-triangle" [size]="16" />
+            <span>{{ message }}</span>
+          </div>
+        }
+
+        <form class="auth-form" novalidate [formGroup]="form" (ngSubmit)="submit()">
+          <div class="field">
+            <label class="field__label" for="login-email">Email address</label>
+            <div class="field__control" [class.field__control--invalid]="showError('email')">
+              <app-icon name="mail" [size]="16" class="field__icon" />
+              <input
+                id="login-email"
+                type="email"
+                formControlName="email"
+                autocomplete="username"
+                inputmode="email"
+                spellcheck="false"
+                placeholder="name@company.com"
+                [attr.aria-invalid]="showError('email')"
+                [attr.aria-describedby]="showError('email') ? 'login-email-error' : null"
+              />
+            </div>
+            @if (showError('email')) {
+              <p id="login-email-error" class="field__error">
+                @if (form.controls.email.hasError('required')) {
+                  Enter your email address.
+                } @else {
+                  Enter a valid email address.
+                }
+              </p>
+            }
+          </div>
+
+          <div class="field">
+            <div class="field__label-row">
+              <label class="field__label" for="login-password">Password</label>
+              <button
+                type="button"
+                class="field__forgot-btn"
+                (click)="openForgotPassword()"
+              >
+                Forgot password?
+              </button>
+            </div>
+            <div class="field__control" [class.field__control--invalid]="showError('password')">
+              <app-icon name="lock" [size]="16" class="field__icon" />
+              <input
+                id="login-password"
+                formControlName="password"
+                autocomplete="current-password"
+                [type]="showPassword() ? 'text' : 'password'"
+                placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
+                [attr.aria-invalid]="showError('password')"
+                [attr.aria-describedby]="showError('password') ? 'login-password-error' : null"
+              />
+              <button
+                type="button"
+                class="field__toggle"
+                [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'"
+                [attr.aria-pressed]="showPassword()"
+                [disabled]="submitting()"
+                (click)="showPassword.set(!showPassword())"
+              >
+                <app-icon [name]="showPassword() ? 'eye-off' : 'eye'" [size]="16" />
+              </button>
+            </div>
+            @if (showError('password')) {
+              <p id="login-password-error" class="field__error">Enter your password.</p>
+            }
+          </div>
+
+          <button
+            appButton
+            variant="primary"
+            type="submit"
+            class="submit-button"
+            [loading]="submitting()"
+            [disabled]="submitting() || !interactive()"
+          >
+            {{ submitting() ? 'Signing in…' : 'Sign in' }}
+          </button>
+        </form>
+      } @else {
+        <!-- FORGOT PASSWORD VIEW -->
+        <div class="form-header">
+          <h1 id="login-title">Reset password</h1>
+          <p class="form-subtitle">Enter your work email address and we'll send you instructions to reset your password.</p>
+        </div>
+
+        @if (resetSent()) {
+          <div class="reset-alert" role="status">
+            <div class="reset-alert__icon">
+              <app-icon name="check" [size]="18" />
+            </div>
+            <div class="reset-alert__body">
+              <strong>Check your email</strong>
+              <p>We've sent a password reset link to <span>{{ resetEmail() }}</span>.</p>
+            </div>
+          </div>
+
+          <button
+            appButton
+            variant="primary"
+            type="button"
+            class="submit-button"
+            (click)="backToLogin()"
+          >
+            Back to Sign in
+          </button>
+        } @else {
+          <form class="auth-form" (ngSubmit)="submitReset()">
+            <div class="field">
+              <label class="field__label" for="reset-email">Work Email</label>
+              <div class="field__control">
+                <app-icon name="mail" [size]="16" class="field__icon" />
+                <input
+                  id="reset-email"
+                  type="email"
+                  [ngModel]="resetEmail()"
+                  (ngModelChange)="resetEmail.set($event)"
+                  name="resetEmailInput"
+                  autocomplete="email"
+                  spellcheck="false"
+                  placeholder="name@company.com"
+                  required
+                />
+              </div>
+            </div>
+
+            <button
+              appButton
+              variant="primary"
+              type="submit"
+              class="submit-button"
+              [loading]="resetSubmitting()"
+              [disabled]="resetSubmitting() || !resetEmail().trim()"
+            >
+              {{ resetSubmitting() ? 'Sending link…' : 'Send password reset link' }}
+            </button>
+
+            <button
+              type="button"
+              class="back-btn"
+              (click)="backToLogin()"
+            >
+              &larr; Back to Sign in
+            </button>
+          </form>
+        }
+      }
+
+      <!-- Security Notice -->
+      <footer class="auth-panel__footer">
+        <app-icon name="shield" [size]="14" />
+        <span>IEC 62443 Industrial Cybersecurity Compliant</span>
+      </footer>
+    </div>
   </section>
 </main>

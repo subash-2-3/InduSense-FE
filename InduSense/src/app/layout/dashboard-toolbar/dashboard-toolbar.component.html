@@ -25,6 +25,10 @@
     >
       <app-icon name="refresh" [size]="16" />
     </button>
+    <span class="toolbar__live" title="Real-time telemetry connection active">
+      <span class="toolbar__pulse" aria-hidden="true"></span>
+      <span class="toolbar__live-text">Live Monitoring</span>
+    </span>
     <span class="toolbar__updated" aria-live="off">{{ updatedText() }}</span>
   </div>
 

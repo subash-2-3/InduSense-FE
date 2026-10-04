@@ -22,12 +22,57 @@
 .toolbar__title {
   margin-left: calc(-1 * var(--space-2));
   font-size: inherit;
+  font-weight: var(--fw-bold);
+}
+
+.toolbar__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--status-running-soft);
+  border: 1px solid color-mix(in srgb, var(--status-running) 25%, transparent);
+  color: var(--status-running);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.02em;
+}
+
+.toolbar__pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--status-running);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-running) 70%, transparent);
+  animation: live-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes live-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-running) 70%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
 }
 
 .toolbar__updated {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
   color: var(--text-muted);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
   white-space: nowrap;
+  box-shadow: var(--shadow-xs);
 }
 
 .refresh--spinning app-icon {

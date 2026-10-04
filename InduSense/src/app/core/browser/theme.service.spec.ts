@@ -9,23 +9,23 @@ describe('ThemeService', () => {
     localStorage.removeItem(THEME_STORAGE_KEY);
   });
 
-  it('starts dark, toggles the data-theme attribute and remembers the choice', () => {
+  it('starts light, toggles the data-theme attribute and remembers the choice', () => {
     const service = TestBed.inject(ThemeService);
+    expect(service.mode()).toBe('light');
+
+    service.toggle();
     expect(service.mode()).toBe('dark');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark');
 
     service.toggle();
     expect(service.mode()).toBe('light');
-    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('light');
-
-    service.toggle();
-    expect(service.mode()).toBe('dark');
-    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark');
   });
 
   it('starts from the attribute set before the app loaded', () => {
-    document.documentElement.setAttribute('data-theme', 'light');
-    expect(TestBed.inject(ThemeService).mode()).toBe('light');
+    document.documentElement.setAttribute('data-theme', 'dark');
+    expect(TestBed.inject(ThemeService).mode()).toBe('dark');
   });
 
   it('makes the chart theme re-read the tokens', () => {

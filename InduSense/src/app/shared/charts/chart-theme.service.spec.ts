@@ -5,18 +5,18 @@ import { CATEGORICAL_PALETTE, ChartThemeService } from './chart-theme.service';
 describe('ChartThemeService', () => {
   it('resolves every token, falling back to the design-token values', () => {
     const { theme } = TestBed.inject(ChartThemeService);
-    expect(theme.surface).toBe('#111827');
-    expect(theme.text.primary).toBe('#f8fafc');
-    expect(theme.text.muted).toBe('#8190a6');
-    expect(theme.inkOnLight).toBe('#0b0f19');
+    expect(theme.surface).toBe('#ffffff');
+    expect(theme.text.primary).toBe('#0f172a');
+    expect(theme.text.muted).toBe('#64748b');
+    expect(theme.inkOnLight).toBe('#f4f6fa');
     expect(theme.status).toEqual({
-      running: '#10b981',
-      warning: '#f59e0b',
-      fault: '#ef4444',
+      running: '#059669',
+      warning: '#d97706',
+      fault: '#dc2626',
       stopped: '#64748b',
-      info: '#06b6d4',
+      info: '#0891b2',
     });
-    expect(theme.accent.orange).toBe('#f97316');
+    expect(theme.accent.orange).toBe('#ea580c');
   });
 
   it('prefers values defined on the document root', () => {

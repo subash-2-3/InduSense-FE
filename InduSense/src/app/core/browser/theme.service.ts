@@ -15,13 +15,13 @@ export class ThemeService {
   private readonly root = inject(DOCUMENT).documentElement;
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
   private readonly modeState = signal<ThemeMode>(
-    this.root.getAttribute('data-theme') === 'light' ? 'light' : 'dark',
+    this.root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light',
   );
 
   readonly mode = this.modeState.asReadonly();
 
   toggle(): void {
-    this.set(this.modeState() === 'dark' ? 'light' : 'dark');
+    this.set(this.modeState() === 'light' ? 'dark' : 'light');
   }
 
   set(mode: ThemeMode): void {

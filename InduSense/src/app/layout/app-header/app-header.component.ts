@@ -45,10 +45,15 @@ export class AppHeaderComponent {
   protected readonly searchOpen = signal(false);
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
-  protected readonly userMenu: MenuItem[] = [
+  protected readonly userMenu = computed<MenuItem[]>(() => [
     { id: 'profile', label: 'My profile', icon: 'user', disabled: true, hint: 'Soon' },
+    {
+      id: 'theme',
+      label: this.theme() === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode',
+      icon: this.theme() === 'light' ? 'moon' : 'sun',
+    },
     { id: 'logout', label: 'Log out', icon: 'log-out', danger: true, separatorBefore: true },
-  ];
+  ]);
 
   protected toggleSearch(): void {
     this.searchOpen.update((open) => !open);
@@ -68,7 +73,9 @@ export class AppHeaderComponent {
   }
 
   protected onUserMenu(id: string): void {
-    if (id === 'logout') {
+    if (id === 'theme') {
+      this.toggleTheme();
+    } else if (id === 'logout') {
       this.auth.logout().subscribe(() => void this.router.navigate(['/login']));
     }
   }

@@ -64,35 +64,42 @@ import {
       flex: 1 1 auto;
       align-items: center;
       gap: var(--space-4);
+      padding: var(--space-1) 0;
     }
 
     .kpi__badge {
       display: grid;
       place-items: center;
       flex: none;
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      background: var(--accent-cyan-soft);
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, var(--accent-cyan-soft), rgb(37 99 235 / 10%));
+      border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent);
       color: var(--accent-cyan);
+      box-shadow: 0 2px 8px rgb(8 145 178 / 15%);
     }
 
     .kpi__text {
       display: flex;
       flex-direction: column;
-      gap: var(--space-1);
+      gap: 2px;
       min-width: 0;
     }
 
     .kpi__value {
       font-size: var(--fs-3xl);
       font-weight: var(--fw-bold);
+      font-family: var(--font-mono);
+      letter-spacing: -0.03em;
       line-height: 1;
+      color: var(--text-primary);
     }
 
     .kpi__subtitle {
       color: var(--text-secondary);
       font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,

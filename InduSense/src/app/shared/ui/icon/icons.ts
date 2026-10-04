@@ -143,6 +143,31 @@ export const ICONS = {
     'M18.36 5.64l1.42-1.42',
   ],
   moon: ['M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'],
+
+  // Industrial & telemetry
+  activity: ['M22 12h-4l-3 9L9 3l-3 9H2'],
+  cpu: [
+    'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
+    'M9 9h6v6H9z',
+    'M9 1v3',
+    'M15 1v3',
+    'M9 20v3',
+    'M15 20v3',
+    'M20 9h3',
+    'M20 14h3',
+    'M1 9h3',
+    'M1 14h3',
+  ],
+  database: [
+    'M3 5a9 3 0 0 0 18 0a9 3 0 0 0-18 0',
+    'M3 5v14a9 3 0 0 0 18 0V5',
+    'M3 12a9 3 0 0 0 18 0',
+  ],
+  shield: ['M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'],
+  radio: [
+    circle(12, 12, 2),
+    'M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14',
+  ],
 } as const satisfies Record<string, readonly string[]>;
 
 export type IconName = keyof typeof ICONS;

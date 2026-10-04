@@ -37,7 +37,7 @@ app-widget-card {
 
   th,
   td {
-    padding: var(--space-2) var(--space-3);
+    padding: 10px var(--space-3);
     border-bottom: 1px solid var(--border-card);
     text-align: left;
     white-space: nowrap;
@@ -49,11 +49,18 @@ app-widget-card {
     z-index: 1;
     background: var(--bg-card);
     color: var(--text-secondary);
-    font-weight: var(--fw-medium);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--border-light);
   }
 
-  tbody tr:hover {
-    background: var(--bg-card-hover);
+  tbody tr {
+    transition: background-color var(--transition-fast);
+
+    &:hover {
+      background: var(--bg-card-hover);
+    }
   }
 }
 
@@ -86,9 +93,10 @@ app-widget-card {
   place-items: center;
   width: 32px;
   height: 32px;
-  border-radius: 50%;
-  background: var(--bg-card-hover);
-  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  background: var(--accent-cyan-soft);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent);
+  color: var(--accent-cyan);
 }
 
 .fleet__name {
