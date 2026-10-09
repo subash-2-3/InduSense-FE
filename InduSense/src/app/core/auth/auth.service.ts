@@ -20,6 +20,7 @@ import { ApiService } from '../api/api.service';
 import { ApiError, NETWORK_ERROR } from '../api/api-error';
 import { CurrentUser, LoginRequest } from '../models';
 import { ToastService } from '../../shared/ui/toast/toast.service';
+import { rememberReturnUrl } from './return-url';
 
 /** `unknown` until the session check at startup has finished (and always on the server). */
 export type SessionStatus = 'unknown' | 'authenticated' | 'anonymous';
@@ -172,10 +173,8 @@ export class AuthService {
     this.clearSession();
     if (wasSignedIn) {
       this.toast.error('Your session has ended. Please sign in again.');
-      const returnUrl = this.router.url;
-      void this.router.navigate(['/login'], {
-        queryParams: returnUrl && !returnUrl.startsWith('/login') ? { returnUrl } : {},
-      });
+      rememberReturnUrl(this.router.url);
+      void this.router.navigate(['/login']);
     }
   }
 

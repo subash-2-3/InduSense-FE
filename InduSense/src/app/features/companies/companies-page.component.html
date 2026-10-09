@@ -32,17 +32,12 @@
     </label>
     <label class="toolbar__filter">
       Show
-      <select
-        class="field"
+      <app-searchable-select
+        ariaLabel="Company status"
+        [options]="statusOptions"
         [ngModel]="statusView()"
         (ngModelChange)="changeView($event)"
-        aria-label="Company status"
-      >
-        <option value="visible">Active and inactive</option>
-        <option value="active">Active</option>
-        <option value="inactive">Inactive</option>
-        <option value="delete">Deleted</option>
-      </select>
+      />
     </label>
   </div>
 
@@ -133,7 +128,7 @@
   </app-card>
 </div>
 
-<app-modal [open]="editing() !== null" [title]="modalTitle()" maxWidth="720px" (close)="close()">
+<app-drawer [open]="editing() !== null" [title]="modalTitle()" size="2xl" (close)="close()">
   <form class="form" (ngSubmit)="save()">
     <div class="form__grid">
       @if (editing() === 'new') {
@@ -216,4 +211,4 @@
       </button>
     </div>
   </form>
-</app-modal>
+</app-drawer>

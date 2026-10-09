@@ -19,6 +19,7 @@ import { MetersApi } from '../../core/api/resources/plant-assets.api';
 import { AuthService } from '../../core/auth/auth.service';
 import { Permission } from '../../core/auth/permissions';
 import { Area, Company, EnergyFilters, Meter, Plant } from '../../core/models';
+import { SearchableSelectComponent, SelectOption } from '../../shared/ui';
 import { RANGE_OPTIONS, RangePreset, customRangeError, toLocalInput } from './energy-range';
 
 export interface EnergyFilterState {
@@ -34,55 +35,59 @@ export interface EnergyFilterState {
  */
 @Component({
   selector: 'app-energy-filters',
-  imports: [FormsModule],
+  imports: [FormsModule, SearchableSelectComponent],
   template: `
     <div class="filters" role="group" aria-label="Energy filters">
       @if (platformAdmin()) {
         <label class="field">
           <span class="field__label">Company</span>
-          <select
-            class="field__control"
+          <app-searchable-select
+            class="field__control field__control--select"
+            ariaLabel="Company"
+            placeholder="All companies"
+            clearable
+            [options]="companyOptions()"
             [ngModel]="companyId()"
             (ngModelChange)="setCompany($event)"
-          >
-            <option [ngValue]="null">All companies</option>
-            @for (c of companies(); track c.id) {
-              <option [ngValue]="c.id">{{ c.name }}</option>
-            }
-          </select>
+          />
         </label>
       }
       <label class="field">
         <span class="field__label">Plant</span>
-        <select class="field__control" [ngModel]="plantId()" (ngModelChange)="setPlant($event)">
-          <option [ngValue]="null">All plants</option>
-          @for (p of visiblePlants(); track p.id) {
-            <option [ngValue]="p.id">{{ p.name }}</option>
-          }
-        </select>
+        <app-searchable-select
+          class="field__control field__control--select"
+          ariaLabel="Plant"
+          placeholder="All plants"
+          clearable
+          [options]="plantOptions()"
+          [ngModel]="plantId()"
+          (ngModelChange)="setPlant($event)"
+        />
       </label>
       <label class="field">
         <span class="field__label">Area</span>
-        <select
-          class="field__control"
+        <app-searchable-select
+          class="field__control field__control--select"
+          ariaLabel="Area"
+          placeholder="All areas"
+          clearable
+          [options]="areaOptions()"
           [ngModel]="areaId()"
           (ngModelChange)="setArea($event)"
           [disabled]="!plantId()"
-        >
-          <option [ngValue]="null">All areas</option>
-          @for (a of areas(); track a.id) {
-            <option [ngValue]="a.id">{{ a.name }}</option>
-          }
-        </select>
+        />
       </label>
       <label class="field">
         <span class="field__label">Meter</span>
-        <select class="field__control" [ngModel]="meterId()" (ngModelChange)="setMeter($event)">
-          <option [ngValue]="null">All meters</option>
-          @for (m of visibleMeters(); track m.id) {
-            <option [ngValue]="m.id">{{ m.name }}</option>
-          }
-        </select>
+        <app-searchable-select
+          class="field__control field__control--select"
+          ariaLabel="Meter"
+          placeholder="All meters"
+          clearable
+          [options]="meterOptions()"
+          [ngModel]="meterId()"
+          (ngModelChange)="setMeter($event)"
+        />
       </label>
       @if (showRange()) {
         <div class="field">
@@ -174,6 +179,13 @@ export interface EnergyFilterState {
     }
     .field__control:disabled {
       opacity: 0.5;
+    }
+    /* The searchable-select styles its own trigger; drop the native box styling on the host. */
+    .field__control--select {
+      height: auto;
+      padding: 0;
+      border: 0;
+      background: transparent;
     }
     .segmented {
       display: inline-flex;
@@ -269,6 +281,19 @@ export class EnergyFiltersComponent implements OnInit {
         (!area || m.area_id === area),
     );
   });
+
+  protected readonly companyOptions = computed<SelectOption[]>(() =>
+    this.companies().map((c) => ({ value: c.id, label: c.name })),
+  );
+  protected readonly plantOptions = computed<SelectOption[]>(() =>
+    this.visiblePlants().map((p) => ({ value: p.id, label: p.name })),
+  );
+  protected readonly areaOptions = computed<SelectOption[]>(() =>
+    this.areas().map((a) => ({ value: a.id, label: a.name })),
+  );
+  protected readonly meterOptions = computed<SelectOption[]>(() =>
+    this.visibleMeters().map((m) => ({ value: m.id, label: m.name })),
+  );
 
   ngOnInit(): void {
     this.preset.set(this.initialPreset());

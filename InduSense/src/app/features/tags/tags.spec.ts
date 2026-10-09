@@ -160,6 +160,7 @@ describe('TagsPageComponent', () => {
   let http: HttpTestingController;
 
   beforeEach(() => {
+    sessionStorage.clear();
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(withInterceptors([errorToastInterceptor])),
@@ -210,23 +211,34 @@ describe('TagsPageComponent', () => {
 
   it('filters by tag type, device, status and search', async () => {
     const { el, fixture } = await setup();
-    const selects = el.querySelectorAll<HTMLSelectElement>('.filters select');
-    selects[0].value = selects[0].options[2].value; // OEE
-    selects[0].dispatchEvent(new Event('change'));
+    // The filters are searchable-select dropdowns: open the trigger, then click the labelled row.
+    const choose = (index: number, label: string) => {
+      const selects = el.querySelectorAll<HTMLElement>('.filters app-searchable-select');
+      selects[index].querySelector<HTMLButtonElement>('.ss__trigger')!.click();
+      fixture.detectChanges();
+      const option = [
+        ...selects[index].querySelectorAll<HTMLButtonElement>('.ss__option'),
+      ].find((b) => b.textContent?.includes(label));
+      option!.click();
+      fixture.detectChanges();
+    };
+
+    choose(0, 'OEE');
     let req = http.expectOne((r) => r.url === '/api/v1/tags');
     expect(req.request.params.get('tag_type')).toBe('oee');
     expect(req.request.params.get('page')).toBe('1');
     req.flush(page([]));
-    selects[1].value = selects[1].options[1].value; // the device
-    selects[1].dispatchEvent(new Event('change'));
+
+    choose(1, 'Delta PLC');
     req = http.expectOne((r) => r.url === '/api/v1/tags');
     expect(req.request.params.get('device_id')).toBe('9');
     req.flush(page([]));
-    selects[2].value = 'delete';
-    selects[2].dispatchEvent(new Event('change'));
+
+    choose(2, 'Deleted');
     req = http.expectOne((r) => r.url === '/api/v1/tags');
     expect(req.request.params.getAll('status')).toEqual(['delete']);
     req.flush(page([]));
+
     await fixture.whenStable();
     fixture.detectChanges();
     expect(el.querySelector('app-empty-state')).not.toBeNull();
@@ -287,6 +299,7 @@ describe('TagFormDialogComponent', () => {
   let http: HttpTestingController;
 
   beforeEach(() => {
+    sessionStorage.clear();
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(withInterceptors([errorToastInterceptor])),

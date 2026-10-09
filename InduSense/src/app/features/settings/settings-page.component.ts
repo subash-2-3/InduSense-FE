@@ -29,10 +29,12 @@ import {
 import {
   ButtonComponent,
   CardComponent,
+  DrawerComponent,
   EmptyStateComponent,
   ErrorStateComponent,
   IconComponent,
-  ModalComponent,
+  SearchableSelectComponent,
+  SelectOption,
   SkeletonComponent,
   StatusPillComponent,
 } from '../../shared/ui';
@@ -82,7 +84,8 @@ function blankUserForm(): UserForm {
     SkeletonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
-    ModalComponent,
+    DrawerComponent,
+    SearchableSelectComponent,
   ],
   template: `
     <div class="settings-page">
@@ -168,17 +171,12 @@ function blankUserForm(): UserForm {
           @if (activeTab() === 'users') {
             <label class="status-filter">
               Show
-              <select
-                class="form-select"
+              <app-searchable-select
+                ariaLabel="User status"
+                [options]="userStatusOptions"
                 [ngModel]="userStatusView()"
                 (ngModelChange)="setUserStatusView($event)"
-                aria-label="User status"
-              >
-                <option value="visible">Active and inactive</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="delete">Deleted</option>
-              </select>
+              />
             </label>
           }
         </div>
@@ -466,28 +464,25 @@ function blankUserForm(): UserForm {
         }
       </app-card>
 
-      <!-- User Create Modal -->
-      <app-modal
+      <!-- User Create Drawer -->
+      <app-drawer
         [open]="userModalOpen()"
         [title]="editingUser() ? 'Edit ' + editingUser()!.email : 'Add New User'"
         subtitle="Roles decide what the user may do; plants limit where"
+        size="lg"
         (close)="userModalOpen.set(false)"
       >
         <form (ngSubmit)="saveUser()" class="modal-form">
           @if (isPlatformAdmin() && !editingUser()) {
             <div class="form-group">
               <label class="form-label">Company *</label>
-              <select
-                class="form-select"
+              <app-searchable-select
+                ariaLabel="Company"
+                placeholder="Select the company"
+                [options]="companyOptions()"
                 [(ngModel)]="userForm.company_id"
                 name="company_id"
-                required
-              >
-                <option [ngValue]="null" disabled>Select the company</option>
-                @for (c of companies(); track c.id) {
-                  <option [ngValue]="c.id">{{ c.name }} ({{ c.code }})</option>
-                }
-              </select>
+              />
             </div>
           }
           @if (!editingUser()) {
@@ -599,13 +594,14 @@ function blankUserForm(): UserForm {
             </button>
           </div>
         </form>
-      </app-modal>
+      </app-drawer>
 
-      <!-- Password Reset Modal -->
-      <app-modal
+      <!-- Password Reset Drawer -->
+      <app-drawer
         [open]="passwordUser() !== null"
         [title]="'Reset password: ' + (passwordUser()?.email ?? '')"
         subtitle="The user's sessions end; they sign in with the new password"
+        size="md"
         (close)="passwordUser.set(null)"
       >
         <form (ngSubmit)="resetPassword()" class="modal-form">
@@ -630,13 +626,14 @@ function blankUserForm(): UserForm {
             </button>
           </div>
         </form>
-      </app-modal>
+      </app-drawer>
 
-      <!-- Role Create Modal -->
-      <app-modal
+      <!-- Role Create Drawer -->
+      <app-drawer
         [open]="roleModalOpen()"
         [title]="editingRoleId() ? 'Edit Custom Role' : 'Create Custom Role'"
         subtitle="Define fine-grained permission assignments"
+        size="lg"
         (close)="roleModalOpen.set(false)"
       >
         <form (ngSubmit)="saveRole()" class="modal-form">
@@ -709,7 +706,7 @@ function blankUserForm(): UserForm {
             </button>
           </div>
         </form>
-      </app-modal>
+      </app-drawer>
     </div>
   `,
   styles: `
@@ -1235,8 +1232,17 @@ export class SettingsPageComponent implements OnInit {
   readonly companies = signal<Company[]>([]);
   readonly plants = signal<Plant[]>([]);
   readonly userStatusView = signal<'visible' | RecordStatus>('visible');
+  protected readonly userStatusOptions: SelectOption[] = [
+    { value: 'visible', label: 'Active and inactive' },
+    { value: 'active', label: 'Active' },
+    { value: 'inactive', label: 'Inactive' },
+    { value: 'delete', label: 'Deleted' },
+  ];
+  protected readonly companyOptions = computed<SelectOption[]>(() =>
+    this.companies().map((c) => ({ value: c.id, label: `${c.name} (${c.code})` })),
+  );
 
-  // Modals
+  // Drawers
   readonly userModalOpen = signal(false);
   readonly editingUser = signal<User | null>(null);
   userForm: UserForm = blankUserForm();

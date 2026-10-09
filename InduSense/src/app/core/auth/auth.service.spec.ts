@@ -10,6 +10,7 @@ import { ApiError } from '../api/api-error';
 import { APP_CONFIG } from '../config/app-config';
 import { authInterceptor } from './auth.interceptor';
 import { AuthService, displayUserOf } from './auth.service';
+import { RETURN_URL_STORAGE_KEY } from './return-url';
 import { fakeUser } from './testing';
 
 const API = '/api/v1';
@@ -35,6 +36,7 @@ describe('AuthService', () => {
   }
 
   afterEach(() => http.verify());
+  afterEach(() => sessionStorage.clear());
 
   describe('restoreSession', () => {
     it('signs in from an existing session cookie', async () => {
@@ -150,7 +152,7 @@ describe('AuthService', () => {
     http.expectOne(`${API}/auth/session/refresh`).flush({ success: true, data: {} });
   });
 
-  it('sends a signed-in user whose session ended to the login page with a return URL', async () => {
+  it('sends a signed-in user whose session ended to a clean login URL and remembers it', async () => {
     setup();
     const restore = auth.restoreSession();
     http.expectOne(`${API}/auth/me`).flush({ success: true, data: fakeUser() });
@@ -161,9 +163,8 @@ describe('AuthService', () => {
 
     auth.sessionExpired();
     expect(auth.status()).toBe('anonymous');
-    expect(navigate).toHaveBeenCalledWith(['/login'], {
-      queryParams: { returnUrl: '/devices?page=2' },
-    });
+    expect(navigate).toHaveBeenCalledWith(['/login']);
+    expect(sessionStorage.getItem(RETURN_URL_STORAGE_KEY)).toBe('/devices?page=2');
   });
 });
 

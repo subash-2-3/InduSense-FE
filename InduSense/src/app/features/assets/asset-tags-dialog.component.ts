@@ -22,7 +22,13 @@ import {
   TagMappingItem,
   TagMappingResponse,
 } from '../../core/models';
-import { ButtonComponent, ModalComponent, SkeletonComponent } from '../../shared/ui';
+import {
+  ButtonComponent,
+  ModalComponent,
+  SearchableSelectComponent,
+  SelectOption,
+  SkeletonComponent,
+} from '../../shared/ui';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { VISIBLE_STATUSES } from '../../shared/utils/record-status';
 
@@ -60,7 +66,13 @@ export const METRIC_HELP: Readonly<Record<Metric, { label: string; hint: string 
  */
 @Component({
   selector: 'app-asset-tags-dialog',
-  imports: [FormsModule, ButtonComponent, ModalComponent, SkeletonComponent],
+  imports: [
+    FormsModule,
+    ButtonComponent,
+    ModalComponent,
+    SearchableSelectComponent,
+    SkeletonComponent,
+  ],
   template: `
     <app-modal
       [open]="asset() !== null"
@@ -89,38 +101,26 @@ export const METRIC_HELP: Readonly<Record<Metric, { label: string; hint: string 
                     <span class="hint">{{ help[row.metric].hint }}</span>
                   </th>
                   <td>
-                    <select
-                      class="field"
+                    <app-searchable-select
                       [name]="'device-' + row.metric"
-                      [attr.aria-label]="help[row.metric].label + ' device'"
+                      [ariaLabel]="help[row.metric].label + ' device'"
+                      placeholder="—"
+                      clearable
+                      [options]="deviceOptions()"
                       [ngModel]="row.deviceId"
                       (ngModelChange)="selectDevice(row, $event)"
-                    >
-                      <option [ngValue]="null">—</option>
-                      @for (d of devices(); track d.id) {
-                        <option [ngValue]="d.id">
-                          {{ d.name || d.external_id }} ({{ d.external_id }})
-                        </option>
-                      }
-                    </select>
+                    />
                   </td>
                   <td>
-                    <select
-                      class="field"
+                    <app-searchable-select
                       [name]="'tag-' + row.metric"
-                      [attr.aria-label]="help[row.metric].label + ' tag'"
+                      [ariaLabel]="help[row.metric].label + ' tag'"
+                      placeholder="Not mapped"
+                      clearable
                       [disabled]="row.deviceId === null"
+                      [options]="tagOptionsFor(row.deviceId)"
                       [(ngModel)]="row.tagId"
-                    >
-                      <option [ngValue]="null">Not mapped</option>
-                      @for (t of tagsOf(row.deviceId); track t.id) {
-                        <option [ngValue]="t.id">
-                          {{ t.tag_name }}{{ t.display_name ? ' · ' + t.display_name : ''
-                          }}{{ t.unit ? ' (' + t.unit + ')' : ''
-                          }}{{ t.status !== 'active' ? ' [inactive]' : '' }}
-                        </option>
-                      }
-                    </select>
+                    />
                   </td>
                 </tr>
               }
@@ -212,6 +212,24 @@ export class AssetTagsDialogComponent {
 
   protected tagsOf(deviceId: number | null): Tag[] {
     return deviceId === null ? [] : (this.tagsByDevice().get(deviceId) ?? []);
+  }
+
+  protected deviceOptions(): SelectOption[] {
+    return this.devices().map((d) => ({
+      value: d.id,
+      label: `${d.name || d.external_id} (${d.external_id})`,
+    }));
+  }
+
+  protected tagOptionsFor(deviceId: number | null): SelectOption[] {
+    return this.tagsOf(deviceId).map((t) => ({
+      value: t.id,
+      label:
+        `${t.tag_name}` +
+        (t.display_name ? ` · ${t.display_name}` : '') +
+        (t.unit ? ` (${t.unit})` : '') +
+        (t.status !== 'active' ? ' [inactive]' : ''),
+    }));
   }
 
   protected selectDevice(row: Row, deviceId: number | null): void {

@@ -17,6 +17,8 @@ import {
   ButtonComponent,
   CardComponent,
   EmptyStateComponent,
+  SearchableSelectComponent,
+  SelectOption,
   SkeletonComponent,
 } from '../../shared/ui';
 import { ToastService } from '../../shared/ui/toast/toast.service';
@@ -62,7 +64,14 @@ export function isSet(word: number | null | undefined, bit: number): boolean {
 /** Names for the bits of one alarm word (alarms:manage edits, others read). */
 @Component({
   selector: 'app-alarm-setup',
-  imports: [FormsModule, ButtonComponent, CardComponent, EmptyStateComponent, SkeletonComponent],
+  imports: [
+    FormsModule,
+    ButtonComponent,
+    CardComponent,
+    EmptyStateComponent,
+    SearchableSelectComponent,
+    SkeletonComponent,
+  ],
   template: `
     @if (tags().length === 0) {
       <app-card>
@@ -76,14 +85,12 @@ export function isSet(word: number | null | undefined, bit: number): boolean {
         <div class="toolbar__group">
           <label class="fl">
             <span>Alarm word</span>
-            <select class="control" [ngModel]="tagId()" (ngModelChange)="tagId.set($event)">
-              @for (t of tags(); track t.tag_id) {
-                <option [ngValue]="t.tag_id">
-                  {{ t.machine_name }} · {{ t.display_name || t.tag_name
-                  }}{{ t.register_address ? ' (' + t.register_address + ')' : '' }}
-                </option>
-              }
-            </select>
+            <app-searchable-select
+              ariaLabel="Alarm word"
+              [options]="tagOptions()"
+              [ngModel]="tagId()"
+              (ngModelChange)="tagId.set($event)"
+            />
           </label>
           @if (tag(); as t) {
             <span class="muted">
@@ -201,6 +208,14 @@ export class AlarmSetupComponent {
   private readonly toast = inject(ToastService);
 
   protected readonly tagId = signal<number | null>(null);
+  protected readonly tagOptions = computed<SelectOption[]>(() =>
+    this.tags().map((t) => ({
+      value: t.tag_id,
+      label:
+        `${t.machine_name} · ${t.display_name || t.tag_name}` +
+        (t.register_address ? ` (${t.register_address})` : ''),
+    })),
+  );
   protected readonly tag = computed(
     () => this.tags().find((t) => t.tag_id === this.tagId()) ?? null,
   );

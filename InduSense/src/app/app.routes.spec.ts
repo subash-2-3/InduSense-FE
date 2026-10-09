@@ -16,6 +16,8 @@ describe('app routes', () => {
     await import('./features/dashboard/device-summary-page/device-summary-page.component');
   }, 60_000);
 
+  beforeEach(() => sessionStorage.clear());
+
   async function navigate(url: string, signedIn = true) {
     TestBed.configureTestingModule({
       providers: [
@@ -53,7 +55,7 @@ describe('app routes', () => {
 
   it('sends signed-out visitors to login and keeps them out of the app', async () => {
     const { url, el } = await navigate('/devices', false);
-    expect(url).toBe('/login?returnUrl=%2Fdevices');
+    expect(url).toBe('/login');
     expect(el.querySelector('app-main-layout')).toBeNull();
   });
 

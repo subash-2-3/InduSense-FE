@@ -22,10 +22,12 @@ import {
 import {
   ButtonComponent,
   CardComponent,
+  DrawerComponent,
   EmptyStateComponent,
   ErrorStateComponent,
   IconComponent,
-  ModalComponent,
+  SearchableSelectComponent,
+  SelectOption,
   SkeletonComponent,
   StatusPillComponent,
 } from '../../shared/ui';
@@ -88,7 +90,8 @@ function parseLimit(value: string): number | null | undefined {
     EmptyStateComponent,
     ErrorStateComponent,
     IconComponent,
-    ModalComponent,
+    DrawerComponent,
+    SearchableSelectComponent,
     SkeletonComponent,
     StatusPillComponent,
   ],
@@ -113,6 +116,12 @@ export class CompaniesPageComponent implements OnInit {
   protected readonly saving = signal(false);
   protected readonly search = signal('');
   protected readonly statusView = signal<StatusView>('visible');
+  protected readonly statusOptions: SelectOption[] = [
+    { value: 'visible', label: 'Active and inactive' },
+    { value: 'active', label: 'Active' },
+    { value: 'inactive', label: 'Inactive' },
+    { value: 'delete', label: 'Deleted' },
+  ];
 
   /** null = closed, 'new' = create, otherwise the company being edited. */
   protected readonly editing = signal<Company | 'new' | null>(null);

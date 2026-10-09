@@ -12,6 +12,8 @@ import {
   EmptyStateComponent,
   ErrorStateComponent,
   IconComponent,
+  SearchableSelectComponent,
+  SelectOption,
   SkeletonComponent,
   ToastService,
 } from '../../shared/ui';
@@ -37,6 +39,7 @@ export const HISTORY_PAGE_SIZE = 25;
     EmptyStateComponent,
     ErrorStateComponent,
     IconComponent,
+    SearchableSelectComponent,
     SkeletonComponent,
   ],
   template: `
@@ -44,11 +47,12 @@ export const HISTORY_PAGE_SIZE = 25;
       <div class="toolbar__group">
         <label class="fl">
           <span>Period</span>
-          <select class="control" [ngModel]="preset()" (ngModelChange)="setPreset($event)">
-            @for (o of ranges; track o.value) {
-              <option [value]="o.value">{{ o.label }}</option>
-            }
-          </select>
+          <app-searchable-select
+            ariaLabel="Period"
+            [options]="ranges"
+            [ngModel]="preset()"
+            (ngModelChange)="setPreset($event)"
+          />
         </label>
         @if (preset() === 'custom') {
           <label class="fl">
@@ -81,12 +85,14 @@ export const HISTORY_PAGE_SIZE = 25;
         }
         <label class="fl">
           <span>Bit</span>
-          <select class="control" [ngModel]="bit()" (ngModelChange)="setBit($event)">
-            <option [ngValue]="null">All bits</option>
-            @for (b of bits; track b) {
-              <option [ngValue]="b">Bit {{ b }}</option>
-            }
-          </select>
+          <app-searchable-select
+            ariaLabel="Bit"
+            placeholder="All bits"
+            clearable
+            [options]="bitOptions"
+            [ngModel]="bit()"
+            (ngModelChange)="setBit($event)"
+          />
         </label>
       </div>
       <div class="toolbar__group">
@@ -221,6 +227,10 @@ export class AlarmHistoryComponent {
 
   protected readonly ranges = RANGE_OPTIONS;
   protected readonly bits = Array.from({ length: 32 }, (_, i) => i);
+  protected readonly bitOptions: SelectOption[] = this.bits.map((b) => ({
+    value: b,
+    label: `Bit ${b}`,
+  }));
   protected readonly preset = signal<RangePreset>('week');
   protected readonly customFrom = signal(toLocalInput(new Date(Date.now() - 24 * 3600 * 1000)));
   protected readonly customTo = signal(toLocalInput(new Date()));

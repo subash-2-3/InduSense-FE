@@ -15,7 +15,7 @@ import { AlarmTag } from '../../core/models';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { ActiveAlarmsComponent } from './active-alarms.component';
 import { AlarmHistoryComponent } from './alarm-history.component';
-import { ButtonComponent } from '../../shared/ui';
+import { ButtonComponent, SearchableSelectComponent, SelectOption } from '../../shared/ui';
 import { MachineControlDialogComponent } from '../machines/machine-control-dialog.component';
 import { AlarmSetupComponent } from './alarm-setup.component';
 
@@ -27,6 +27,7 @@ type Tab = 'active' | 'history' | 'setup';
   imports: [
     FormsModule,
     ButtonComponent,
+    SearchableSelectComponent,
     ActiveAlarmsComponent,
     AlarmHistoryComponent,
     AlarmSetupComponent,
@@ -44,12 +45,14 @@ type Tab = 'active' | 'history' | 'setup';
         @if (tab() !== 'setup' && machines().length > 1) {
           <label class="fl">
             <span>Machine</span>
-            <select class="control" [ngModel]="machineId()" (ngModelChange)="machineId.set($event)">
-              <option [ngValue]="null">All machines</option>
-              @for (m of machines(); track m.id) {
-                <option [ngValue]="m.id">{{ m.name }}</option>
-              }
-            </select>
+            <app-searchable-select
+              ariaLabel="Machine"
+              placeholder="All machines"
+              clearable
+              [options]="machineOptions()"
+              [ngModel]="machineId()"
+              (ngModelChange)="machineId.set($event)"
+            />
           </label>
         }
         @if (canControl() && controlTarget(); as target) {
@@ -202,6 +205,9 @@ export class AlarmsPageComponent implements OnInit {
     for (const t of this.tags()) seen.set(t.machine_id, t.machine_name);
     return [...seen].map(([id, name]) => ({ id, name }));
   });
+  protected readonly machineOptions = computed<SelectOption[]>(() =>
+    this.machines().map((m) => ({ value: m.id, label: m.name })),
+  );
 
   ngOnInit(): void {
     this.loadTags();

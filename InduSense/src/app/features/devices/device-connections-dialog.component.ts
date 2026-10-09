@@ -16,6 +16,8 @@ import {
   ButtonComponent,
   IconComponent,
   ModalComponent,
+  SearchableSelectComponent,
+  SelectOption,
   SkeletonComponent,
   StatusPillComponent,
 } from '../../shared/ui';
@@ -34,6 +36,7 @@ interface ConnectionForm {
 }
 
 const PROTOCOLS = ['VNET', 'MQTT', 'MODBUS_TCP', 'MODBUS_RTU', 'OPCUA'];
+const PROTOCOL_OPTIONS: SelectOption[] = PROTOCOLS.map((p) => ({ value: p, label: p }));
 
 /**
  * How the DataLogger reaches a device: one connection per protocol. Credentials are never stored
@@ -46,6 +49,7 @@ const PROTOCOLS = ['VNET', 'MQTT', 'MODBUS_TCP', 'MODBUS_RTU', 'OPCUA'];
     ButtonComponent,
     IconComponent,
     ModalComponent,
+    SearchableSelectComponent,
     SkeletonComponent,
     StatusPillComponent,
   ],
@@ -123,17 +127,13 @@ const PROTOCOLS = ['VNET', 'MQTT', 'MODBUS_TCP', 'MODBUS_RTU', 'OPCUA'];
           <div class="form__row">
             <label>
               Protocol *
-              <select
-                class="field"
-                name="protocol"
+              <app-searchable-select
+                ariaLabel="Protocol"
+                [options]="protocolOptions"
                 [(ngModel)]="form.protocol"
                 [disabled]="editing() !== null"
-                required
-              >
-                @for (p of protocols; track p) {
-                  <option [value]="p">{{ p }}</option>
-                }
-              </select>
+                name="protocol"
+              />
             </label>
             <label>
               Host
@@ -248,7 +248,7 @@ export class DeviceConnectionsDialogComponent {
   readonly device = input<Device | null>(null);
   readonly closed = output<void>();
 
-  protected readonly protocols = PROTOCOLS;
+  protected readonly protocolOptions = PROTOCOL_OPTIONS;
   protected readonly statusLabel = recordStatusLabel;
   protected readonly statusTone = recordStatusTone;
   protected readonly connections = signal<DeviceConnection[]>([]);

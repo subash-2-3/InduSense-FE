@@ -41,6 +41,7 @@ import {
   LiveAsset,
 } from '../../core/models';
 import { ChartThemeService } from '../../shared/charts/chart-theme.service';
+import { FormsModule } from '@angular/forms';
 import { EchartDirective } from '../../shared/charts/echart.directive';
 import {
   ButtonComponent,
@@ -48,6 +49,8 @@ import {
   EmptyStateComponent,
   ErrorStateComponent,
   IconComponent,
+  SearchableSelectComponent,
+  SelectOption,
   SkeletonComponent,
   StatusPillComponent,
   StatusTone,
@@ -95,6 +98,7 @@ function message(error: unknown): string {
   selector: 'app-energy-dashboard-page',
   imports: [
     RouterLink,
+    FormsModule,
     EchartDirective,
     EnergyFiltersComponent,
     MachinesSectionComponent,
@@ -103,6 +107,7 @@ function message(error: unknown): string {
     EmptyStateComponent,
     ErrorStateComponent,
     IconComponent,
+    SearchableSelectComponent,
     SkeletonComponent,
     StatusPillComponent,
   ],
@@ -324,16 +329,12 @@ function message(error: unknown): string {
           <div class="section__head">
             <h2 id="energy-distribution" class="section__title">Energy distribution</h2>
             <div class="section__tools">
-              <select
-                class="select"
-                aria-label="Group by"
-                [value]="groupBy()"
-                (change)="setGroupBy($any($event.target).value)"
-              >
-                @for (o of groupOptions; track o.value) {
-                  <option [value]="o.value">By {{ o.label.toLowerCase() }}</option>
-                }
-              </select>
+              <app-searchable-select
+                ariaLabel="Group by"
+                [options]="groupSelectOptions"
+                [ngModel]="groupBy()"
+                (ngModelChange)="setGroupBy($event)"
+              />
               <div class="toggle" role="radiogroup" aria-label="Chart type">
                 @for (c of chartTypes; track c) {
                   <button
@@ -441,6 +442,10 @@ export class EnergyDashboardPageComponent {
   private readonly now = injectNow(5000);
 
   protected readonly groupOptions = GROUP_OPTIONS;
+  protected readonly groupSelectOptions: SelectOption[] = GROUP_OPTIONS.map((o) => ({
+    value: o.value,
+    label: `By ${o.label.toLowerCase()}`,
+  }));
   protected readonly chartTypes: readonly DistributionChart[] = ['pie', 'bar'];
   protected readonly canViewReports = computed(() =>
     this.auth.hasPermission(Permission.ReportsView),

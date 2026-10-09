@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   OnInit,
   computed,
   inject,
@@ -26,10 +27,12 @@ import {
 import {
   ButtonComponent,
   CardComponent,
+  DrawerComponent,
   EmptyStateComponent,
   ErrorStateComponent,
   IconComponent,
-  ModalComponent,
+  SearchableSelectComponent,
+  SelectOption,
   SkeletonComponent,
   StatusPillComponent,
 } from '../../shared/ui';
@@ -40,6 +43,32 @@ import {
   recordStatusTone,
   toggledStatus,
 } from '../../shared/utils/record-status';
+import { clearDraft, persistedSignal, readDraft, writeDraft } from '../../shared/utils/session-draft';
+
+const PLANT_DRAFT_KEY = 'indusense.draft.plant';
+const AREA_DRAFT_KEY = 'indusense.draft.area';
+
+const LOCATION_STATUS_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'Active and inactive' },
+  { value: 'active', label: 'Active Only' },
+  { value: 'inactive', label: 'Inactive Only' },
+  { value: 'delete', label: 'Deleted' },
+];
+
+interface PlantFormModel {
+  company_id: number | null;
+  name: string;
+  code: string;
+  timezone: string;
+  address: string;
+}
+
+interface AreaDraft {
+  plantId: number;
+  name: string;
+  code: string;
+  description: string;
+}
 
 @Component({
   selector: 'app-locations-page',
@@ -53,7 +82,8 @@ import {
     SkeletonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
-    ModalComponent,
+    DrawerComponent,
+    SearchableSelectComponent,
   ],
   template: `
     <div class="loc-page">
@@ -96,16 +126,12 @@ import {
 
         <div class="filter-group">
           <label class="filter-label">Status:</label>
-          <select
-            class="filter-select"
+          <app-searchable-select
+            ariaLabel="Status"
+            [options]="statusOptions"
             [ngModel]="statusFilter()"
             (ngModelChange)="setStatusFilter($event)"
-          >
-            <option value="all">Active and inactive</option>
-            <option value="active">Active Only</option>
-            <option value="inactive">Inactive Only</option>
-            <option value="delete">Deleted</option>
-          </select>
+          />
         </div>
       </div>
 
@@ -271,7 +297,7 @@ import {
       }
 
       <!-- Plant Modal (Create & Edit) -->
-      <app-modal
+      <app-drawer
         [open]="plantModalOpen()"
         [title]="editingPlantId() ? 'Edit Plant' : 'Create New Plant'"
         [subtitle]="
@@ -279,24 +305,21 @@ import {
             ? 'Update facility details'
             : 'Add a manufacturing or processing facility'
         "
-        (close)="plantModalOpen.set(false)"
+        size="lg"
+        (close)="onClosePlant()"
       >
         <form (ngSubmit)="savePlant()" class="modal-form">
           @if (isPlatformAdmin() && !editingPlantId()) {
             <div class="form-group">
               <label class="form-label" for="plantCompany">Company *</label>
-              <select
+              <app-searchable-select
                 id="plantCompany"
-                class="form-input"
+                ariaLabel="Company"
+                placeholder="Select the company"
+                [options]="companyOptions()"
                 [(ngModel)]="plantForm.company_id"
                 name="company_id"
-                required
-              >
-                <option [ngValue]="null" disabled>Select the company</option>
-                @for (c of companies(); track c.id) {
-                  <option [ngValue]="c.id">{{ c.name }} ({{ c.code }})</option>
-                }
-              </select>
+              />
             </div>
           }
           <div class="form-group">
@@ -350,7 +373,7 @@ import {
           </div>
 
           <div class="modal-actions">
-            <button appButton variant="secondary" type="button" (click)="plantModalOpen.set(false)">
+            <button appButton variant="secondary" type="button" (click)="onClosePlant()">
               Cancel
             </button>
             <button
@@ -368,14 +391,15 @@ import {
             </button>
           </div>
         </form>
-      </app-modal>
+      </app-drawer>
 
-      <!-- Area Modal (Create) -->
-      <app-modal
+      <!-- Area Drawer (Create / Edit) -->
+      <app-drawer
         [open]="areaModalOpen()"
         [title]="editingAreaId() ? 'Edit Operational Area' : 'Add Operational Area'"
         [subtitle]="selectedPlantForArea() ? 'Plant: ' + selectedPlantForArea()!.name : ''"
-        (close)="areaModalOpen.set(false)"
+        size="lg"
+        (close)="onCloseArea()"
       >
         <form (ngSubmit)="saveArea()" class="modal-form">
           <div class="form-group">
@@ -417,7 +441,7 @@ import {
           </div>
 
           <div class="modal-actions">
-            <button appButton variant="secondary" type="button" (click)="areaModalOpen.set(false)">
+            <button appButton variant="secondary" type="button" (click)="onCloseArea()">
               Cancel
             </button>
             <button
@@ -430,7 +454,7 @@ import {
             </button>
           </div>
         </form>
-      </app-modal>
+      </app-drawer>
     </div>
   `,
   styles: `
@@ -789,15 +813,20 @@ export class LocationsPageComponent implements OnInit {
   );
   protected readonly companies = signal<Company[]>([]);
   private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
   protected readonly statusLabel = recordStatusLabel;
   protected readonly statusTone = recordStatusTone;
+  protected readonly statusOptions = LOCATION_STATUS_OPTIONS;
+  protected readonly companyOptions = computed<SelectOption[]>(() =>
+    this.companies().map((c) => ({ value: c.id, label: `${c.name} (${c.code})` })),
+  );
 
-  // Modals state
-  readonly plantModalOpen = signal(false);
+  // Drawer state — persisted so a half-filled add form reopens when the user returns.
+  readonly plantModalOpen = persistedSignal('indusense.locations.plantCreating', false);
   readonly editingPlantId = signal<number | null>(null);
-  plantForm = this.blankPlantForm();
+  plantForm: PlantFormModel = this.blankPlantForm();
 
-  readonly areaModalOpen = signal(false);
+  readonly areaModalOpen = persistedSignal('indusense.locations.areaCreating', false);
   readonly selectedPlantForArea = signal<Plant | null>(null);
   readonly editingAreaId = signal<number | null>(null);
   areaForm = { name: '', code: '', description: '' };
@@ -820,6 +849,10 @@ export class LocationsPageComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.destroyRef.onDestroy(() => this.persistDrafts());
+    if (this.plantModalOpen() && !this.editingPlantId()) {
+      this.plantForm = readDraft<PlantFormModel>(PLANT_DRAFT_KEY) ?? this.blankPlantForm();
+    }
     this.loadData();
     if (this.isPlatformAdmin()) {
       this.companiesApi.listAll().subscribe({
@@ -827,6 +860,47 @@ export class LocationsPageComponent implements OnInit {
         error: (err) => this.toast.error(err, 'Unable to load companies.'),
       });
     }
+  }
+
+  /** Save half-filled create forms when navigating away, so they come back on return. */
+  private persistDrafts(): void {
+    if (this.plantModalOpen() && !this.editingPlantId()) {
+      writeDraft(PLANT_DRAFT_KEY, this.plantForm);
+    }
+    const plant = this.selectedPlantForArea();
+    if (this.areaModalOpen() && !this.editingAreaId() && plant) {
+      writeDraft(AREA_DRAFT_KEY, { plantId: plant.id, ...this.areaForm });
+    }
+  }
+
+  /** The area form needs its plant; resolve it once the plant list has loaded. */
+  private restoreAreaDraft(): void {
+    if (!this.areaModalOpen() || this.editingAreaId() || this.selectedPlantForArea()) {
+      return;
+    }
+    const draft = readDraft<AreaDraft>(AREA_DRAFT_KEY);
+    const plant = draft ? this.plants().find((p) => p.id === draft.plantId) : undefined;
+    if (draft && plant) {
+      this.selectedPlantForArea.set(plant);
+      this.areaForm = { name: draft.name, code: draft.code, description: draft.description };
+    } else {
+      this.areaModalOpen.set(false);
+    }
+  }
+
+  onClosePlant(): void {
+    if (this.plantModalOpen() && !this.editingPlantId()) {
+      writeDraft(PLANT_DRAFT_KEY, this.plantForm);
+    }
+    this.plantModalOpen.set(false);
+  }
+
+  onCloseArea(): void {
+    const plant = this.selectedPlantForArea();
+    if (this.areaModalOpen() && !this.editingAreaId() && plant) {
+      writeDraft(AREA_DRAFT_KEY, { plantId: plant.id, ...this.areaForm });
+    }
+    this.areaModalOpen.set(false);
   }
 
   setStatusFilter(filter: 'all' | RecordStatus): void {
@@ -855,6 +929,7 @@ export class LocationsPageComponent implements OnInit {
         this.plants.set(plants);
         this.areas.set(areas);
         this.loading.set(false);
+        this.restoreAreaDraft();
       },
       error: (err) => {
         this.error.set(err?.message || 'Failed to load locations from server.');
@@ -869,7 +944,7 @@ export class LocationsPageComponent implements OnInit {
 
   openCreatePlantModal(): void {
     this.editingPlantId.set(null);
-    this.plantForm = this.blankPlantForm();
+    this.plantForm = readDraft<PlantFormModel>(PLANT_DRAFT_KEY) ?? this.blankPlantForm();
     this.plantModalOpen.set(true);
   }
 
@@ -922,6 +997,7 @@ export class LocationsPageComponent implements OnInit {
       };
       this.locationsApi.createPlant(payload).subscribe({
         next: (created) => {
+          clearDraft(PLANT_DRAFT_KEY);
           this.plants.update((list) => [created, ...list]);
           this.plantModalOpen.set(false);
           this.saving.set(false);
@@ -950,7 +1026,11 @@ export class LocationsPageComponent implements OnInit {
   openCreateAreaModal(plant: Plant): void {
     this.selectedPlantForArea.set(plant);
     this.editingAreaId.set(null);
-    this.areaForm = { name: '', code: '', description: '' };
+    const draft = readDraft<AreaDraft>(AREA_DRAFT_KEY);
+    this.areaForm =
+      draft && draft.plantId === plant.id
+        ? { name: draft.name, code: draft.code, description: draft.description }
+        : { name: '', code: '', description: '' };
     this.areaModalOpen.set(true);
   }
 
@@ -995,6 +1075,7 @@ export class LocationsPageComponent implements OnInit {
 
     this.locationsApi.createArea(payload).subscribe({
       next: (created) => {
+        clearDraft(AREA_DRAFT_KEY);
         this.areas.update((list) => [...list, created]);
         this.areaModalOpen.set(false);
         this.saving.set(false);
@@ -1040,13 +1121,7 @@ export class LocationsPageComponent implements OnInit {
     });
   }
 
-  private blankPlantForm(): {
-    company_id: number | null;
-    name: string;
-    code: string;
-    timezone: string;
-    address: string;
-  } {
+  private blankPlantForm(): PlantFormModel {
     return { company_id: null, name: '', code: '', timezone: '', address: '' };
   }
 

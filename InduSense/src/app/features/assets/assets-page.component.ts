@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   OnInit,
   computed,
   WritableSignal,
@@ -32,10 +33,12 @@ import {
 import {
   ButtonComponent,
   CardComponent,
+  DrawerComponent,
   EmptyStateComponent,
   ErrorStateComponent,
   IconComponent,
-  ModalComponent,
+  SearchableSelectComponent,
+  SelectOption,
   SkeletonComponent,
   StatusPillComponent,
   StatusTone,
@@ -51,6 +54,18 @@ import {
   recordStatusTone,
   toggledStatus,
 } from '../../shared/utils/record-status';
+import { clearDraft, persistedSignal, readDraft, writeDraft } from '../../shared/utils/session-draft';
+
+const MACHINE_DRAFT_KEY = 'indusense.draft.machine';
+const METER_DRAFT_KEY = 'indusense.draft.meter';
+const GATEWAY_DRAFT_KEY = 'indusense.draft.gateway';
+
+const ASSET_STATUS_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'Active and inactive' },
+  { value: 'active', label: 'Active Only' },
+  { value: 'inactive', label: 'Inactive Only' },
+  { value: 'delete', label: 'Deleted' },
+];
 
 type AssetTab = 'machines' | 'meters' | 'gateways';
 
@@ -77,7 +92,8 @@ interface AssetStatusApi {
     SkeletonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
-    ModalComponent,
+    DrawerComponent,
+    SearchableSelectComponent,
     AssetTagsDialogComponent,
     MachineControlDialogComponent,
   ],
@@ -168,16 +184,12 @@ interface AssetStatusApi {
 
         <div class="filter-group">
           <label class="filter-label">Filter:</label>
-          <select
-            class="filter-select"
+          <app-searchable-select
+            ariaLabel="Asset status"
+            [options]="statusOptions"
             [ngModel]="statusFilter()"
             (ngModelChange)="setStatusFilter($event)"
-          >
-            <option value="all">Active and inactive</option>
-            <option value="active">Active Only</option>
-            <option value="inactive">Inactive Only</option>
-            <option value="delete">Deleted</option>
-          </select>
+          />
         </div>
       </div>
 
@@ -550,11 +562,12 @@ interface AssetStatusApi {
       </app-card>
 
       <!-- New Machine Modal -->
-      <app-modal
+      <app-drawer
         [open]="machineModalOpen()"
         [title]="editingMachineId() ? 'Edit Machine' : 'Add New Machine'"
         subtitle="Industrial machinery monitored for state and production"
-        (close)="machineModalOpen.set(false)"
+        size="lg"
+        (close)="onCloseMachine()"
       >
         <form (ngSubmit)="saveMachine()" class="modal-form">
           <div class="form-row">
@@ -631,62 +644,52 @@ interface AssetStatusApi {
           <div class="form-row">
             <div class="form-group flex-1">
               <label class="form-label">Plant *</label>
-              <select
-                class="form-select"
+              <app-searchable-select
+                ariaLabel="Plant"
+                placeholder="Select Plant"
+                [options]="plantOptions()"
                 [(ngModel)]="machineForm.plant_id"
                 name="plant_id"
-                required
-              >
-                <option [ngValue]="null" disabled>Select Plant</option>
-                @for (p of plants(); track p.id) {
-                  <option [ngValue]="p.id">{{ p.name }} ({{ p.code }})</option>
-                }
-              </select>
+              />
             </div>
             <div class="form-group flex-1">
               <label class="form-label">Area (Optional)</label>
-              <select class="form-select" [(ngModel)]="machineForm.area_id" name="area_id">
-                <option [ngValue]="null">None</option>
-                @for (a of availableAreasForPlant(machineForm.plant_id); track a.id) {
-                  <option [ngValue]="a.id">{{ a.name }} ({{ a.code }})</option>
-                }
-              </select>
+              <app-searchable-select
+                ariaLabel="Area"
+                placeholder="None"
+                clearable
+                [options]="areaOptionsFor(machineForm.plant_id)"
+                [(ngModel)]="machineForm.area_id"
+                name="area_id"
+              />
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group flex-1">
               <label class="form-label">Data source (device)</label>
-              <select class="form-select" [(ngModel)]="machineForm.device_id" name="device_id">
-                <option [ngValue]="null">None</option>
-                @for (d of devicesForPlant(machineForm.plant_id); track d.id) {
-                  <option [ngValue]="d.id">
-                    {{ d.name || d.external_id }} ({{ d.external_id }})
-                  </option>
-                }
-              </select>
+              <app-searchable-select
+                ariaLabel="Data source device"
+                placeholder="None"
+                clearable
+                [options]="deviceOptionsFor(machineForm.plant_id)"
+                [(ngModel)]="machineForm.device_id"
+                name="device_id"
+              />
             </div>
             <div class="form-group flex-1">
               <label class="form-label">Operating state</label>
-              <select
-                class="form-select"
+              <app-searchable-select
+                ariaLabel="Operating state"
+                [options]="machineStateOptions"
                 [(ngModel)]="machineForm.operating_status"
                 name="operating_status"
-              >
-                @for (state of machineStates; track state) {
-                  <option [ngValue]="state">{{ state }}</option>
-                }
-              </select>
+              />
             </div>
           </div>
 
           <div class="modal-actions">
-            <button
-              appButton
-              variant="secondary"
-              type="button"
-              (click)="machineModalOpen.set(false)"
-            >
+            <button appButton variant="secondary" type="button" (click)="onCloseMachine()">
               Cancel
             </button>
             <button
@@ -704,14 +707,15 @@ interface AssetStatusApi {
             </button>
           </div>
         </form>
-      </app-modal>
+      </app-drawer>
 
-      <!-- New Meter Modal -->
-      <app-modal
+      <!-- New Meter Drawer -->
+      <app-drawer
         [open]="meterModalOpen()"
         [title]="editingMeterId() ? 'Edit Meter' : 'Add Energy / Utility Meter'"
         subtitle="Power, gas, or water meter for telemetry analysis"
-        (close)="meterModalOpen.set(false)"
+        size="lg"
+        (close)="onCloseMeter()"
       >
         <form (ngSubmit)="saveMeter()" class="modal-form">
           <div class="form-row">
@@ -764,39 +768,42 @@ interface AssetStatusApi {
 
           <div class="form-group">
             <label class="form-label">Plant *</label>
-            <select class="form-select" [(ngModel)]="meterForm.plant_id" name="plant_id" required>
-              <option [ngValue]="null" disabled>Select Plant</option>
-              @for (p of plants(); track p.id) {
-                <option [ngValue]="p.id">{{ p.name }} ({{ p.code }})</option>
-              }
-            </select>
+            <app-searchable-select
+              ariaLabel="Plant"
+              placeholder="Select Plant"
+              [options]="plantOptions()"
+              [(ngModel)]="meterForm.plant_id"
+              name="plant_id"
+            />
           </div>
 
           <div class="form-row">
             <div class="form-group flex-1">
               <label class="form-label">Area (Optional)</label>
-              <select class="form-select" [(ngModel)]="meterForm.area_id" name="area_id">
-                <option [ngValue]="null">None</option>
-                @for (a of availableAreasForPlant(meterForm.plant_id); track a.id) {
-                  <option [ngValue]="a.id">{{ a.name }} ({{ a.code }})</option>
-                }
-              </select>
+              <app-searchable-select
+                ariaLabel="Area"
+                placeholder="None"
+                clearable
+                [options]="areaOptionsFor(meterForm.plant_id)"
+                [(ngModel)]="meterForm.area_id"
+                name="area_id"
+              />
             </div>
             <div class="form-group flex-1">
               <label class="form-label">Data source (device)</label>
-              <select class="form-select" [(ngModel)]="meterForm.device_id" name="device_id">
-                <option [ngValue]="null">None</option>
-                @for (d of devicesForPlant(meterForm.plant_id); track d.id) {
-                  <option [ngValue]="d.id">
-                    {{ d.name || d.external_id }} ({{ d.external_id }})
-                  </option>
-                }
-              </select>
+              <app-searchable-select
+                ariaLabel="Data source device"
+                placeholder="None"
+                clearable
+                [options]="deviceOptionsFor(meterForm.plant_id)"
+                [(ngModel)]="meterForm.device_id"
+                name="device_id"
+              />
             </div>
           </div>
 
           <div class="modal-actions">
-            <button appButton variant="secondary" type="button" (click)="meterModalOpen.set(false)">
+            <button appButton variant="secondary" type="button" (click)="onCloseMeter()">
               Cancel
             </button>
             <button
@@ -814,14 +821,15 @@ interface AssetStatusApi {
             </button>
           </div>
         </form>
-      </app-modal>
+      </app-drawer>
 
-      <!-- New Gateway Modal -->
-      <app-modal
+      <!-- New Gateway Drawer -->
+      <app-drawer
         [open]="gatewayModalOpen()"
         [title]="editingGatewayId() ? 'Edit Gateway' : 'Add Edge Gateway'"
         subtitle="Field gateway collecting sensor / PLC data"
-        (close)="gatewayModalOpen.set(false)"
+        size="lg"
+        (close)="onCloseGateway()"
       >
         <form (ngSubmit)="saveGateway()" class="modal-form">
           <div class="form-row">
@@ -875,23 +883,26 @@ interface AssetStatusApi {
 
           <div class="form-group">
             <label class="form-label">Plant *</label>
-            <select class="form-select" [(ngModel)]="gatewayForm.plant_id" name="plant_id" required>
-              <option [ngValue]="null" disabled>Select Plant</option>
-              @for (p of plants(); track p.id) {
-                <option [ngValue]="p.id">{{ p.name }} ({{ p.code }})</option>
-              }
-            </select>
+            <app-searchable-select
+              ariaLabel="Plant"
+              placeholder="Select Plant"
+              [options]="plantOptions()"
+              [(ngModel)]="gatewayForm.plant_id"
+              name="plant_id"
+            />
           </div>
 
           <div class="form-row">
             <div class="form-group flex-1">
               <label class="form-label">Area (Optional)</label>
-              <select class="form-select" [(ngModel)]="gatewayForm.area_id" name="area_id">
-                <option [ngValue]="null">None</option>
-                @for (a of availableAreasForPlant(gatewayForm.plant_id); track a.id) {
-                  <option [ngValue]="a.id">{{ a.name }} ({{ a.code }})</option>
-                }
-              </select>
+              <app-searchable-select
+                ariaLabel="Area"
+                placeholder="None"
+                clearable
+                [options]="areaOptionsFor(gatewayForm.plant_id)"
+                [(ngModel)]="gatewayForm.area_id"
+                name="area_id"
+              />
             </div>
             <div class="form-group flex-1">
               <label class="form-label">Port</label>
@@ -908,12 +919,7 @@ interface AssetStatusApi {
           </div>
 
           <div class="modal-actions">
-            <button
-              appButton
-              variant="secondary"
-              type="button"
-              (click)="gatewayModalOpen.set(false)"
-            >
+            <button appButton variant="secondary" type="button" (click)="onCloseGateway()">
               Cancel
             </button>
             <button
@@ -931,7 +937,7 @@ interface AssetStatusApi {
             </button>
           </div>
         </form>
-      </app-modal>
+      </app-drawer>
     </div>
 
     <app-asset-tags-dialog [asset]="mappedAsset()" (closed)="mappedAsset.set(null)" />
@@ -1256,6 +1262,28 @@ export class AssetsPageComponent implements OnInit {
     'MAINTENANCE',
     'FAULT',
   ];
+  private readonly destroyRef = inject(DestroyRef);
+  protected readonly statusOptions = ASSET_STATUS_OPTIONS;
+  protected readonly machineStateOptions: SelectOption[] = this.machineStates.map((s) => ({
+    value: s,
+    label: s,
+  }));
+  protected readonly plantOptions = computed<SelectOption[]>(() =>
+    this.plants().map((p) => ({ value: p.id, label: `${p.name} (${p.code})` })),
+  );
+  // Methods, not computeds: these depend on the plain-object forms' plant_id, which is not reactive.
+  areaOptionsFor(plantId: number | null): SelectOption[] {
+    return this.availableAreasForPlant(plantId).map((a) => ({
+      value: a.id,
+      label: `${a.name} (${a.code})`,
+    }));
+  }
+  deviceOptionsFor(plantId: number | null): SelectOption[] {
+    return this.devicesForPlant(plantId).map((d) => ({
+      value: d.id,
+      label: `${d.name || d.external_id} (${d.external_id})`,
+    }));
+  }
   readonly editingMachineId = signal<number | null>(null);
   /** Machine or meter whose asset tags are being configured. */
   readonly mappedAsset = signal<MappedAsset | null>(null);
@@ -1281,8 +1309,8 @@ export class AssetsPageComponent implements OnInit {
   readonly metersTotal = signal(0);
   readonly gatewaysTotal = signal(0);
 
-  // Modal states
-  readonly machineModalOpen = signal(false);
+  // Drawer states — persisted so a half-filled add form reopens when the user returns.
+  readonly machineModalOpen = persistedSignal('indusense.assets.machineCreating', false);
   machineForm: {
     name: string;
     machine_code: string;
@@ -1307,7 +1335,7 @@ export class AssetsPageComponent implements OnInit {
     operating_status: 'UNKNOWN',
   };
 
-  readonly meterModalOpen = signal(false);
+  readonly meterModalOpen = persistedSignal('indusense.assets.meterCreating', false);
   meterForm: {
     name: string;
     meter_code: string;
@@ -1332,7 +1360,7 @@ export class AssetsPageComponent implements OnInit {
     device_id: null,
   };
 
-  readonly gatewayModalOpen = signal(false);
+  readonly gatewayModalOpen = persistedSignal('indusense.assets.gatewayCreating', false);
   gatewayForm: {
     name: string;
     gateway_code: string;
@@ -1405,6 +1433,8 @@ export class AssetsPageComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.restoreAssetDrafts();
+    this.destroyRef.onDestroy(() => this.persistAssetDrafts());
     this.loadLookups();
     this.loadCurrentTab();
   }
@@ -1555,7 +1585,7 @@ export class AssetsPageComponent implements OnInit {
   // Machine actions
   openCreateMachineModal(): void {
     this.editingMachineId.set(null);
-    this.machineForm = {
+    this.machineForm = readDraft<typeof this.machineForm>(MACHINE_DRAFT_KEY) ?? {
       name: '',
       machine_code: '',
       machine_type: '',
@@ -1568,6 +1598,55 @@ export class AssetsPageComponent implements OnInit {
       operating_status: 'UNKNOWN',
     };
     this.machineModalOpen.set(true);
+  }
+
+  onCloseMachine(): void {
+    if (this.machineModalOpen() && !this.editingMachineId()) {
+      writeDraft(MACHINE_DRAFT_KEY, this.machineForm);
+    }
+    this.machineModalOpen.set(false);
+  }
+
+  onCloseMeter(): void {
+    if (this.meterModalOpen() && !this.editingMeterId()) {
+      writeDraft(METER_DRAFT_KEY, this.meterForm);
+    }
+    this.meterModalOpen.set(false);
+  }
+
+  onCloseGateway(): void {
+    if (this.gatewayModalOpen() && !this.editingGatewayId()) {
+      writeDraft(GATEWAY_DRAFT_KEY, this.gatewayForm);
+    }
+    this.gatewayModalOpen.set(false);
+  }
+
+  /** Save half-filled create forms when navigating away, so they return on the way back. */
+  private persistAssetDrafts(): void {
+    if (this.machineModalOpen() && !this.editingMachineId()) {
+      writeDraft(MACHINE_DRAFT_KEY, this.machineForm);
+    }
+    if (this.meterModalOpen() && !this.editingMeterId()) {
+      writeDraft(METER_DRAFT_KEY, this.meterForm);
+    }
+    if (this.gatewayModalOpen() && !this.editingGatewayId()) {
+      writeDraft(GATEWAY_DRAFT_KEY, this.gatewayForm);
+    }
+  }
+
+  private restoreAssetDrafts(): void {
+    if (this.machineModalOpen() && !this.editingMachineId()) {
+      const draft = readDraft<typeof this.machineForm>(MACHINE_DRAFT_KEY);
+      if (draft) this.machineForm = draft;
+    }
+    if (this.meterModalOpen() && !this.editingMeterId()) {
+      const draft = readDraft<typeof this.meterForm>(METER_DRAFT_KEY);
+      if (draft) this.meterForm = draft;
+    }
+    if (this.gatewayModalOpen() && !this.editingGatewayId()) {
+      const draft = readDraft<typeof this.gatewayForm>(GATEWAY_DRAFT_KEY);
+      if (draft) this.gatewayForm = draft;
+    }
   }
 
   openEditMachineModal(m: Machine): void {
@@ -1628,6 +1707,7 @@ export class AssetsPageComponent implements OnInit {
 
     this.machinesApi.create(payload).subscribe({
       next: (created) => {
+        clearDraft(MACHINE_DRAFT_KEY);
         this.machines.update((list) => [created, ...list]);
         this.machinesTotal.update((n) => n + 1);
         this.machineModalOpen.set(false);
@@ -1655,7 +1735,7 @@ export class AssetsPageComponent implements OnInit {
   // Meter actions
   openCreateMeterModal(): void {
     this.editingMeterId.set(null);
-    this.meterForm = {
+    this.meterForm = readDraft<typeof this.meterForm>(METER_DRAFT_KEY) ?? {
       name: '',
       meter_code: '',
       meter_type: 'Energy',
@@ -1728,6 +1808,7 @@ export class AssetsPageComponent implements OnInit {
 
     this.metersApi.create(payload).subscribe({
       next: (created) => {
+        clearDraft(METER_DRAFT_KEY);
         this.meters.update((list) => [created, ...list]);
         this.metersTotal.update((n) => n + 1);
         this.meterModalOpen.set(false);
@@ -1755,7 +1836,7 @@ export class AssetsPageComponent implements OnInit {
   // Gateway actions
   openCreateGatewayModal(): void {
     this.editingGatewayId.set(null);
-    this.gatewayForm = {
+    this.gatewayForm = readDraft<typeof this.gatewayForm>(GATEWAY_DRAFT_KEY) ?? {
       name: '',
       gateway_code: '',
       gateway_type: 'EdgeGateway',
@@ -1819,6 +1900,7 @@ export class AssetsPageComponent implements OnInit {
 
     this.gatewaysApi.create(payload).subscribe({
       next: (created) => {
+        clearDraft(GATEWAY_DRAFT_KEY);
         this.gateways.update((list) => [created, ...list]);
         this.gatewaysTotal.update((n) => n + 1);
         this.gatewayModalOpen.set(false);

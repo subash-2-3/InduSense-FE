@@ -5,28 +5,17 @@ import { of, throwError } from 'rxjs';
 
 import { ApiError } from '../../../core/api/api-error';
 import { AuthService } from '../../../core/auth/auth.service';
+import { RETURN_URL_STORAGE_KEY } from '../../../core/auth/return-url';
 import { fakeUser } from '../../../core/auth/testing';
-import { LoginPageComponent, loginErrorMessage, safeReturnUrl } from './login-page.component';
-
-describe('safeReturnUrl', () => {
-  it('keeps same-app paths', () => {
-    expect(safeReturnUrl('/devices')).toBe('/devices');
-    expect(safeReturnUrl('/reports?range=7d')).toBe('/reports?range=7d');
-  });
-
-  it('rejects external, protocol-relative and login targets', () => {
-    expect(safeReturnUrl(null)).toBe('/dashboard');
-    expect(safeReturnUrl('https://evil.example')).toBe('/dashboard');
-    expect(safeReturnUrl('//evil.example')).toBe('/dashboard');
-    expect(safeReturnUrl('/\\evil.example')).toBe('/dashboard');
-    expect(safeReturnUrl('/login')).toBe('/dashboard');
-  });
-});
+import { LoginPageComponent, loginErrorMessage } from './login-page.component';
 
 describe('LoginPageComponent', () => {
   const login = vi.fn();
 
-  beforeEach(() => login.mockReset());
+  beforeEach(() => {
+    login.mockReset();
+    sessionStorage.clear();
+  });
 
   async function setup(url = '/login') {
     TestBed.configureTestingModule({
@@ -79,9 +68,10 @@ describe('LoginPageComponent', () => {
     );
   });
 
-  it('signs in and follows a safe returnUrl', async () => {
+  it('signs in and returns to the remembered page (kept out of the URL)', async () => {
     login.mockReturnValue(of(fakeUser()));
-    const { type, submit } = await setup('/login?returnUrl=%2Fdevices');
+    sessionStorage.setItem(RETURN_URL_STORAGE_KEY, '/devices');
+    const { type, submit } = await setup('/login');
     type('login-email', ' admin@indusense.com ');
     type('login-password', 'pw');
     await submit();

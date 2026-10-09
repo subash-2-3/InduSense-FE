@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   computed,
   effect,
   inject,
@@ -22,8 +23,22 @@ import {
   TagType,
   TagUpdate,
 } from '../../core/models';
-import { ButtonComponent, ModalComponent } from '../../shared/ui';
+import { ButtonComponent, DrawerComponent, SearchableSelectComponent, SelectOption } from '../../shared/ui';
 import { ToastService } from '../../shared/ui/toast/toast.service';
+import { clearDraft, readDraft, writeDraft } from '../../shared/utils/session-draft';
+
+/** sessionStorage key for the in-progress "New tag" form, so it survives switching menus. */
+const TAG_DRAFT_KEY = 'indusense.draft.tag';
+
+const STATUS_OPTIONS: SelectOption[] = [
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+];
+
+const WRITE_MODE_OPTIONS: SelectOption[] = [
+  { value: 'pulse', label: 'Pulse (write 1, the PLC resets it)' },
+  { value: 'latched', label: 'Latched (the value stays, e.g. interlock)' },
+];
 import {
   DATA_TYPE_SUGGESTIONS,
   TAG_CODE_PATTERN,
@@ -119,44 +134,51 @@ const text = (value: string) => value.trim() || null;
 /** Create or edit one tag. Generic tag fields only; protocol metadata stays with the DataLogger. */
 @Component({
   selector: 'app-tag-form-dialog',
-  imports: [FormsModule, ButtonComponent, ModalComponent],
+  imports: [FormsModule, ButtonComponent, DrawerComponent, SearchableSelectComponent],
   template: `
-    <app-modal
+    <app-drawer
       [open]="open()"
       [title]="tag() ? 'Edit tag ' + tag()!.tag_name : 'New tag'"
       subtitle="EMS and OEE tags share the same telemetry pipeline"
-      maxWidth="720px"
-      (close)="closed.emit()"
+      size="2xl"
+      (close)="onClose()"
     >
       <form class="form" (ngSubmit)="save()" novalidate>
         <fieldset class="group">
           <legend>Basic information</legend>
           <label class="f">
             <span>Device *</span>
-            <select name="device" [(ngModel)]="form.device_id" [disabled]="!!tag()" required>
-              <option [ngValue]="null" disabled>Choose a device</option>
-              @for (d of devices(); track d.id) {
-                <option [ngValue]="d.id">{{ d.name || d.external_id }}</option>
-              }
-            </select>
+            <app-searchable-select
+              name="device"
+              ariaLabel="Device"
+              placeholder="Choose a device"
+              [options]="deviceOptions()"
+              [(ngModel)]="form.device_id"
+              [disabled]="!!tag()"
+            />
           </label>
           <label class="f">
             <span>Tag type *</span>
-            <select name="tag_type" [ngModel]="form.tag_type" (ngModelChange)="setType($event)">
-              @for (t of metadata()?.tag_types ?? []; track t.value) {
-                <option [ngValue]="t.value">{{ t.label }}</option>
-              }
-            </select>
+            <app-searchable-select
+              name="tag_type"
+              ariaLabel="Tag type"
+              [options]="typeOptions()"
+              [ngModel]="form.tag_type"
+              (ngModelChange)="setType($event)"
+            />
           </label>
           @if (!tag()) {
             <label class="f f--wide">
               <span>Start from a default {{ typeShort() }} tag</span>
-              <select name="definition" [ngModel]="null" (ngModelChange)="useDefinition($event)">
-                <option [ngValue]="null">— none (custom tag) —</option>
-                @for (d of suggestions(); track d.code) {
-                  <option [ngValue]="d">{{ d.display_name }} ({{ d.code }})</option>
-                }
-              </select>
+              <app-searchable-select
+                name="definition"
+                ariaLabel="Start from a default tag"
+                placeholder="— none (custom tag) —"
+                clearable
+                [options]="definitionOptions()"
+                [ngModel]="null"
+                (ngModelChange)="useDefinition($event)"
+              />
             </label>
           }
           <label class="f">
@@ -204,10 +226,12 @@ const text = (value: string) => value.trim() || null;
           </label>
           <label class="f">
             <span>Status</span>
-            <select name="status" [(ngModel)]="form.status">
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
+            <app-searchable-select
+              name="status"
+              ariaLabel="Status"
+              [options]="statusOptions"
+              [(ngModel)]="form.status"
+            />
           </label>
           <label class="f f--wide">
             <span>Description</span>
@@ -286,10 +310,12 @@ const text = (value: string) => value.trim() || null;
           @if (form.writable) {
             <label class="f">
               <span>Write mode</span>
-              <select name="write_mode" [(ngModel)]="form.write_mode">
-                <option value="pulse">Pulse (write 1, the PLC resets it)</option>
-                <option value="latched">Latched (the value stays, e.g. interlock)</option>
-              </select>
+              <app-searchable-select
+                name="write_mode"
+                ariaLabel="Write mode"
+                [options]="writeModeOptions"
+                [(ngModel)]="form.write_mode"
+              />
             </label>
             <label class="f">
               <span>Allowed values</span>
@@ -312,7 +338,7 @@ const text = (value: string) => value.trim() || null;
           <p class="err" role="alert">{{ e }}</p>
         }
         <div class="actions">
-          <button appButton variant="ghost" type="button" (click)="closed.emit()">Cancel</button>
+          <button appButton variant="ghost" type="button" (click)="onClose()">Cancel</button>
           <button
             appButton
             variant="primary"
@@ -324,7 +350,7 @@ const text = (value: string) => value.trim() || null;
           </button>
         </div>
       </form>
-    </app-modal>
+    </app-drawer>
   `,
   styles: `
     .form {
@@ -434,17 +460,46 @@ export class TagFormDialogComponent {
     return this.form.tag_type.toUpperCase();
   });
 
+  protected readonly deviceOptions = computed<SelectOption[]>(() =>
+    this.devices().map((d) => ({ value: d.id, label: d.name || d.external_id })),
+  );
+  protected readonly typeOptions = computed<SelectOption[]>(() =>
+    (this.metadata()?.tag_types ?? []).map((t) => ({ value: t.value, label: t.label })),
+  );
+  protected readonly definitionOptions = computed<SelectOption[]>(() =>
+    this.suggestions().map((d) => ({ value: d, label: `${d.display_name} (${d.code})` })),
+  );
+  protected readonly statusOptions = STATUS_OPTIONS;
+  protected readonly writeModeOptions = WRITE_MODE_OPTIONS;
+
   constructor() {
+    const destroyRef = inject(DestroyRef);
     effect(() => {
       if (!this.open()) {
         return;
       }
       const tag = this.tag();
       const firstType = this.metadata()?.tag_types[0]?.value ?? 'ems';
-      this.form = tag ? formOf(tag) : emptyForm(firstType, this.deviceId());
+      this.form = tag
+        ? formOf(tag)
+        : (readDraft<TagForm>(TAG_DRAFT_KEY) ?? emptyForm(firstType, this.deviceId()));
       this.serverError.set(null);
       this.revision.update((n) => n + 1);
     });
+    // Switching menus unmounts the page; keep the half-filled "New tag" form for the return trip.
+    destroyRef.onDestroy(() => this.persistDraft());
+  }
+
+  /** Save the draft (create mode only) then close — used by Cancel, the X, and outside-click. */
+  protected onClose(): void {
+    this.persistDraft();
+    this.closed.emit();
+  }
+
+  private persistDraft(): void {
+    if (this.open() && !this.tag()) {
+      writeDraft(TAG_DRAFT_KEY, this.form);
+    }
   }
 
   protected errors(): {
@@ -533,6 +588,9 @@ export class TagFormDialogComponent {
     request.subscribe({
       next: (saved) => {
         this.saving.set(false);
+        if (!tag) {
+          clearDraft(TAG_DRAFT_KEY);
+        }
         this.toast.success(
           tag ? `Tag "${saved.tag_name}" updated.` : `Tag "${saved.tag_name}" created.`,
         );

@@ -4,12 +4,15 @@ import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 
 import { authGuard, guestGuard } from './auth.guards';
+import { RETURN_URL_STORAGE_KEY } from './return-url';
 import { fakeUser, provideFakeAuth } from './testing';
 
 @Component({ template: 'page' })
 class PageComponent {}
 
 describe('auth guards', () => {
+  beforeEach(() => sessionStorage.clear());
+
   async function navigate(url: string, signedIn: boolean) {
     TestBed.configureTestingModule({
       providers: [
@@ -36,8 +39,9 @@ describe('auth guards', () => {
     expect(await navigate('/devices', true)).toBe('/devices');
   });
 
-  it('sends signed-out users to login with a return URL', async () => {
-    expect(await navigate('/devices?page=2', false)).toBe('/login?returnUrl=%2Fdevices%3Fpage%3D2');
+  it('sends signed-out users to a clean login URL and remembers where they were', async () => {
+    expect(await navigate('/devices?page=2', false)).toBe('/login');
+    expect(sessionStorage.getItem(RETURN_URL_STORAGE_KEY)).toBe('/devices?page=2');
   });
 
   it('keeps signed-in users away from the login page', async () => {

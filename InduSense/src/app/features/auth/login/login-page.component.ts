@@ -8,22 +8,13 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Router } from '@angular/router';
 
 import { ApiError } from '../../../core/api/api-error';
 import { AuthService } from '../../../core/auth/auth.service';
+import { takeReturnUrl } from '../../../core/auth/return-url';
 import { ThemeService } from '../../../core/browser/theme.service';
 import { ButtonComponent, IconComponent } from '../../../shared/ui';
-
-const DEFAULT_REDIRECT = '/dashboard';
-
-/** Only same-app paths are followed after sign-in (no protocol-relative or external URLs). */
-export function safeReturnUrl(value: string | null): string {
-  if (!value || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) {
-    return DEFAULT_REDIRECT;
-  }
-  return value.startsWith('/login') ? DEFAULT_REDIRECT : value;
-}
 
 /** Enterprise Industrial Sign-in screen. Prerendered on the server; the password is never stored. */
 @Component({
@@ -36,7 +27,6 @@ export function safeReturnUrl(value: string | null): string {
 export class LoginPageComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly theme = inject(ThemeService);
 
@@ -114,8 +104,7 @@ export class LoginPageComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          const target = safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'));
-          void this.router.navigateByUrl(target);
+          void this.router.navigateByUrl(takeReturnUrl());
         },
         error: (error: unknown) => {
           this.submitting.set(false);

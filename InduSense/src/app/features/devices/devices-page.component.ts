@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   OnInit,
   computed,
   inject,
@@ -26,10 +27,12 @@ import {
 import {
   ButtonComponent,
   CardComponent,
+  DrawerComponent,
   EmptyStateComponent,
   ErrorStateComponent,
   IconComponent,
-  ModalComponent,
+  SearchableSelectComponent,
+  SelectOption,
   SkeletonComponent,
   StatusPillComponent,
   StatusTone,
@@ -41,9 +44,30 @@ import {
   recordStatusTone,
   toggledStatus,
 } from '../../shared/utils/record-status';
+import { clearDraft, persistedSignal, readDraft, writeDraft } from '../../shared/utils/session-draft';
 import { DeviceConnectionsDialogComponent } from './device-connections-dialog.component';
 import { DeviceTagsDialogComponent } from './device-tags-dialog.component';
 import { formatDateTime } from '../../shared/utils/format';
+
+const DEVICE_DRAFT_KEY = 'indusense.draft.device';
+
+const DEVICE_STATUS_OPTIONS: SelectOption[] = [
+  { value: 'visible', label: 'Active and inactive' },
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+  { value: 'delete', label: 'Deleted' },
+];
+
+interface DeviceFormModel {
+  company_id: number | null;
+  gateway_id: number | null;
+  external_id: string;
+  name: string;
+  device_type: string;
+  source: string;
+  ip_address: string;
+  location: string;
+}
 
 @Component({
   selector: 'app-devices-page',
@@ -57,7 +81,8 @@ import { formatDateTime } from '../../shared/utils/format';
     SkeletonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
-    ModalComponent,
+    DrawerComponent,
+    SearchableSelectComponent,
     DeviceTagsDialogComponent,
     DeviceConnectionsDialogComponent,
   ],
@@ -99,17 +124,13 @@ import { formatDateTime } from '../../shared/utils/format';
           }
         </div>
         <div class="dev-stats">
-          <select
-            class="form-select dev-filter"
-            aria-label="Device status"
+          <app-searchable-select
+            class="dev-filter"
+            ariaLabel="Device status"
+            [options]="statusOptions"
             [ngModel]="statusView()"
             (ngModelChange)="setStatusView($event)"
-          >
-            <option value="visible">Active and inactive</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="delete">Deleted</option>
-          </select>
+          />
           <span class="stat-badge">Total: {{ totalCount() }} devices</span>
         </div>
       </div>
@@ -288,8 +309,8 @@ import { formatDateTime } from '../../shared/utils/format';
         }
       </app-card>
 
-      <!-- Register / Edit Device Modal -->
-      <app-modal
+      <!-- Register / Edit Device Drawer -->
+      <app-drawer
         [open]="modalOpen()"
         [title]="editingDeviceId() ? 'Edit Device' : 'Register New Device'"
         [subtitle]="
@@ -297,18 +318,21 @@ import { formatDateTime } from '../../shared/utils/format';
             ? 'Update connection details'
             : 'Register an industrial edge device or PLC'
         "
-        (close)="modalOpen.set(false)"
+        size="lg"
+        (close)="onCloseModal()"
       >
         <form (ngSubmit)="saveDevice()" class="modal-form">
           @if (isPlatformAdmin()) {
             <div class="form-group">
               <label class="form-label">Company</label>
-              <select class="form-select" [(ngModel)]="deviceForm.company_id" name="company_id">
-                <option [ngValue]="null">Unassigned</option>
-                @for (c of companies(); track c.id) {
-                  <option [ngValue]="c.id">{{ c.name }} ({{ c.code }})</option>
-                }
-              </select>
+              <app-searchable-select
+                ariaLabel="Company"
+                placeholder="Unassigned"
+                clearable
+                [options]="companyOptions()"
+                [(ngModel)]="deviceForm.company_id"
+                name="company_id"
+              />
             </div>
           }
           <div class="form-group">
@@ -372,12 +396,14 @@ import { formatDateTime } from '../../shared/utils/format';
             </div>
             <div class="form-group flex-1">
               <label class="form-label">Gateway</label>
-              <select class="form-select" [(ngModel)]="deviceForm.gateway_id" name="gateway_id">
-                <option [ngValue]="null">None</option>
-                @for (g of gatewaysForForm(); track g.id) {
-                  <option [ngValue]="g.id">{{ g.name }} ({{ g.gateway_code }})</option>
-                }
-              </select>
+              <app-searchable-select
+                ariaLabel="Gateway"
+                placeholder="None"
+                clearable
+                [options]="gatewayOptions()"
+                [(ngModel)]="deviceForm.gateway_id"
+                name="gateway_id"
+              />
             </div>
           </div>
 
@@ -393,7 +419,7 @@ import { formatDateTime } from '../../shared/utils/format';
           </div>
 
           <div class="modal-actions">
-            <button appButton variant="secondary" type="button" (click)="modalOpen.set(false)">
+            <button appButton variant="secondary" type="button" (click)="onCloseModal()">
               Cancel
             </button>
             <button
@@ -406,7 +432,7 @@ import { formatDateTime } from '../../shared/utils/format';
             </button>
           </div>
         </form>
-      </app-modal>
+      </app-drawer>
     </div>
 
     <app-device-tags-dialog [device]="tagsDevice()" (closed)="tagsDevice.set(null)" />
@@ -731,13 +757,24 @@ export class DevicesPageComponent implements OnInit {
   readonly connectionsDevice = signal<Device | null>(null);
   protected readonly recordLabel = recordStatusLabel;
   protected readonly recordTone = recordStatusTone;
+  private readonly destroyRef = inject(DestroyRef);
 
-  // Modal
-  readonly modalOpen = signal(false);
+  protected readonly statusOptions = DEVICE_STATUS_OPTIONS;
+  protected readonly companyOptions = computed<SelectOption[]>(() =>
+    this.companies().map((c) => ({ value: c.id, label: `${c.name} (${c.code})` })),
+  );
+
+  // Drawer — persisted so a half-filled "Register device" form reopens when the user returns.
+  readonly modalOpen = persistedSignal('indusense.devices.creating', false);
   readonly editingDeviceId = signal<number | null>(null);
-  deviceForm = this.blankForm();
+  deviceForm: DeviceFormModel = this.blankForm();
 
   ngOnInit(): void {
+    // Restore a half-filled "Register device" draft if the drawer was left open on this menu.
+    if (this.modalOpen() && !this.editingDeviceId()) {
+      this.deviceForm = readDraft<DeviceFormModel>(DEVICE_DRAFT_KEY) ?? this.blankForm();
+    }
+    this.destroyRef.onDestroy(() => this.persistDraft());
     this.loadDevices();
     this.gatewaysApi.listAll().subscribe({
       next: (gateways) => this.gateways.set(gateways),
@@ -762,6 +799,14 @@ export class DevicesPageComponent implements OnInit {
     const companyId = this.deviceForm.company_id;
     if (!this.isPlatformAdmin()) return this.gateways();
     return companyId ? this.gateways().filter((g) => g.company_id === companyId) : [];
+  }
+
+  // A method, not a computed: it depends on the plain-object form, which is not reactive.
+  gatewayOptions(): SelectOption[] {
+    return this.gatewaysForForm().map((g) => ({
+      value: g.id,
+      label: `${g.name} (${g.gateway_code})`,
+    }));
   }
 
   loadDevices(): void {
@@ -804,8 +849,20 @@ export class DevicesPageComponent implements OnInit {
 
   openCreateModal(): void {
     this.editingDeviceId.set(null);
-    this.deviceForm = this.blankForm();
+    this.deviceForm = readDraft<DeviceFormModel>(DEVICE_DRAFT_KEY) ?? this.blankForm();
     this.modalOpen.set(true);
+  }
+
+  /** Save the draft (create mode only) then close — used by Cancel, the X, and outside-click. */
+  onCloseModal(): void {
+    this.persistDraft();
+    this.modalOpen.set(false);
+  }
+
+  private persistDraft(): void {
+    if (this.modalOpen() && !this.editingDeviceId()) {
+      writeDraft(DEVICE_DRAFT_KEY, this.deviceForm);
+    }
   }
 
   openEditModal(device: Device): void {
@@ -863,6 +920,7 @@ export class DevicesPageComponent implements OnInit {
       };
       this.devicesApi.create(payload).subscribe({
         next: (created) => {
+          clearDraft(DEVICE_DRAFT_KEY);
           this.devices.update((list) => [created, ...list]);
           this.totalCount.update((n) => n + 1);
           this.modalOpen.set(false);
@@ -919,16 +977,7 @@ export class DevicesPageComponent implements OnInit {
     return view === 'visible' ? 'active' : view;
   }
 
-  private blankForm(): {
-    company_id: number | null;
-    gateway_id: number | null;
-    external_id: string;
-    name: string;
-    device_type: string;
-    source: string;
-    ip_address: string;
-    location: string;
-  } {
+  private blankForm(): DeviceFormModel {
     return {
       company_id: null,
       gateway_id: null,

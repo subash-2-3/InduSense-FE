@@ -24,6 +24,8 @@ import {
   ErrorStateComponent,
   IconComponent,
   ModalComponent,
+  SearchableSelectComponent,
+  SelectOption,
   SkeletonComponent,
   StatusPillComponent,
 } from '../../shared/ui';
@@ -34,6 +36,7 @@ import {
   recordStatusTone,
   toggledStatus,
 } from '../../shared/utils/record-status';
+import { persistedSignal } from '../../shared/utils/session-draft';
 import { DefaultTagsPickerComponent } from './default-tags-picker.component';
 import { TagFormDialogComponent } from './tag-form-dialog.component';
 import { tagTypeLabel } from './tag-rules';
@@ -53,6 +56,7 @@ type StatusChoice = 'visible' | RecordStatus;
     ErrorStateComponent,
     IconComponent,
     ModalComponent,
+    SearchableSelectComponent,
     SkeletonComponent,
     StatusPillComponent,
     DefaultTagsPickerComponent,
@@ -92,32 +96,34 @@ type StatusChoice = 'visible' | RecordStatus;
           </label>
           <label class="fl">
             <span>Tag type</span>
-            <select [ngModel]="type()" (ngModelChange)="setFilter(type, $event)">
-              <option [ngValue]="null">All types</option>
-              @for (t of metadata()?.tag_types ?? []; track t.value) {
-                <option [ngValue]="t.value">{{ t.label }}</option>
-              }
-            </select>
+            <app-searchable-select
+              ariaLabel="Tag type"
+              placeholder="All types"
+              clearable
+              [options]="typeFilterOptions()"
+              [ngModel]="type()"
+              (ngModelChange)="setFilter(type, $event)"
+            />
           </label>
           <label class="fl">
             <span>Device</span>
-            <select [ngModel]="deviceId()" (ngModelChange)="setFilter(deviceId, $event)">
-              <option [ngValue]="null">All devices</option>
-              @for (d of devices(); track d.id) {
-                <option [ngValue]="d.id">{{ d.name || d.external_id }}</option>
-              }
-            </select>
+            <app-searchable-select
+              ariaLabel="Device"
+              placeholder="All devices"
+              clearable
+              [options]="deviceFilterOptions()"
+              [ngModel]="deviceId()"
+              (ngModelChange)="setFilter(deviceId, $event)"
+            />
           </label>
           <label class="fl">
             <span>Status</span>
-            <select [ngModel]="status()" (ngModelChange)="setFilter(status, $event)">
-              <option value="visible">Active & inactive</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              @if (canUpdate()) {
-                <option value="delete">Deleted</option>
-              }
-            </select>
+            <app-searchable-select
+              ariaLabel="Status"
+              [options]="statusFilterOptions()"
+              [ngModel]="status()"
+              (ngModelChange)="setFilter(status, $event)"
+            />
           </label>
         </div>
       </app-card>
@@ -277,12 +283,13 @@ type StatusChoice = 'visible' | RecordStatus;
     >
       <label class="fl fl--device">
         <span>Device</span>
-        <select [ngModel]="defaultsDevice()" (ngModelChange)="chooseDefaultsDevice($event)">
-          <option [ngValue]="null" disabled>Choose a device</option>
-          @for (d of activeDevices(); track d.id) {
-            <option [ngValue]="d.id">{{ d.name || d.external_id }}</option>
-          }
-        </select>
+        <app-searchable-select
+          ariaLabel="Device"
+          placeholder="Choose a device"
+          [options]="activeDeviceOptions()"
+          [ngModel]="defaultsDevice()"
+          (ngModelChange)="chooseDefaultsDevice($event)"
+        />
       </label>
       @if (defaultsDevice()) {
         <app-default-tags-picker
@@ -315,6 +322,26 @@ export class TagsPageComponent implements OnInit {
   protected readonly activeDevices = computed(() =>
     this.devices().filter((d) => d.status === 'active'),
   );
+  protected readonly deviceFilterOptions = computed<SelectOption[]>(() =>
+    this.devices().map((d) => ({ value: d.id, label: d.name || d.external_id })),
+  );
+  protected readonly activeDeviceOptions = computed<SelectOption[]>(() =>
+    this.activeDevices().map((d) => ({ value: d.id, label: d.name || d.external_id })),
+  );
+  protected readonly typeFilterOptions = computed<SelectOption[]>(() =>
+    (this.metadata()?.tag_types ?? []).map((t) => ({ value: t.value, label: t.label })),
+  );
+  protected readonly statusFilterOptions = computed<SelectOption[]>(() => {
+    const options: SelectOption[] = [
+      { value: 'visible', label: 'Active & inactive' },
+      { value: 'active', label: 'Active' },
+      { value: 'inactive', label: 'Inactive' },
+    ];
+    if (this.canUpdate()) {
+      options.push({ value: 'delete', label: 'Deleted' });
+    }
+    return options;
+  });
   protected readonly tags = signal<Tag[]>([]);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -327,7 +354,8 @@ export class TagsPageComponent implements OnInit {
   protected readonly deviceId = signal<number | null>(null);
   protected readonly status = signal<StatusChoice>('visible');
 
-  protected readonly formOpen = signal(false);
+  // Persisted so a half-filled "New tag" drawer reopens when the user returns to this menu.
+  protected readonly formOpen = persistedSignal('indusense.tags.creating', false);
   protected readonly editing = signal<Tag | null>(null);
   protected readonly defaultsOpen = signal(false);
   protected readonly defaultsDevice = signal<number | null>(null);
