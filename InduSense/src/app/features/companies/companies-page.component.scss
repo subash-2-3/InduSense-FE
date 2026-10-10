@@ -2,17 +2,22 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  max-width: 1400px;
-  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
   padding: var(--space-4);
 }
 
 .page__header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg-app);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
+  padding: var(--space-2) 0;
 }
 
 .page__title {
@@ -40,11 +45,16 @@
 }
 
 .toolbar {
+  position: sticky;
+  top: 56px;
+  z-index: 19;
+  background: var(--bg-app);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+  padding: var(--space-2) 0;
 }
 
 .toolbar__filter {
@@ -99,7 +109,9 @@
 }
 
 .table-wrap {
-  overflow-x: auto;
+  overflow: auto;
+  max-height: calc(100vh - 280px);
+  min-height: 240px;
 }
 
 .table {
@@ -115,6 +127,11 @@
   }
 
   th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg-card);
+    box-shadow: 0 1px 0 var(--border-light);
     color: var(--text-secondary);
     font-size: var(--fs-xs);
     font-weight: var(--fw-semibold);
@@ -125,6 +142,10 @@
   tbody tr:hover td {
     background: var(--bg-card-hover);
   }
+}
+
+.table-pagination {
+  border-top: 1px solid var(--border-light);
 }
 
 .num {
@@ -228,3 +249,54 @@
   justify-content: flex-end;
   gap: var(--space-3);
 }
+
+@media (max-width: 768px) {
+  .page {
+    padding: var(--space-3);
+    gap: var(--space-3);
+  }
+
+  .page__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .page__actions {
+    width: 100%;
+
+    button {
+      flex: 1;
+    }
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .search {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .toolbar__filter {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .form__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form__actions {
+    flex-direction: column-reverse;
+    width: 100%;
+
+    button {
+      width: 100%;
+    }
+  }
+}
+

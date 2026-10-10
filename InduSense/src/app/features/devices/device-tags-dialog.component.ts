@@ -252,6 +252,11 @@ type TagDraft = Required<Pick<TagUpdate, 'is_counter' | 'is_cumulative'>> & {
       vertical-align: middle;
     }
     .table th {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg-card);
+      box-shadow: 0 1px 0 var(--border-card);
       color: var(--text-secondary);
       font-size: var(--fs-xs);
       text-transform: uppercase;
@@ -269,6 +274,15 @@ type TagDraft = Required<Pick<TagUpdate, 'is_counter' | 'is_cumulative'>> & {
     }
     .empty {
       color: var(--text-secondary);
+    }
+    @media (max-width: 640px) {
+      .bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .search {
+        max-width: 100%;
+      }
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,

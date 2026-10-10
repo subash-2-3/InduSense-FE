@@ -163,6 +163,11 @@ interface Choice {
       vertical-align: middle;
     }
     .list th {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg-card);
+      box-shadow: 0 1px 0 var(--border-card);
       color: var(--text-secondary);
       font-size: var(--fs-xs);
       text-transform: uppercase;

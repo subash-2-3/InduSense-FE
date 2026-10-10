@@ -1,5 +1,5 @@
 import { DOCUMENT } from '@angular/common';
-import { ChangeDetectionStrategy, Component, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
 
@@ -12,6 +12,7 @@ import {
   EmptyStateComponent,
   ErrorStateComponent,
   IconComponent,
+  PaginationComponent,
   SearchableSelectComponent,
   SelectOption,
   SkeletonComponent,
@@ -19,6 +20,7 @@ import {
 } from '../../shared/ui';
 import { saveBlob } from '../../shared/utils/download';
 import { formatDateTime, formatDuration } from '../../shared/utils/format';
+import { SortDirection, sortData, toggleSort } from '../../shared/utils/sort';
 import {
   RANGE_OPTIONS,
   RangePreset,
@@ -41,6 +43,7 @@ export const HISTORY_PAGE_SIZE = 25;
     IconComponent,
     SearchableSelectComponent,
     SkeletonComponent,
+    PaginationComponent,
   ],
   template: `
     <div class="toolbar">
@@ -122,7 +125,7 @@ export const HISTORY_PAGE_SIZE = 25;
       <p class="muted" role="alert">{{ e }}</p>
     }
 
-    <app-card [padded]="false">
+    <app-card heading="Alarm History Log" [padded]="false" expandable="true">
       @if (error(); as e) {
         <div class="pad">
           <app-error-state heading="Alarm history unavailable" [message]="e" (retry)="go(page())" />
@@ -131,20 +134,80 @@ export const HISTORY_PAGE_SIZE = 25;
         <div class="pad"><app-skeleton height="200px" /></div>
       } @else if (data(); as d) {
         @if (d.data.rows.length) {
-          <div class="wrap">
+          <div class="wrap table-sticky-container">
             <table class="table">
               <thead>
                 <tr>
-                  <th scope="col">Alarm</th>
-                  <th scope="col">Machine</th>
-                  <th scope="col" class="num">Bit</th>
-                  <th scope="col">Start</th>
-                  <th scope="col">End</th>
-                  <th scope="col" class="num">Duration</th>
+                  <th scope="col" class="th-sortable" (click)="toggleSort('name')" tabindex="0" (keydown.enter)="toggleSort('name')">
+                    <span class="th-sort-content">
+                      Alarm
+                      <app-icon
+                        [name]="sortKey() === 'name' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'name'"
+                        [class.sort-icon-muted]="sortKey() !== 'name'"
+                      />
+                    </span>
+                  </th>
+                  <th scope="col" class="th-sortable" (click)="toggleSort('machine_name')" tabindex="0" (keydown.enter)="toggleSort('machine_name')">
+                    <span class="th-sort-content">
+                      Machine
+                      <app-icon
+                        [name]="sortKey() === 'machine_name' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'machine_name'"
+                        [class.sort-icon-muted]="sortKey() !== 'machine_name'"
+                      />
+                    </span>
+                  </th>
+                  <th scope="col" class="num th-sortable" (click)="toggleSort('bit')" tabindex="0" (keydown.enter)="toggleSort('bit')">
+                    <span class="th-sort-content">
+                      Bit
+                      <app-icon
+                        [name]="sortKey() === 'bit' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'bit'"
+                        [class.sort-icon-muted]="sortKey() !== 'bit'"
+                      />
+                    </span>
+                  </th>
+                  <th scope="col" class="th-sortable" (click)="toggleSort('start')" tabindex="0" (keydown.enter)="toggleSort('start')">
+                    <span class="th-sort-content">
+                      Start
+                      <app-icon
+                        [name]="sortKey() === 'start' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'start'"
+                        [class.sort-icon-muted]="sortKey() !== 'start'"
+                      />
+                    </span>
+                  </th>
+                  <th scope="col" class="th-sortable" (click)="toggleSort('end')" tabindex="0" (keydown.enter)="toggleSort('end')">
+                    <span class="th-sort-content">
+                      End
+                      <app-icon
+                        [name]="sortKey() === 'end' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'end'"
+                        [class.sort-icon-muted]="sortKey() !== 'end'"
+                      />
+                    </span>
+                  </th>
+                  <th scope="col" class="num th-sortable" (click)="toggleSort('duration_seconds')" tabindex="0" (keydown.enter)="toggleSort('duration_seconds')">
+                    <span class="th-sort-content">
+                      Duration
+                      <app-icon
+                        [name]="sortKey() === 'duration_seconds' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'duration_seconds'"
+                        [class.sort-icon-muted]="sortKey() !== 'duration_seconds'"
+                      />
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                @for (r of d.data.rows; track $index) {
+                @for (r of sortedRows(); track $index) {
                   <tr>
                     <td>
                       <span class="alarm-name alarm-name--unnamed">{{ r.name }}</span>
@@ -176,33 +239,14 @@ export const HISTORY_PAGE_SIZE = 25;
               </tbody>
             </table>
           </div>
-          <div class="pager">
-            <span
-              >{{ d.pagination.total }} alarms · page {{ d.pagination.page }} of
-              {{ d.pagination.total_pages || 1 }}</span
-            >
-            <div class="pager__buttons">
-              <button
-                appButton
-                variant="secondary"
-                size="sm"
-                type="button"
-                [disabled]="d.pagination.page <= 1 || loading()"
-                (click)="go(d.pagination.page - 1)"
-              >
-                <app-icon name="chevron-left" [size]="14" /> Previous
-              </button>
-              <button
-                appButton
-                variant="secondary"
-                size="sm"
-                type="button"
-                [disabled]="d.pagination.page >= d.pagination.total_pages || loading()"
-                (click)="go(d.pagination.page + 1)"
-              >
-                Next <app-icon name="chevron-right" [size]="14" />
-              </button>
-            </div>
+          <div class="table-pagination">
+            <app-pagination
+              [page]="d.pagination.page"
+              [pageSize]="pageSize()"
+              [total]="d.pagination.total"
+              (pageChange)="go($event)"
+              (pageSizeChange)="onPageSizeChange($event)"
+            />
           </div>
         } @else {
           <div class="pad">
@@ -236,16 +280,35 @@ export class AlarmHistoryComponent {
   protected readonly customTo = signal(toLocalInput(new Date()));
   protected readonly bit = signal<number | null>(null);
   protected readonly page = signal(1);
+  protected readonly pageSize = signal(HISTORY_PAGE_SIZE);
+  protected readonly sortKey = signal<string | null>(null);
+  protected readonly sortDir = signal<SortDirection>('asc');
   protected readonly data = signal<AlarmHistoryPage | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly exporting = signal<'csv' | 'xlsx' | null>(null);
+
+  protected readonly sortedRows = computed(() => {
+    const rows = this.data()?.data?.rows || [];
+    const k = this.sortKey();
+    if (!k) return rows;
+    return sortData(rows, (r: any) => r[k], this.sortDir());
+  });
 
   constructor() {
     effect(() => {
       this.machineId();
       this.go(1);
     });
+  }
+
+  protected toggleSort(key: string): void {
+    toggleSort(this.sortKey, this.sortDir, key);
+  }
+
+  protected onPageSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.go(1);
   }
 
   protected customError(): string | null {
@@ -284,7 +347,7 @@ export class AlarmHistoryComponent {
     this.loading.set(true);
     this.error.set(null);
     this.api
-      .history({ ...this.filters(), page, page_size: HISTORY_PAGE_SIZE })
+      .history({ ...this.filters(), page, page_size: this.pageSize() })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: (d) => this.data.set(d),

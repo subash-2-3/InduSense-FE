@@ -8,7 +8,7 @@ import {
   input,
   output,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import { FullscreenService } from '../../core/browser/fullscreen.service';
 import { ButtonComponent, DropdownMenuComponent, IconComponent, MenuItem } from '../../shared/ui';
@@ -18,11 +18,20 @@ import { injectNow } from '../../shared/utils/now';
 export interface DashboardOption {
   id: string;
   name: string;
+  path?: string;
 }
+
+export const DEFAULT_DASHBOARDS: readonly DashboardOption[] = [
+  { id: 'device-summary', name: 'Device Summary Dashboard', path: '/dashboard' },
+  { id: 'energy', name: 'Energy Monitoring SCADA', path: '/energy' },
+  { id: 'oee', name: 'OEE & Machine Fleet', path: '/energy' },
+  { id: 'alarms', name: 'Alarms Intelligence', path: '/alarms' },
+  { id: 'reports', name: 'Reports & Analytics', path: '/reports' },
+];
 
 /**
  * Dashboard bar: dashboard switcher, refresh with "updated … ago", help, fullscreen, actions
- * and Add Dashboard. Presentational: refresh state comes from the page that hosts it.
+ * and Add Dashboard.
  */
 @Component({
   selector: 'app-dashboard-toolbar',
@@ -32,15 +41,16 @@ export interface DashboardOption {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DashboardToolbarComponent {
-  readonly dashboards = input.required<readonly DashboardOption[]>();
+  readonly dashboards = input<readonly DashboardOption[]>(DEFAULT_DASHBOARDS);
   readonly activeId = input.required<string>();
   readonly refreshing = input(false, { transform: booleanAttribute });
-  readonly lastUpdated = input<Date | number | null>(null);
+  readonly lastUpdated = input<Date | number | string | null>(null);
 
   readonly refresh = output<void>();
   readonly dashboardChange = output<string>();
 
   protected readonly fullscreen = inject(FullscreenService);
+  private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
   private readonly now = injectNow(1000);
 
@@ -49,7 +59,11 @@ export class DashboardToolbarComponent {
   );
 
   protected readonly switcherItems = computed<MenuItem[]>(() =>
-    this.dashboards().map((d) => ({ id: d.id, label: d.name, checked: d.id === this.activeId() })),
+    this.dashboards().map((d) => ({
+      id: d.id,
+      label: d.name,
+      checked: d.id === this.activeId(),
+    })),
   );
 
   protected readonly updatedText = computed(() => {
@@ -67,6 +81,14 @@ export class DashboardToolbarComponent {
   protected onDashboardSelect(id: string): void {
     if (id !== this.activeId()) {
       this.dashboardChange.emit(id);
+      const target = this.dashboards().find((d) => d.id === id);
+      if (target?.path) {
+        if (id === 'oee') {
+          void this.router.navigate([target.path], { queryParams: { view: 'oee' } });
+        } else {
+          void this.router.navigate([target.path]);
+        }
+      }
     }
   }
 

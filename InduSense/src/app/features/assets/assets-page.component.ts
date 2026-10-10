@@ -37,6 +37,7 @@ import {
   EmptyStateComponent,
   ErrorStateComponent,
   IconComponent,
+  PaginationComponent,
   SearchableSelectComponent,
   SelectOption,
   SkeletonComponent,
@@ -55,6 +56,7 @@ import {
   toggledStatus,
 } from '../../shared/utils/record-status';
 import { clearDraft, persistedSignal, readDraft, writeDraft } from '../../shared/utils/session-draft';
+import { sortData, toggleSort, SortDirection } from '../../shared/utils/sort';
 
 const MACHINE_DRAFT_KEY = 'indusense.draft.machine';
 const METER_DRAFT_KEY = 'indusense.draft.meter';
@@ -93,6 +95,7 @@ interface AssetStatusApi {
     EmptyStateComponent,
     ErrorStateComponent,
     DrawerComponent,
+    PaginationComponent,
     SearchableSelectComponent,
     AssetTagsDialogComponent,
     MachineControlDialogComponent,
@@ -173,10 +176,10 @@ interface AssetStatusApi {
             class="search-input"
             [placeholder]="'Search ' + activeTab() + ' by name, code, model...'"
             [ngModel]="searchTerm()"
-            (ngModelChange)="searchTerm.set($event)"
+            (ngModelChange)="onSearchChange($event)"
           />
           @if (searchTerm()) {
-            <button class="clear-btn" type="button" (click)="searchTerm.set('')">
+            <button class="clear-btn" type="button" (click)="onSearchChange('')">
               <app-icon name="x" [size]="14" />
             </button>
           }
@@ -224,21 +227,117 @@ interface AssetStatusApi {
                   </app-empty-state>
                 </div>
               } @else {
-                <div class="table-container">
+                <div class="table-container table-sticky-container">
                   <table class="assets-table">
                     <thead>
                       <tr>
-                        <th>Status</th>
-                        <th>Machine Name / Code</th>
-                        <th>Type</th>
-                        <th>Manufacturer / Model</th>
-                        <th>Serial Number</th>
-                        <th>Plant & Area</th>
+                        <th
+                          class="th-sortable"
+                          (click)="setMachinesSort('operating_status')"
+                          tabindex="0"
+                          (keydown.enter)="setMachinesSort('operating_status')"
+                          aria-label="Sort by status"
+                        >
+                          <span class="th-sort-content">
+                            Status
+                            <app-icon
+                              [name]="machinesSortKey() === 'operating_status' ? (machinesSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="machinesSortKey() === 'operating_status'"
+                              [class.sort-icon-muted]="machinesSortKey() !== 'operating_status'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setMachinesSort('name')"
+                          tabindex="0"
+                          (keydown.enter)="setMachinesSort('name')"
+                          aria-label="Sort by machine name"
+                        >
+                          <span class="th-sort-content">
+                            Machine Name / Code
+                            <app-icon
+                              [name]="machinesSortKey() === 'name' ? (machinesSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="machinesSortKey() === 'name'"
+                              [class.sort-icon-muted]="machinesSortKey() !== 'name'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setMachinesSort('machine_type')"
+                          tabindex="0"
+                          (keydown.enter)="setMachinesSort('machine_type')"
+                          aria-label="Sort by type"
+                        >
+                          <span class="th-sort-content">
+                            Type
+                            <app-icon
+                              [name]="machinesSortKey() === 'machine_type' ? (machinesSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="machinesSortKey() === 'machine_type'"
+                              [class.sort-icon-muted]="machinesSortKey() !== 'machine_type'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setMachinesSort('manufacturer')"
+                          tabindex="0"
+                          (keydown.enter)="setMachinesSort('manufacturer')"
+                          aria-label="Sort by manufacturer"
+                        >
+                          <span class="th-sort-content">
+                            Manufacturer / Model
+                            <app-icon
+                              [name]="machinesSortKey() === 'manufacturer' ? (machinesSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="machinesSortKey() === 'manufacturer'"
+                              [class.sort-icon-muted]="machinesSortKey() !== 'manufacturer'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setMachinesSort('serial_number')"
+                          tabindex="0"
+                          (keydown.enter)="setMachinesSort('serial_number')"
+                          aria-label="Sort by serial number"
+                        >
+                          <span class="th-sort-content">
+                            Serial Number
+                            <app-icon
+                              [name]="machinesSortKey() === 'serial_number' ? (machinesSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="machinesSortKey() === 'serial_number'"
+                              [class.sort-icon-muted]="machinesSortKey() !== 'serial_number'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setMachinesSort('plant_id')"
+                          tabindex="0"
+                          (keydown.enter)="setMachinesSort('plant_id')"
+                          aria-label="Sort by plant"
+                        >
+                          <span class="th-sort-content">
+                            Plant & Area
+                            <app-icon
+                              [name]="machinesSortKey() === 'plant_id' ? (machinesSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="machinesSortKey() === 'plant_id'"
+                              [class.sort-icon-muted]="machinesSortKey() !== 'plant_id'"
+                            />
+                          </span>
+                        </th>
                         <th class="text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      @for (m of filteredMachines(); track m.id) {
+                      @for (m of pagedMachines(); track m.id) {
                         <tr>
                           <td>
                             <app-status-pill
@@ -336,6 +435,15 @@ interface AssetStatusApi {
                     </tbody>
                   </table>
                 </div>
+                <div class="table-pagination">
+                  <app-pagination
+                    [page]="machinesPage()"
+                    [pageSize]="machinesPageSize()"
+                    [total]="filteredMachines().length"
+                    (pageChange)="machinesPage.set($event)"
+                    (pageSizeChange)="machinesPageSize.set($event); machinesPage.set(1)"
+                  />
+                </div>
               }
             }
 
@@ -353,21 +461,117 @@ interface AssetStatusApi {
                   </app-empty-state>
                 </div>
               } @else {
-                <div class="table-container">
+                <div class="table-container table-sticky-container">
                   <table class="assets-table">
                     <thead>
                       <tr>
-                        <th>Status</th>
-                        <th>Meter Name / Code</th>
-                        <th>Type</th>
-                        <th>Unit</th>
-                        <th>Manufacturer / Model</th>
-                        <th>Serial Number</th>
+                        <th
+                          class="th-sortable"
+                          (click)="setMetersSort('status')"
+                          tabindex="0"
+                          (keydown.enter)="setMetersSort('status')"
+                          aria-label="Sort by status"
+                        >
+                          <span class="th-sort-content">
+                            Status
+                            <app-icon
+                              [name]="metersSortKey() === 'status' ? (metersSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="metersSortKey() === 'status'"
+                              [class.sort-icon-muted]="metersSortKey() !== 'status'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setMetersSort('name')"
+                          tabindex="0"
+                          (keydown.enter)="setMetersSort('name')"
+                          aria-label="Sort by meter name"
+                        >
+                          <span class="th-sort-content">
+                            Meter Name / Code
+                            <app-icon
+                              [name]="metersSortKey() === 'name' ? (metersSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="metersSortKey() === 'name'"
+                              [class.sort-icon-muted]="metersSortKey() !== 'name'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setMetersSort('meter_type')"
+                          tabindex="0"
+                          (keydown.enter)="setMetersSort('meter_type')"
+                          aria-label="Sort by type"
+                        >
+                          <span class="th-sort-content">
+                            Type
+                            <app-icon
+                              [name]="metersSortKey() === 'meter_type' ? (metersSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="metersSortKey() === 'meter_type'"
+                              [class.sort-icon-muted]="metersSortKey() !== 'meter_type'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setMetersSort('unit')"
+                          tabindex="0"
+                          (keydown.enter)="setMetersSort('unit')"
+                          aria-label="Sort by unit"
+                        >
+                          <span class="th-sort-content">
+                            Unit
+                            <app-icon
+                              [name]="metersSortKey() === 'unit' ? (metersSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="metersSortKey() === 'unit'"
+                              [class.sort-icon-muted]="metersSortKey() !== 'unit'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setMetersSort('manufacturer')"
+                          tabindex="0"
+                          (keydown.enter)="setMetersSort('manufacturer')"
+                          aria-label="Sort by manufacturer"
+                        >
+                          <span class="th-sort-content">
+                            Manufacturer / Model
+                            <app-icon
+                              [name]="metersSortKey() === 'manufacturer' ? (metersSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="metersSortKey() === 'manufacturer'"
+                              [class.sort-icon-muted]="metersSortKey() !== 'manufacturer'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setMetersSort('serial_number')"
+                          tabindex="0"
+                          (keydown.enter)="setMetersSort('serial_number')"
+                          aria-label="Sort by serial number"
+                        >
+                          <span class="th-sort-content">
+                            Serial Number
+                            <app-icon
+                              [name]="metersSortKey() === 'serial_number' ? (metersSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="metersSortKey() === 'serial_number'"
+                              [class.sort-icon-muted]="metersSortKey() !== 'serial_number'"
+                            />
+                          </span>
+                        </th>
                         <th class="text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      @for (meter of filteredMeters(); track meter.id) {
+                      @for (meter of pagedMeters(); track meter.id) {
                         <tr>
                           <td>
                             <app-status-pill
@@ -452,6 +656,15 @@ interface AssetStatusApi {
                     </tbody>
                   </table>
                 </div>
+                <div class="table-pagination">
+                  <app-pagination
+                    [page]="metersPage()"
+                    [pageSize]="metersPageSize()"
+                    [total]="filteredMeters().length"
+                    (pageChange)="metersPage.set($event)"
+                    (pageSizeChange)="metersPageSize.set($event); metersPage.set(1)"
+                  />
+                </div>
               }
             }
 
@@ -469,20 +682,100 @@ interface AssetStatusApi {
                   </app-empty-state>
                 </div>
               } @else {
-                <div class="table-container">
+                <div class="table-container table-sticky-container">
                   <table class="assets-table">
                     <thead>
                       <tr>
-                        <th>Status</th>
-                        <th>Gateway Name / Code</th>
-                        <th>Type</th>
-                        <th>IP Address & Port</th>
-                        <th>Plant</th>
+                        <th
+                          class="th-sortable"
+                          (click)="setGatewaysSort('status')"
+                          tabindex="0"
+                          (keydown.enter)="setGatewaysSort('status')"
+                          aria-label="Sort by status"
+                        >
+                          <span class="th-sort-content">
+                            Status
+                            <app-icon
+                              [name]="gatewaysSortKey() === 'status' ? (gatewaysSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="gatewaysSortKey() === 'status'"
+                              [class.sort-icon-muted]="gatewaysSortKey() !== 'status'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setGatewaysSort('name')"
+                          tabindex="0"
+                          (keydown.enter)="setGatewaysSort('name')"
+                          aria-label="Sort by gateway name"
+                        >
+                          <span class="th-sort-content">
+                            Gateway Name / Code
+                            <app-icon
+                              [name]="gatewaysSortKey() === 'name' ? (gatewaysSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="gatewaysSortKey() === 'name'"
+                              [class.sort-icon-muted]="gatewaysSortKey() !== 'name'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setGatewaysSort('gateway_type')"
+                          tabindex="0"
+                          (keydown.enter)="setGatewaysSort('gateway_type')"
+                          aria-label="Sort by type"
+                        >
+                          <span class="th-sort-content">
+                            Type
+                            <app-icon
+                              [name]="gatewaysSortKey() === 'gateway_type' ? (gatewaysSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="gatewaysSortKey() === 'gateway_type'"
+                              [class.sort-icon-muted]="gatewaysSortKey() !== 'gateway_type'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setGatewaysSort('ip_address')"
+                          tabindex="0"
+                          (keydown.enter)="setGatewaysSort('ip_address')"
+                          aria-label="Sort by IP address"
+                        >
+                          <span class="th-sort-content">
+                            IP Address & Port
+                            <app-icon
+                              [name]="gatewaysSortKey() === 'ip_address' ? (gatewaysSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="gatewaysSortKey() === 'ip_address'"
+                              [class.sort-icon-muted]="gatewaysSortKey() !== 'ip_address'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setGatewaysSort('plant_id')"
+                          tabindex="0"
+                          (keydown.enter)="setGatewaysSort('plant_id')"
+                          aria-label="Sort by plant"
+                        >
+                          <span class="th-sort-content">
+                            Plant
+                            <app-icon
+                              [name]="gatewaysSortKey() === 'plant_id' ? (gatewaysSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="gatewaysSortKey() === 'plant_id'"
+                              [class.sort-icon-muted]="gatewaysSortKey() !== 'plant_id'"
+                            />
+                          </span>
+                        </th>
                         <th class="text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      @for (g of filteredGateways(); track g.id) {
+                      @for (g of pagedGateways(); track g.id) {
                         <tr>
                           <td>
                             <app-status-pill
@@ -554,6 +847,15 @@ interface AssetStatusApi {
                       }
                     </tbody>
                   </table>
+                </div>
+                <div class="table-pagination">
+                  <app-pagination
+                    [page]="gatewaysPage()"
+                    [pageSize]="gatewaysPageSize()"
+                    [total]="filteredGateways().length"
+                    (pageChange)="gatewaysPage.set($event)"
+                    (pageSizeChange)="gatewaysPageSize.set($event); gatewaysPage.set(1)"
+                  />
                 </div>
               }
             }
@@ -952,16 +1254,21 @@ interface AssetStatusApi {
       flex-direction: column;
       gap: var(--space-4);
       padding: var(--space-4);
-      max-width: 1400px;
-      margin: 0 auto;
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .assets-header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--bg-app);
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: var(--space-4);
       flex-wrap: wrap;
+      padding: var(--space-2) 0;
     }
 
     .assets-header__title {
@@ -984,10 +1291,16 @@ interface AssetStatusApi {
     }
 
     .tabs-bar {
+      position: sticky;
+      top: 56px;
+      z-index: 19;
+      background: var(--bg-app);
       display: flex;
       gap: var(--space-2);
       border-bottom: 1px solid var(--border-light);
-      padding-bottom: var(--space-2);
+      padding: var(--space-2) 0;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
     .tab-btn {
@@ -1002,6 +1315,8 @@ interface AssetStatusApi {
       font-size: var(--text-sm);
       font-weight: 500;
       cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
       transition: all 0.2s ease;
     }
 
@@ -1017,11 +1332,16 @@ interface AssetStatusApi {
     }
 
     .assets-toolbar {
+      position: sticky;
+      top: 104px;
+      z-index: 18;
+      background: var(--bg-app);
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: var(--space-3);
       flex-wrap: wrap;
+      padding: var(--space-2) 0;
     }
 
     .search-box {
@@ -1092,7 +1412,9 @@ interface AssetStatusApi {
     }
 
     .table-container {
-      overflow-x: auto;
+      overflow: auto;
+      max-height: calc(100vh - 310px);
+      min-height: 240px;
     }
 
     .assets-table {
@@ -1103,6 +1425,11 @@ interface AssetStatusApi {
     }
 
     .assets-table th {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg-card);
+      box-shadow: 0 1px 0 var(--border-light);
       padding: 12px 16px;
       font-size: var(--text-xs);
       font-weight: 600;
@@ -1110,7 +1437,10 @@ interface AssetStatusApi {
       letter-spacing: 0.05em;
       color: var(--text-secondary);
       border-bottom: 1px solid var(--border-light);
-      background: rgba(255, 255, 255, 0.01);
+    }
+
+    .table-pagination {
+      border-top: 1px solid var(--border-light);
     }
 
     .assets-table td {
@@ -1234,6 +1564,53 @@ interface AssetStatusApi {
     @keyframes spin {
       100% {
         transform: rotate(360deg);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .assets-page {
+        padding: var(--space-3);
+        gap: var(--space-3);
+      }
+      .assets-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-2);
+      }
+      .assets-header__actions {
+        width: 100%;
+        display: flex;
+        gap: var(--space-2);
+      }
+      .assets-header__actions button {
+        flex: 1;
+      }
+      .assets-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--space-2);
+      }
+      .search-box {
+        max-width: 100%;
+        width: 100%;
+        min-width: 0;
+      }
+      .toolbar-filters {
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+      }
+      .form-row {
+        flex-direction: column;
+        gap: 12px;
+      }
+      .modal-actions {
+        flex-direction: column-reverse;
+        width: 100%;
+      }
+      .modal-actions button {
+        width: 100%;
       }
     }
   `,
@@ -1432,6 +1809,70 @@ export class AssetsPageComponent implements OnInit {
     });
   });
 
+  // Sorting & Pagination for Machines
+  readonly machinesSortKey = signal<string | null>('name');
+  readonly machinesSortDir = signal<SortDirection>('asc');
+  readonly machinesPage = signal(1);
+  readonly machinesPageSize = signal(10);
+  readonly sortedMachines = computed(() =>
+    sortData(this.filteredMachines(), this.machinesSortKey(), this.machinesSortDir()),
+  );
+  readonly pagedMachines = computed(() => {
+    const s = (this.machinesPage() - 1) * this.machinesPageSize();
+    return this.sortedMachines().slice(s, s + this.machinesPageSize());
+  });
+
+  // Sorting & Pagination for Meters
+  readonly metersSortKey = signal<string | null>('name');
+  readonly metersSortDir = signal<SortDirection>('asc');
+  readonly metersPage = signal(1);
+  readonly metersPageSize = signal(10);
+  readonly sortedMeters = computed(() =>
+    sortData(this.filteredMeters(), this.metersSortKey(), this.metersSortDir()),
+  );
+  readonly pagedMeters = computed(() => {
+    const s = (this.metersPage() - 1) * this.metersPageSize();
+    return this.sortedMeters().slice(s, s + this.metersPageSize());
+  });
+
+  // Sorting & Pagination for Gateways
+  readonly gatewaysSortKey = signal<string | null>('name');
+  readonly gatewaysSortDir = signal<SortDirection>('asc');
+  readonly gatewaysPage = signal(1);
+  readonly gatewaysPageSize = signal(10);
+  readonly sortedGateways = computed(() =>
+    sortData(this.filteredGateways(), this.gatewaysSortKey(), this.gatewaysSortDir()),
+  );
+  readonly pagedGateways = computed(() => {
+    const s = (this.gatewaysPage() - 1) * this.gatewaysPageSize();
+    return this.sortedGateways().slice(s, s + this.gatewaysPageSize());
+  });
+
+  setMachinesSort(key: string): void {
+    const s = toggleSort(this.machinesSortKey(), this.machinesSortDir(), key);
+    this.machinesSortKey.set(s.key);
+    this.machinesSortDir.set(s.dir);
+  }
+
+  setMetersSort(key: string): void {
+    const s = toggleSort(this.metersSortKey(), this.metersSortDir(), key);
+    this.metersSortKey.set(s.key);
+    this.metersSortDir.set(s.dir);
+  }
+
+  setGatewaysSort(key: string): void {
+    const s = toggleSort(this.gatewaysSortKey(), this.gatewaysSortDir(), key);
+    this.gatewaysSortKey.set(s.key);
+    this.gatewaysSortDir.set(s.dir);
+  }
+
+  onSearchChange(term: string): void {
+    this.searchTerm.set(term);
+    this.machinesPage.set(1);
+    this.metersPage.set(1);
+    this.gatewaysPage.set(1);
+  }
+
   ngOnInit(): void {
     this.restoreAssetDrafts();
     this.destroyRef.onDestroy(() => this.persistAssetDrafts());
@@ -1454,6 +1895,9 @@ export class AssetsPageComponent implements OnInit {
   setTab(tab: AssetTab): void {
     this.activeTab.set(tab);
     this.searchTerm.set('');
+    this.machinesPage.set(1);
+    this.metersPage.set(1);
+    this.gatewaysPage.set(1);
     this.loadCurrentTab();
   }
 
@@ -1530,6 +1974,9 @@ export class AssetsPageComponent implements OnInit {
   setStatusFilter(filter: 'all' | RecordStatus): void {
     const reload = filter === 'delete' || this.statusFilter() === 'delete';
     this.statusFilter.set(filter);
+    this.machinesPage.set(1);
+    this.metersPage.set(1);
+    this.gatewaysPage.set(1);
     if (reload) this.loadCurrentTab();
   }
 

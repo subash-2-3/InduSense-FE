@@ -463,8 +463,8 @@ interface AreaDraft {
       flex-direction: column;
       gap: var(--space-4);
       padding: var(--space-4);
-      max-width: 1400px;
-      margin: 0 auto;
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .loc-header {
@@ -571,13 +571,13 @@ interface AreaDraft {
 
     .loc-skeleton {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
       gap: var(--space-4);
     }
 
     .loc-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
       gap: var(--space-4);
     }
 
@@ -789,6 +789,50 @@ interface AreaDraft {
     @keyframes spin {
       100% {
         transform: rotate(360deg);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .loc-page {
+        padding: var(--space-3);
+        gap: var(--space-3);
+      }
+      .loc-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-2);
+      }
+      .loc-header__actions {
+        width: 100%;
+        display: flex;
+        gap: var(--space-2);
+      }
+      .loc-header__actions button {
+        flex: 1;
+      }
+      .loc-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--space-2);
+      }
+      .search-box {
+        max-width: 100%;
+        width: 100%;
+        min-width: 0;
+      }
+      .filter-group {
+        width: 100%;
+        justify-content: space-between;
+      }
+      .filter-select {
+        flex: 1;
+      }
+      .modal-actions {
+        flex-direction: column-reverse;
+        width: 100%;
+      }
+      .modal-actions button {
+        width: 100%;
       }
     }
   `,

@@ -27,7 +27,7 @@
         placeholder="Search name or code"
         aria-label="Search companies"
         [ngModel]="search()"
-        (ngModelChange)="search.set($event)"
+        (ngModelChange)="onSearchChange($event)"
       />
     </label>
     <label class="toolbar__filter">
@@ -53,20 +53,105 @@
         icon="building"
       />
     } @else {
-      <div class="table-wrap">
+      <div class="table-wrap table-sticky-container">
         <table class="table">
           <thead>
             <tr>
-              <th scope="col">Code</th>
-              <th scope="col">Name</th>
-              <th scope="col">Timezone</th>
-              <th scope="col">Status</th>
-              <th scope="col">Created</th>
+              <th
+                scope="col"
+                class="th-sortable"
+                (click)="setSort('code')"
+                tabindex="0"
+                (keydown.enter)="setSort('code')"
+                aria-label="Sort by code"
+              >
+                <span class="th-sort-content">
+                  Code
+                  <app-icon
+                    [name]="sortKey() === 'code' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                    [size]="13"
+                    [class.sort-icon-active]="sortKey() === 'code'"
+                    [class.sort-icon-muted]="sortKey() !== 'code'"
+                  />
+                </span>
+              </th>
+              <th
+                scope="col"
+                class="th-sortable"
+                (click)="setSort('name')"
+                tabindex="0"
+                (keydown.enter)="setSort('name')"
+                aria-label="Sort by name"
+              >
+                <span class="th-sort-content">
+                  Name
+                  <app-icon
+                    [name]="sortKey() === 'name' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                    [size]="13"
+                    [class.sort-icon-active]="sortKey() === 'name'"
+                    [class.sort-icon-muted]="sortKey() !== 'name'"
+                  />
+                </span>
+              </th>
+              <th
+                scope="col"
+                class="th-sortable"
+                (click)="setSort('timezone')"
+                tabindex="0"
+                (keydown.enter)="setSort('timezone')"
+                aria-label="Sort by timezone"
+              >
+                <span class="th-sort-content">
+                  Timezone
+                  <app-icon
+                    [name]="sortKey() === 'timezone' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                    [size]="13"
+                    [class.sort-icon-active]="sortKey() === 'timezone'"
+                    [class.sort-icon-muted]="sortKey() !== 'timezone'"
+                  />
+                </span>
+              </th>
+              <th
+                scope="col"
+                class="th-sortable"
+                (click)="setSort('status')"
+                tabindex="0"
+                (keydown.enter)="setSort('status')"
+                aria-label="Sort by status"
+              >
+                <span class="th-sort-content">
+                  Status
+                  <app-icon
+                    [name]="sortKey() === 'status' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                    [size]="13"
+                    [class.sort-icon-active]="sortKey() === 'status'"
+                    [class.sort-icon-muted]="sortKey() !== 'status'"
+                  />
+                </span>
+              </th>
+              <th
+                scope="col"
+                class="th-sortable"
+                (click)="setSort('created_at')"
+                tabindex="0"
+                (keydown.enter)="setSort('created_at')"
+                aria-label="Sort by created time"
+              >
+                <span class="th-sort-content">
+                  Created
+                  <app-icon
+                    [name]="sortKey() === 'created_at' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                    [size]="13"
+                    [class.sort-icon-active]="sortKey() === 'created_at'"
+                    [class.sort-icon-muted]="sortKey() !== 'created_at'"
+                  />
+                </span>
+              </th>
               <th scope="col" class="num">Actions</th>
             </tr>
           </thead>
           <tbody>
-            @for (c of filtered(); track c.id) {
+            @for (c of pagedCompanies(); track c.id) {
               <tr>
                 <td class="mono">{{ c.code }}</td>
                 <td>{{ c.name }}</td>
@@ -123,6 +208,15 @@
             }
           </tbody>
         </table>
+      </div>
+      <div class="table-pagination">
+        <app-pagination
+          [page]="page()"
+          [pageSize]="pageSize()"
+          [total]="filtered().length"
+          (pageChange)="onPageChange($event)"
+          (pageSizeChange)="onPageSizeChange($event)"
+        />
       </div>
     }
   </app-card>

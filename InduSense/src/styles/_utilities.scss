@@ -57,3 +57,58 @@
   flex: 1 1 auto;
   min-width: 0;
 }
+
+// Sortable table headers
+th.sortable,
+.th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--transition-fast);
+  white-space: nowrap;
+
+  &:hover {
+    color: var(--accent-cyan);
+  }
+}
+
+.th-sort-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
+}
+
+.sort-icon-muted {
+  opacity: 0.35;
+  transition: opacity var(--transition-fast);
+}
+
+th:hover .sort-icon-muted {
+  opacity: 0.8;
+}
+
+.sort-icon-active {
+  color: var(--accent-cyan);
+}
+
+// Fixed/sticky headers and scrollable table container
+.table-sticky-container {
+  overflow: auto;
+  max-height: calc(100vh - 280px);
+  min-height: 240px;
+  -webkit-overflow-scrolling: touch;
+
+  table thead th,
+  .dev-table thead th,
+  .assets-table thead th,
+  .settings-table thead th,
+  .reports-table thead th,
+  .table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg-card);
+    box-shadow: 0 1px 0 var(--border-light);
+  }
+}
+

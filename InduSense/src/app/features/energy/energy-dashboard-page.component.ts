@@ -9,7 +9,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   EMPTY,
   Observable,
@@ -43,12 +43,14 @@ import {
 import { ChartThemeService } from '../../shared/charts/chart-theme.service';
 import { FormsModule } from '@angular/forms';
 import { EchartDirective } from '../../shared/charts/echart.directive';
+import { DashboardToolbarComponent } from '../../layout/dashboard-toolbar/dashboard-toolbar.component';
 import {
   ButtonComponent,
   CardComponent,
   EmptyStateComponent,
   ErrorStateComponent,
   IconComponent,
+  PaginationComponent,
   SearchableSelectComponent,
   SelectOption,
   SkeletonComponent,
@@ -57,6 +59,7 @@ import {
 } from '../../shared/ui';
 import { formatDateTime, formatRelativeTime } from '../../shared/utils/format';
 import { injectNow } from '../../shared/utils/now';
+import { SortDirection, sortData, toggleSort } from '../../shared/utils/sort';
 import {
   DistributionChart,
   METRIC_LABELS,
@@ -100,6 +103,7 @@ function message(error: unknown): string {
     RouterLink,
     FormsModule,
     EchartDirective,
+    DashboardToolbarComponent,
     EnergyFiltersComponent,
     MachinesSectionComponent,
     ButtonComponent,
@@ -107,20 +111,63 @@ function message(error: unknown): string {
     EmptyStateComponent,
     ErrorStateComponent,
     IconComponent,
+    PaginationComponent,
     SearchableSelectComponent,
     SkeletonComponent,
     StatusPillComponent,
   ],
   template: `
     <div class="energy">
+      <app-dashboard-toolbar
+        [activeId]="activeDashboardId()"
+        [refreshing]="rangeLoading()"
+        [lastUpdated]="live()?.generated_at ?? null"
+        (refresh)="refresh()"
+      />
+
       <header class="energy__header">
         <div>
-          <h1 class="energy__title">Energy &amp; Machines</h1>
+          <h1 class="energy__title">
+            {{ viewMode() === 'oee' ? 'OEE & Machine Fleet' : (viewMode() === 'energy' ? 'Energy SCADA' : 'Energy & Machines') }}
+          </h1>
           <p class="energy__subtitle">
-            Machine status, production and availability, with the live energy values of your meters
+            {{ viewMode() === 'oee' ? 'Real-time OEE metrics, machine status, production and availability tracking' : 'Machine status, production and availability, with the live energy values of your meters' }}
           </p>
         </div>
         <div class="energy__actions">
+          <div class="view-modes" role="tablist" aria-label="Dashboard view modes">
+            <button
+              type="button"
+              role="tab"
+              class="view-mode-btn"
+              [class.view-mode-btn--active]="viewMode() === 'all'"
+              [attr.aria-selected]="viewMode() === 'all'"
+              (click)="setViewMode('all')"
+            >
+              <app-icon name="line-chart" [size]="14" /> All
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="view-mode-btn"
+              [class.view-mode-btn--active]="viewMode() === 'energy'"
+              [attr.aria-selected]="viewMode() === 'energy'"
+              (click)="setViewMode('energy')"
+            >
+              <app-icon name="zap" [size]="14" /> Energy
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="view-mode-btn"
+              [class.view-mode-btn--active]="viewMode() === 'oee'"
+              [attr.aria-selected]="viewMode() === 'oee'"
+              (click)="setViewMode('oee')"
+            >
+              <app-icon name="gauge" [size]="14" /> OEE
+            </button>
+          </div>
+
           @if (live(); as l) {
             <span class="energy__updated" aria-live="polite"
               >Updated {{ relative(l.generated_at) }}</span
@@ -137,297 +184,353 @@ function message(error: unknown): string {
         </div>
       </header>
 
-      <app-card>
+      <app-card expandable="true">
         <app-energy-filters (changed)="onFilters($event)" />
       </app-card>
 
       <!-- Machines (OEE) ----------------------------------------------------- -->
-      <app-machines-section [filters]="filterState()" />
+      @if (viewMode() === 'all' || viewMode() === 'oee') {
+        <app-machines-section [filters]="filterState()" />
+      }
 
       <!-- Energy summary ----------------------------------------------------- -->
-      <section aria-labelledby="energy-summary" class="section">
-        <h2 id="energy-summary" class="section__title">Energy</h2>
-        @if (overviewError(); as err) {
-          <app-card
-            ><app-error-state heading="Summary unavailable" [message]="err" (retry)="refresh()"
-          /></app-card>
-        } @else if (overview(); as o) {
-          <div class="kpis">
-            <div class="kpi">
-              <span class="kpi__label">Total energy</span>
-              <span class="kpi__value">{{ quantity(o.summary.total_energy) }}</span>
-            </div>
-            <div class="kpi">
-              <span class="kpi__label">Average power</span>
-              <span class="kpi__value">{{ kpi(o.summary.average_power) }}</span>
-            </div>
-            <div class="kpi">
-              <span class="kpi__label">Peak power</span>
-              <span class="kpi__value">{{ kpi(o.summary.peak_power) }}</span>
-            </div>
-            <div class="kpi">
-              <span class="kpi__label">Minimum power</span>
-              <span class="kpi__value">{{ kpi(o.summary.minimum_power) }}</span>
-            </div>
-            <div class="kpi">
-              <span class="kpi__label">Avg power factor</span>
-              <span class="kpi__value">{{ kpi(o.summary.average_power_factor) }}</span>
-            </div>
-            <div class="kpi">
-              <span class="kpi__label">Avg voltage</span>
-              <span class="kpi__value">{{ kpi(o.summary.average_voltage) }}</span>
-            </div>
-            <div class="kpi">
-              <span class="kpi__label">Avg current</span>
-              <span class="kpi__value">{{ kpi(o.summary.average_current) }}</span>
-            </div>
-            <div class="kpi">
-              <span class="kpi__label">Meters online</span>
-              <span class="kpi__value">
-                <span class="text-ok">{{ o.summary.active_meters }}</span> / {{ o.summary.meters }}
-              </span>
-            </div>
-          </div>
-          @if (o.metadata.notes.length) {
-            <ul class="notes">
-              @for (n of o.metadata.notes; track n) {
-                <li>{{ n }}</li>
-              }
-            </ul>
-          }
-        } @else {
-          <div class="kpis">
-            @for (i of [1, 2, 3, 4]; track i) {
-              <app-skeleton height="68px" />
-            }
-          </div>
-        }
-      </section>
-
-      <!-- Live --------------------------------------------------------------- -->
-      <section aria-labelledby="energy-live" class="section">
-        <h2 id="energy-live" class="section__title">Live values</h2>
-        @if (liveError(); as err) {
-          <app-card
-            ><app-error-state heading="Live values unavailable" [message]="err" (retry)="refresh()"
-          /></app-card>
-        } @else if (live(); as l) {
-          @if (l.assets.length) {
-            <div class="live-grid">
-              @for (a of l.assets; track a.asset_type + a.asset_id) {
-                <app-card>
-                  <div class="asset">
-                    <div class="asset__head">
-                      <div>
-                        <h3 class="asset__name">{{ a.name }}</h3>
-                        <p class="asset__meta">{{ assetMeta(a) }}</p>
-                      </div>
-                      <app-status-pill
-                        dot
-                        [label]="statusLabel(a.status)"
-                        [tone]="tone(a.status)"
-                      />
-                    </div>
-                    <dl class="params">
-                      @for (p of a.parameters; track p.tag_id) {
-                        <div class="param" [class.param--stale]="p.connection_state !== 'ONLINE'">
-                          <dt class="param__name" [title]="metricLabel(p.metric)">{{ p.name }}</dt>
-                          <dd class="param__value">
-                            {{ value(p.value, p.unit, p.roundoff_digits) }}
-                          </dd>
-                        </div>
-                      }
-                    </dl>
-                    <p class="asset__time">
-                      Last data: {{ a.last_data_at ? dateTime(a.last_data_at) : 'never' }}
-                    </p>
-                  </div>
-                </app-card>
-              }
-            </div>
-          } @else {
-            <app-card>
-              <app-empty-state
-                heading="No energy parameters"
-                message="Map tags to a meter or machine as Power, Energy, Voltage, Current, Frequency or Power factor (Assets → Tags) to see them here."
-              />
-            </app-card>
-          }
-        } @else {
-          <div class="live-grid">
-            <app-skeleton height="180px" /><app-skeleton height="180px" />
-          </div>
-        }
-      </section>
-
-      <!-- Trends ------------------------------------------------------------- -->
-      <section aria-labelledby="energy-trends" class="section">
-        <div class="section__head">
-          <h2 id="energy-trends" class="section__title">Trends</h2>
-          @if (tagGroups().length) {
-            <details class="picker">
-              <summary class="picker__button">
-                Parameters ({{ selectedTags() ? selectedTags()!.length : 'all' }})
-                <app-icon name="chevron-down" [size]="14" />
-              </summary>
-              <div class="picker__panel">
-                <button type="button" class="picker__all" (click)="selectAllTags()">
-                  Show all
-                </button>
-                @for (g of tagGroups(); track g.unit) {
-                  <fieldset class="picker__group">
-                    <legend>{{ g.unit }}</legend>
-                    @for (t of g.tags; track t.tag_id) {
-                      <label class="picker__item">
-                        <input
-                          type="checkbox"
-                          [checked]="isSelected(t.tag_id)"
-                          (change)="toggleTag(t.tag_id)"
-                        />
-                        {{ t.name }}
-                      </label>
-                    }
-                  </fieldset>
-                }
-              </div>
-            </details>
-          }
-        </div>
-        @if (trendsError(); as err) {
-          <app-card
-            ><app-error-state heading="Trends unavailable" [message]="err" (retry)="refresh()"
-          /></app-card>
-        } @else if (trends(); as t) {
-          @if (t.groups.length) {
-            <div class="trend-grid">
-              @for (c of trendCharts(); track c.key) {
-                <app-card [heading]="c.title">
-                  <div
-                    class="chart"
-                    role="img"
-                    [attr.aria-label]="c.title"
-                    [appEchart]="c.options"
-                  ></div>
-                </app-card>
-              }
-            </div>
-          } @else {
-            <app-card
-              ><app-empty-state
-                heading="No trend data"
-                message="No samples for the selected parameters in this period."
-            /></app-card>
-          }
-        } @else {
-          <app-skeleton height="260px" />
-        }
-      </section>
-
-      <!-- Distribution and meters --------------------------------------------- -->
-      <div class="split">
-        <section aria-labelledby="energy-distribution" class="section">
+      @if (viewMode() === 'all' || viewMode() === 'energy') {
+        <section aria-labelledby="energy-summary" class="section">
           <div class="section__head">
-            <h2 id="energy-distribution" class="section__title">Energy distribution</h2>
-            <div class="section__tools">
-              <app-searchable-select
-                ariaLabel="Group by"
-                [options]="groupSelectOptions"
-                [ngModel]="groupBy()"
-                (ngModelChange)="setGroupBy($event)"
-              />
-              <div class="toggle" role="radiogroup" aria-label="Chart type">
-                @for (c of chartTypes; track c) {
-                  <button
-                    type="button"
-                    role="radio"
-                    class="toggle__item"
-                    [class.toggle__item--active]="chart() === c"
-                    [attr.aria-checked]="chart() === c"
-                    (click)="chart.set(c)"
-                  >
-                    {{ c === 'pie' ? 'Pie' : 'Bar' }}
-                  </button>
-                }
-              </div>
-            </div>
+            <h2 id="energy-summary" class="section__title">Energy</h2>
           </div>
-          <app-card>
-            @if (distributionError(); as err) {
-              <app-error-state
-                heading="Distribution unavailable"
-                [message]="err"
-                (retry)="refresh()"
-              />
-            } @else if (distribution(); as d) {
-              @if (d.items.length) {
-                <div
-                  class="chart chart--tall"
-                  role="img"
-                  [attr.aria-label]="distributionSummary()"
-                  [appEchart]="distributionOptions()"
-                  (sizeChange)="distWidth.set($event.width)"
-                ></div>
-                <p class="total">Total: {{ quantity(d.total) }}</p>
-              } @else {
-                <app-empty-state
-                  compact
-                  heading="No consumption"
-                  [message]="d.metadata.notes[0] || 'No energy consumed in this period.'"
-                />
+          @if (overviewError(); as err) {
+            <app-card
+              ><app-error-state heading="Summary unavailable" [message]="err" (retry)="refresh()"
+            /></app-card>
+          } @else if (overview(); as o) {
+            <app-card heading="Energy Telemetry Summary" expandable="true">
+              <div class="kpis">
+                <div class="kpi">
+                  <span class="kpi__label">Total energy</span>
+                  <span class="kpi__value">{{ quantity(o.summary.total_energy) }}</span>
+                </div>
+                <div class="kpi">
+                  <span class="kpi__label">Average power</span>
+                  <span class="kpi__value">{{ kpi(o.summary.average_power) }}</span>
+                </div>
+                <div class="kpi">
+                  <span class="kpi__label">Peak power</span>
+                  <span class="kpi__value">{{ kpi(o.summary.peak_power) }}</span>
+                </div>
+                <div class="kpi">
+                  <span class="kpi__label">Minimum power</span>
+                  <span class="kpi__value">{{ kpi(o.summary.minimum_power) }}</span>
+                </div>
+                <div class="kpi">
+                  <span class="kpi__label">Avg power factor</span>
+                  <span class="kpi__value">{{ kpi(o.summary.average_power_factor) }}</span>
+                </div>
+                <div class="kpi">
+                  <span class="kpi__label">Avg voltage</span>
+                  <span class="kpi__value">{{ kpi(o.summary.average_voltage) }}</span>
+                </div>
+                <div class="kpi">
+                  <span class="kpi__label">Avg current</span>
+                  <span class="kpi__value">{{ kpi(o.summary.average_current) }}</span>
+                </div>
+                <div class="kpi">
+                  <span class="kpi__label">Meters online</span>
+                  <span class="kpi__value">
+                    <span class="text-ok">{{ o.summary.active_meters }}</span> / {{ o.summary.meters }}
+                  </span>
+                </div>
+              </div>
+              @if (o.metadata.notes.length) {
+                <ul class="notes">
+                  @for (n of o.metadata.notes; track n) {
+                    <li>{{ n }}</li>
+                  }
+                </ul>
               }
-            } @else {
-              <app-skeleton height="240px" />
-            }
-          </app-card>
+            </app-card>
+          } @else {
+            <div class="kpis">
+              @for (i of [1, 2, 3, 4]; track i) {
+                <app-skeleton height="68px" />
+              }
+            </div>
+          }
         </section>
 
-        <section aria-labelledby="energy-meters" class="section">
-          <h2 id="energy-meters" class="section__title">Meters</h2>
-          <app-card [padded]="false">
-            @if (overview(); as o) {
-              <div class="table-wrap">
-                <table class="table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Meter</th>
-                      <th scope="col">Location</th>
-                      <th scope="col">Status</th>
-                      <th scope="col" class="num">Power</th>
-                      <th scope="col">Last data</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (m of o.meters; track m.asset_id) {
-                      <tr>
-                        <td>
-                          <strong>{{ m.name }}</strong>
-                          <div class="mono">{{ m.code }}</div>
-                        </td>
-                        <td>{{ m.plant_name }}{{ m.area_name ? ' · ' + m.area_name : '' }}</td>
-                        <td>
-                          <app-status-pill
-                            dot
-                            [label]="statusLabel(m.status)"
-                            [tone]="tone(m.status)"
-                          />
-                        </td>
-                        <td class="num mono">{{ kpi(m.latest_power) }}</td>
-                        <td>{{ m.last_data_at ? relative(m.last_data_at) : '—' }}</td>
-                      </tr>
-                    } @empty {
-                      <tr>
-                        <td colspan="5" class="empty">No meters with energy parameters.</td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
+        <!-- Live --------------------------------------------------------------- -->
+        <section aria-labelledby="energy-live" class="section">
+          <h2 id="energy-live" class="section__title">Live values</h2>
+          @if (liveError(); as err) {
+            <app-card
+              ><app-error-state heading="Live values unavailable" [message]="err" (retry)="refresh()"
+            /></app-card>
+          } @else if (live(); as l) {
+            @if (l.assets.length) {
+              <div class="live-grid">
+                @for (a of l.assets; track a.asset_type + a.asset_id) {
+                  <app-card [heading]="a.name" expandable="true">
+                    <div class="asset">
+                      <div class="asset__head">
+                        <div>
+                          <p class="asset__meta">{{ assetMeta(a) }}</p>
+                        </div>
+                        <app-status-pill
+                          dot
+                          [label]="statusLabel(a.status)"
+                          [tone]="tone(a.status)"
+                        />
+                      </div>
+                      <dl class="params">
+                        @for (p of a.parameters; track p.tag_id) {
+                          <div class="param" [class.param--stale]="p.connection_state !== 'ONLINE'">
+                            <dt class="param__name" [title]="metricLabel(p.metric)">{{ p.name }}</dt>
+                            <dd class="param__value">
+                              {{ value(p.value, p.unit, p.roundoff_digits) }}
+                            </dd>
+                          </div>
+                        }
+                      </dl>
+                      <p class="asset__time">
+                        Last data: {{ a.last_data_at ? dateTime(a.last_data_at) : 'never' }}
+                      </p>
+                    </div>
+                  </app-card>
+                }
               </div>
             } @else {
-              <div class="pad"><app-skeleton height="120px" /></div>
+              <app-card>
+                <app-empty-state
+                  heading="No energy parameters"
+                  message="Map tags to a meter or machine as Power, Energy, Voltage, Current, Frequency or Power factor (Assets → Tags) to see them here."
+                />
+              </app-card>
             }
-          </app-card>
+          } @else {
+            <div class="live-grid">
+              <app-skeleton height="180px" /><app-skeleton height="180px" />
+            </div>
+          }
         </section>
-      </div>
+
+        <!-- Trends ------------------------------------------------------------- -->
+        <section aria-labelledby="energy-trends" class="section">
+          <div class="section__head">
+            <h2 id="energy-trends" class="section__title">Trends</h2>
+            @if (tagGroups().length) {
+              <details class="picker">
+                <summary class="picker__button">
+                  Parameters ({{ selectedTags() ? selectedTags()!.length : 'all' }})
+                  <app-icon name="chevron-down" [size]="14" />
+                </summary>
+                <div class="picker__panel">
+                  <button type="button" class="picker__all" (click)="selectAllTags()">
+                    Show all
+                  </button>
+                  @for (g of tagGroups(); track g.unit) {
+                    <fieldset class="picker__group">
+                      <legend>{{ g.unit }}</legend>
+                      @for (t of g.tags; track t.tag_id) {
+                        <label class="picker__item">
+                          <input
+                            type="checkbox"
+                            [checked]="isSelected(t.tag_id)"
+                            (change)="toggleTag(t.tag_id)"
+                          />
+                          {{ t.name }}
+                        </label>
+                      }
+                    </fieldset>
+                  }
+                </div>
+              </details>
+            }
+          </div>
+          @if (trendsError(); as err) {
+            <app-card
+              ><app-error-state heading="Trends unavailable" [message]="err" (retry)="refresh()"
+            /></app-card>
+          } @else if (trends(); as t) {
+            @if (t.groups.length) {
+              <div class="trend-grid">
+                @for (c of trendCharts(); track c.key) {
+                  <app-card [heading]="c.title" expandable="true">
+                    <div
+                      class="chart"
+                      role="img"
+                      [attr.aria-label]="c.title"
+                      [appEchart]="c.options"
+                    ></div>
+                  </app-card>
+                }
+              </div>
+            } @else {
+              <app-card
+                ><app-empty-state
+                  heading="No trend data"
+                  message="No samples for the selected parameters in this period."
+              /></app-card>
+            }
+          } @else {
+            <app-skeleton height="260px" />
+          }
+        </section>
+
+        <!-- Distribution and meters --------------------------------------------- -->
+        <div class="split">
+          <section aria-labelledby="energy-distribution" class="section">
+            <div class="section__head">
+              <h2 id="energy-distribution" class="section__title">Energy distribution</h2>
+              <div class="section__tools">
+                <app-searchable-select
+                  ariaLabel="Group by"
+                  [options]="groupSelectOptions"
+                  [ngModel]="groupBy()"
+                  (ngModelChange)="setGroupBy($event)"
+                />
+                <div class="toggle" role="radiogroup" aria-label="Chart type">
+                  @for (c of chartTypes; track c) {
+                    <button
+                      type="button"
+                      role="radio"
+                      class="toggle__item"
+                      [class.toggle__item--active]="chart() === c"
+                      [attr.aria-checked]="chart() === c"
+                      (click)="chart.set(c)"
+                    >
+                      {{ c === 'pie' ? 'Pie' : 'Bar' }}
+                    </button>
+                  }
+                </div>
+              </div>
+            </div>
+            <app-card heading="Energy Distribution" expandable="true">
+              @if (distributionError(); as err) {
+                <app-error-state
+                  heading="Distribution unavailable"
+                  [message]="err"
+                  (retry)="refresh()"
+                />
+              } @else if (distribution(); as d) {
+                @if (d.items.length) {
+                  <div
+                    class="chart chart--tall"
+                    role="img"
+                    [attr.aria-label]="distributionSummary()"
+                    [appEchart]="distributionOptions()"
+                    (sizeChange)="distWidth.set($event.width)"
+                  ></div>
+                  <p class="total">Total: {{ quantity(d.total) }}</p>
+                } @else {
+                  <app-empty-state
+                    compact
+                    heading="No consumption"
+                    [message]="d.metadata.notes[0] || 'No energy consumed in this period.'"
+                  />
+                }
+              } @else {
+                <app-skeleton height="240px" />
+              }
+            </app-card>
+          </section>
+
+          <section aria-labelledby="energy-meters" class="section">
+            <h2 id="energy-meters" class="section__title">Meters</h2>
+            <app-card heading="Energy Meters Fleet" [padded]="false" expandable="true">
+              @if (overview(); as o) {
+                <div class="table-wrap table-sticky-container">
+                  <table class="table">
+                    <thead>
+                      <tr>
+                        <th scope="col" class="th-sortable" (click)="toggleMetersSort('name')" tabindex="0" (keydown.enter)="toggleMetersSort('name')">
+                          <span class="th-sort-content">
+                            Meter
+                            <app-icon
+                              [name]="metersSortKey() === 'name' ? (metersSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="metersSortKey() === 'name'"
+                              [class.sort-icon-muted]="metersSortKey() !== 'name'"
+                            />
+                          </span>
+                        </th>
+                        <th scope="col" class="th-sortable" (click)="toggleMetersSort('plant_name')" tabindex="0" (keydown.enter)="toggleMetersSort('plant_name')">
+                          <span class="th-sort-content">
+                            Location
+                            <app-icon
+                              [name]="metersSortKey() === 'plant_name' ? (metersSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="metersSortKey() === 'plant_name'"
+                              [class.sort-icon-muted]="metersSortKey() !== 'plant_name'"
+                            />
+                          </span>
+                        </th>
+                        <th scope="col" class="th-sortable" (click)="toggleMetersSort('status')" tabindex="0" (keydown.enter)="toggleMetersSort('status')">
+                          <span class="th-sort-content">
+                            Status
+                            <app-icon
+                              [name]="metersSortKey() === 'status' ? (metersSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="metersSortKey() === 'status'"
+                              [class.sort-icon-muted]="metersSortKey() !== 'status'"
+                            />
+                          </span>
+                        </th>
+                        <th scope="col" class="num">Power</th>
+                        <th scope="col" class="th-sortable" (click)="toggleMetersSort('last_data_at')" tabindex="0" (keydown.enter)="toggleMetersSort('last_data_at')">
+                          <span class="th-sort-content">
+                            Last data
+                            <app-icon
+                              [name]="metersSortKey() === 'last_data_at' ? (metersSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="metersSortKey() === 'last_data_at'"
+                              [class.sort-icon-muted]="metersSortKey() !== 'last_data_at'"
+                            />
+                          </span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (m of pagedMeters(); track m.asset_id) {
+                        <tr>
+                          <td>
+                            <strong>{{ m.name }}</strong>
+                            <div class="mono">{{ m.code }}</div>
+                          </td>
+                          <td>{{ m.plant_name }}{{ m.area_name ? ' · ' + m.area_name : '' }}</td>
+                          <td>
+                            <app-status-pill
+                              dot
+                              [label]="statusLabel(m.status)"
+                              [tone]="tone(m.status)"
+                            />
+                          </td>
+                          <td class="num mono">{{ kpi(m.latest_power) }}</td>
+                          <td>{{ m.last_data_at ? relative(m.last_data_at) : '—' }}</td>
+                        </tr>
+                      } @empty {
+                        <tr>
+                          <td colspan="5" class="empty">No meters with energy parameters.</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+                <div class="table-pagination">
+                  <app-pagination
+                    [page]="metersPage()"
+                    [pageSize]="metersPageSize()"
+                    [total]="o.meters.length"
+                    (pageChange)="metersPage.set($event)"
+                    (pageSizeChange)="metersPageSize.set($event); metersPage.set(1)"
+                  />
+                </div>
+              } @else {
+                <div class="pad"><app-skeleton height="120px" /></div>
+              }
+            </app-card>
+          </section>
+        </div>
+      }
     </div>
   `,
   styleUrls: ['./energy.scss', './energy-dashboard.scss'],
@@ -440,6 +543,22 @@ export class EnergyDashboardPageComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly theme = inject(ChartThemeService).current;
   private readonly now = injectNow(5000);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+
+  protected readonly viewMode = signal<'all' | 'energy' | 'oee'>('all');
+  protected readonly activeDashboardId = computed(() =>
+    this.viewMode() === 'oee' ? 'oee' : 'energy',
+  );
+
+  protected setViewMode(mode: 'all' | 'energy' | 'oee'): void {
+    this.viewMode.set(mode);
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { view: mode === 'all' ? null : mode },
+      queryParamsHandling: 'merge',
+    });
+  }
 
   protected readonly groupOptions = GROUP_OPTIONS;
   protected readonly groupSelectOptions: SelectOption[] = GROUP_OPTIONS.map((o) => ({
@@ -460,6 +579,29 @@ export class EnergyDashboardPageComponent {
   protected readonly distribution = signal<EnergyDistribution | null>(null);
   protected readonly distributionError = signal<string | null>(null);
   protected readonly rangeLoading = signal(false);
+
+  protected readonly metersPage = signal(1);
+  protected readonly metersPageSize = signal(10);
+  protected readonly metersSortKey = signal<string | null>(null);
+  protected readonly metersSortDir = signal<SortDirection>('asc');
+
+  protected readonly sortedMeters = computed(() => {
+    const list = this.overview()?.meters ?? [];
+    const k = this.metersSortKey();
+    if (!k) return list;
+    return sortData(list, (m: any) => m[k], this.metersSortDir());
+  });
+
+  protected readonly pagedMeters = computed(() => {
+    const list = this.sortedMeters();
+    const p = this.metersPage();
+    const sz = this.metersPageSize();
+    return list.slice((p - 1) * sz, p * sz);
+  });
+
+  protected toggleMetersSort(key: string): void {
+    toggleSort(this.metersSortKey, this.metersSortDir, key);
+  }
 
   protected readonly groupBy = signal<EnergyGroupBy>('meter');
   protected readonly chart = signal<DistributionChart>('pie');
@@ -502,6 +644,13 @@ export class EnergyDashboardPageComponent {
   private readonly distribution$ = new Subject<void>();
 
   constructor() {
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const v = params.get('view');
+      if (v === 'oee' || v === 'energy' || v === 'all') {
+        this.viewMode.set(v);
+      }
+    });
+
     const visible$ = fromEvent(this.document, 'visibilitychange').pipe(
       startWith(null),
       map(() => this.document.visibilityState !== 'hidden'),

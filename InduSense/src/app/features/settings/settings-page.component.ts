@@ -33,6 +33,7 @@ import {
   EmptyStateComponent,
   ErrorStateComponent,
   IconComponent,
+  PaginationComponent,
   SearchableSelectComponent,
   SelectOption,
   SkeletonComponent,
@@ -46,6 +47,7 @@ import {
   toggledStatus,
 } from '../../shared/utils/record-status';
 import { formatDateTime } from '../../shared/utils/format';
+import { sortData, toggleSort, SortDirection } from '../../shared/utils/sort';
 
 type SettingsTab = 'users' | 'roles' | 'appearance';
 
@@ -85,6 +87,7 @@ function blankUserForm(): UserForm {
     EmptyStateComponent,
     ErrorStateComponent,
     DrawerComponent,
+    PaginationComponent,
     SearchableSelectComponent,
   ],
   template: `
@@ -160,10 +163,10 @@ function blankUserForm(): UserForm {
               class="search-input"
               [placeholder]="'Search ' + activeTab() + '...'"
               [ngModel]="searchTerm()"
-              (ngModelChange)="searchTerm.set($event)"
+              (ngModelChange)="onSearchChange($event)"
             />
             @if (searchTerm()) {
-              <button class="clear-btn" type="button" (click)="searchTerm.set('')">
+              <button class="clear-btn" type="button" (click)="onSearchChange('')">
                 <app-icon name="x" [size]="14" />
               </button>
             }
@@ -305,20 +308,84 @@ function blankUserForm(): UserForm {
                   </app-empty-state>
                 </div>
               } @else {
-                <div class="table-container">
+                <div class="table-container table-sticky-container">
                   <table class="settings-table">
                     <thead>
                       <tr>
-                        <th>Status</th>
-                        <th>User / Email</th>
-                        <th>Full Name</th>
+                        <th
+                          class="th-sortable"
+                          (click)="setUsersSort('status')"
+                          tabindex="0"
+                          (keydown.enter)="setUsersSort('status')"
+                          aria-label="Sort by status"
+                        >
+                          <span class="th-sort-content">
+                            Status
+                            <app-icon
+                              [name]="usersSortKey() === 'status' ? (usersSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="usersSortKey() === 'status'"
+                              [class.sort-icon-muted]="usersSortKey() !== 'status'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setUsersSort('email')"
+                          tabindex="0"
+                          (keydown.enter)="setUsersSort('email')"
+                          aria-label="Sort by user email"
+                        >
+                          <span class="th-sort-content">
+                            User / Email
+                            <app-icon
+                              [name]="usersSortKey() === 'email' ? (usersSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="usersSortKey() === 'email'"
+                              [class.sort-icon-muted]="usersSortKey() !== 'email'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setUsersSort('fullName')"
+                          tabindex="0"
+                          (keydown.enter)="setUsersSort('fullName')"
+                          aria-label="Sort by full name"
+                        >
+                          <span class="th-sort-content">
+                            Full Name
+                            <app-icon
+                              [name]="usersSortKey() === 'fullName' ? (usersSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="usersSortKey() === 'fullName'"
+                              [class.sort-icon-muted]="usersSortKey() !== 'fullName'"
+                            />
+                          </span>
+                        </th>
                         <th>Assigned Roles</th>
-                        <th>Last Login</th>
+                        <th
+                          class="th-sortable"
+                          (click)="setUsersSort('last_login_at')"
+                          tabindex="0"
+                          (keydown.enter)="setUsersSort('last_login_at')"
+                          aria-label="Sort by last login"
+                        >
+                          <span class="th-sort-content">
+                            Last Login
+                            <app-icon
+                              [name]="usersSortKey() === 'last_login_at' ? (usersSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="usersSortKey() === 'last_login_at'"
+                              [class.sort-icon-muted]="usersSortKey() !== 'last_login_at'"
+                            />
+                          </span>
+                        </th>
                         <th class="text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      @for (u of filteredUsers(); track u.id) {
+                      @for (u of pagedUsers(); track u.id) {
                         <tr>
                           <td>
                             <app-status-pill
@@ -400,6 +467,15 @@ function blankUserForm(): UserForm {
                     </tbody>
                   </table>
                 </div>
+                <div class="table-pagination">
+                  <app-pagination
+                    [page]="usersPage()"
+                    [pageSize]="usersPageSize()"
+                    [total]="filteredUsers().length"
+                    (pageChange)="usersPage.set($event)"
+                    (pageSizeChange)="usersPageSize.set($event); usersPage.set(1)"
+                  />
+                </div>
               }
             }
 
@@ -409,20 +485,84 @@ function blankUserForm(): UserForm {
                   <app-empty-state heading="No roles found" message="No security roles defined." />
                 </div>
               } @else {
-                <div class="table-container">
+                <div class="table-container table-sticky-container">
                   <table class="settings-table">
                     <thead>
                       <tr>
-                        <th>Role Code</th>
-                        <th>Role Name</th>
-                        <th>Description</th>
+                        <th
+                          class="th-sortable"
+                          (click)="setRolesSort('code')"
+                          tabindex="0"
+                          (keydown.enter)="setRolesSort('code')"
+                          aria-label="Sort by role code"
+                        >
+                          <span class="th-sort-content">
+                            Role Code
+                            <app-icon
+                              [name]="rolesSortKey() === 'code' ? (rolesSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="rolesSortKey() === 'code'"
+                              [class.sort-icon-muted]="rolesSortKey() !== 'code'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setRolesSort('name')"
+                          tabindex="0"
+                          (keydown.enter)="setRolesSort('name')"
+                          aria-label="Sort by role name"
+                        >
+                          <span class="th-sort-content">
+                            Role Name
+                            <app-icon
+                              [name]="rolesSortKey() === 'name' ? (rolesSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="rolesSortKey() === 'name'"
+                              [class.sort-icon-muted]="rolesSortKey() !== 'name'"
+                            />
+                          </span>
+                        </th>
+                        <th
+                          class="th-sortable"
+                          (click)="setRolesSort('description')"
+                          tabindex="0"
+                          (keydown.enter)="setRolesSort('description')"
+                          aria-label="Sort by description"
+                        >
+                          <span class="th-sort-content">
+                            Description
+                            <app-icon
+                              [name]="rolesSortKey() === 'description' ? (rolesSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="rolesSortKey() === 'description'"
+                              [class.sort-icon-muted]="rolesSortKey() !== 'description'"
+                            />
+                          </span>
+                        </th>
                         <th>Permissions</th>
-                        <th>Type</th>
+                        <th
+                          class="th-sortable"
+                          (click)="setRolesSort('is_system')"
+                          tabindex="0"
+                          (keydown.enter)="setRolesSort('is_system')"
+                          aria-label="Sort by type"
+                        >
+                          <span class="th-sort-content">
+                            Type
+                            <app-icon
+                              [name]="rolesSortKey() === 'is_system' ? (rolesSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="rolesSortKey() === 'is_system'"
+                              [class.sort-icon-muted]="rolesSortKey() !== 'is_system'"
+                            />
+                          </span>
+                        </th>
                         <th class="text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      @for (role of filteredRoles(); track role.id) {
+                      @for (role of pagedRoles(); track role.id) {
                         <tr>
                           <td class="cell-mono">{{ role.code }}</td>
                           <td>
@@ -457,6 +597,15 @@ function blankUserForm(): UserForm {
                       }
                     </tbody>
                   </table>
+                </div>
+                <div class="table-pagination">
+                  <app-pagination
+                    [page]="rolesPage()"
+                    [pageSize]="rolesPageSize()"
+                    [total]="filteredRoles().length"
+                    (pageChange)="rolesPage.set($event)"
+                    (pageSizeChange)="rolesPageSize.set($event); rolesPage.set(1)"
+                  />
                 </div>
               }
             }
@@ -715,16 +864,21 @@ function blankUserForm(): UserForm {
       flex-direction: column;
       gap: var(--space-4);
       padding: var(--space-4);
-      max-width: 1400px;
-      margin: 0 auto;
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .settings-header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--bg-app);
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: var(--space-4);
       flex-wrap: wrap;
+      padding: var(--space-2) 0;
     }
 
     .settings-header__title {
@@ -747,10 +901,16 @@ function blankUserForm(): UserForm {
     }
 
     .tabs-bar {
+      position: sticky;
+      top: 56px;
+      z-index: 19;
+      background: var(--bg-app);
       display: flex;
       gap: var(--space-2);
       border-bottom: 1px solid var(--border-light);
-      padding-bottom: var(--space-2);
+      padding: var(--space-2) 0;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
     .tab-btn {
@@ -765,6 +925,8 @@ function blankUserForm(): UserForm {
       font-size: var(--text-sm);
       font-weight: 500;
       cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
       transition: all 0.2s ease;
     }
 
@@ -780,10 +942,15 @@ function blankUserForm(): UserForm {
     }
 
     .settings-toolbar {
+      position: sticky;
+      top: 104px;
+      z-index: 18;
+      background: var(--bg-app);
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: var(--space-3);
+      padding: var(--space-2) 0;
     }
 
     .search-box {
@@ -831,7 +998,16 @@ function blankUserForm(): UserForm {
     }
 
     .table-container {
-      overflow-x: auto;
+      overflow: auto;
+      max-height: calc(100vh - 310px);
+      min-height: 240px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-light);
+      background: var(--bg-card);
+    }
+
+    .table-pagination {
+      border-top: 1px solid var(--border-light);
     }
 
     .settings-table {
@@ -842,6 +1018,11 @@ function blankUserForm(): UserForm {
     }
 
     .settings-table th {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg-card);
+      box-shadow: 0 1px 0 var(--border-light);
       padding: 12px 16px;
       font-size: var(--text-xs);
       font-weight: 600;
@@ -849,7 +1030,6 @@ function blankUserForm(): UserForm {
       letter-spacing: 0.05em;
       color: var(--text-secondary);
       border-bottom: 1px solid var(--border-light);
-      background: rgba(255, 255, 255, 0.01);
     }
 
     .settings-table td {
@@ -1044,7 +1224,7 @@ function blankUserForm(): UserForm {
 
     .theme-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 360px));
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
       gap: var(--space-4);
       margin-top: var(--space-2);
     }
@@ -1198,6 +1378,46 @@ function blankUserForm(): UserForm {
       background: var(--accent-cyan);
       border-color: var(--accent-cyan);
     }
+
+    @media (max-width: 768px) {
+      .settings-page {
+        padding: var(--space-3);
+        gap: var(--space-3);
+      }
+      .settings-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-2);
+      }
+      .settings-header__actions {
+        width: 100%;
+        display: flex;
+        gap: var(--space-2);
+      }
+      .settings-header__actions button {
+        flex: 1;
+      }
+      .settings-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--space-2);
+      }
+      .search-box {
+        max-width: 100%;
+        width: 100%;
+        min-width: 0;
+      }
+      .modal-actions {
+        flex-direction: column-reverse;
+        width: 100%;
+      }
+      .modal-actions button {
+        width: 100%;
+      }
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -1276,6 +1496,52 @@ export class SettingsPageComponent implements OnInit {
       (r) => !term || r.code.toLowerCase().includes(term) || r.name.toLowerCase().includes(term),
     );
   });
+
+  // Users Sort & Pagination
+  readonly usersSortKey = signal<string | null>('email');
+  readonly usersSortDir = signal<SortDirection>('asc');
+  readonly usersPage = signal(1);
+  readonly usersPageSize = signal(10);
+  readonly sortedUsers = computed(() =>
+    sortData(this.filteredUsers(), this.usersSortKey(), this.usersSortDir(), (item, key) =>
+      key === 'fullName' ? `${item.first_name || ''} ${item.last_name || ''}`.trim() : undefined,
+    ),
+  );
+  readonly pagedUsers = computed(() => {
+    const s = (this.usersPage() - 1) * this.usersPageSize();
+    return this.sortedUsers().slice(s, s + this.usersPageSize());
+  });
+
+  // Roles Sort & Pagination
+  readonly rolesSortKey = signal<string | null>('name');
+  readonly rolesSortDir = signal<SortDirection>('asc');
+  readonly rolesPage = signal(1);
+  readonly rolesPageSize = signal(10);
+  readonly sortedRoles = computed(() =>
+    sortData(this.filteredRoles(), this.rolesSortKey(), this.rolesSortDir()),
+  );
+  readonly pagedRoles = computed(() => {
+    const s = (this.rolesPage() - 1) * this.rolesPageSize();
+    return this.sortedRoles().slice(s, s + this.rolesPageSize());
+  });
+
+  setUsersSort(key: string): void {
+    const s = toggleSort(this.usersSortKey(), this.usersSortDir(), key);
+    this.usersSortKey.set(s.key);
+    this.usersSortDir.set(s.dir);
+  }
+
+  setRolesSort(key: string): void {
+    const s = toggleSort(this.rolesSortKey(), this.rolesSortDir(), key);
+    this.rolesSortKey.set(s.key);
+    this.rolesSortDir.set(s.dir);
+  }
+
+  onSearchChange(term: string): void {
+    this.searchTerm.set(term);
+    this.usersPage.set(1);
+    this.rolesPage.set(1);
+  }
 
   ngOnInit(): void {
     this.loadLookups();

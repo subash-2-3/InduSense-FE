@@ -45,11 +45,11 @@ describe('DrawerComponent', () => {
     expect(fixture.componentInstance.closed).toBe(1);
   });
 
-  it('emits close on a pointer-down outside the panel', async () => {
+  it('does not emit close on a pointer-down outside the panel by default', async () => {
     const fixture = setup(true);
-    await tick(); // the outside-click listener attaches on a deferred tick
+    await tick();
     document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
-    expect(fixture.componentInstance.closed).toBe(1);
+    expect(fixture.componentInstance.closed).toBe(0);
   });
 
   it('does not close when the pointer-down is inside the panel', async () => {

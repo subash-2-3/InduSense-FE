@@ -61,7 +61,7 @@ export function widgetView(hasData: boolean, loading: boolean, error: string | n
     SkeletonComponent,
   ],
   template: `
-    <app-card [heading]="heading()" [padded]="padded()">
+    <app-card [heading]="heading()" [padded]="padded()" [expandable]="expandable()">
       @if (stale()) {
         <span
           cardActions
@@ -73,6 +73,7 @@ export function widgetView(hasData: boolean, loading: boolean, error: string | n
           <app-icon name="alert-triangle" [size]="14" />
         </span>
       }
+      <ng-content select="[cardActions]" cardActions />
       @switch (view()) {
         @case ('loading') {
           <div class="widget__state" aria-busy="true">
@@ -149,6 +150,7 @@ export class WidgetCardComponent {
   readonly padded = input(true, { transform: booleanAttribute });
   /** Single-row empty/error states, for short cards. */
   readonly compact = input(false, { transform: booleanAttribute });
+  readonly expandable = input(true, { transform: booleanAttribute });
 
   readonly retry = output<void>();
 

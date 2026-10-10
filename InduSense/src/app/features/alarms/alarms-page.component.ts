@@ -105,15 +105,20 @@ type Tab = 'active' | 'history' | 'setup';
       flex-direction: column;
       gap: var(--space-4);
       padding: var(--space-4);
-      max-width: 1440px;
-      margin: 0 auto;
+      width: 100%;
+      box-sizing: border-box;
     }
     .head {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--bg-app);
       display: flex;
       flex-wrap: wrap;
       align-items: flex-end;
       justify-content: space-between;
       gap: var(--space-3);
+      padding: var(--space-2) 0;
     }
     .title {
       margin: 0;
@@ -149,10 +154,15 @@ type Tab = 'active' | 'history' | 'setup';
       letter-spacing: normal;
     }
     .tabs {
+      position: sticky;
+      top: 56px;
+      z-index: 19;
+      background: var(--bg-app);
       display: flex;
       flex-wrap: wrap;
       gap: var(--space-2);
       border-bottom: 1px solid var(--border-light);
+      padding: var(--space-2) 0;
     }
     .tab {
       padding: var(--space-2) var(--space-4);
@@ -172,6 +182,25 @@ type Tab = 'active' | 'history' | 'setup';
     .control:focus-visible {
       outline: 2px solid var(--accent-cyan);
       outline-offset: 1px;
+    }
+    @media (max-width: 768px) {
+      .page {
+        padding: var(--space-3);
+        gap: var(--space-3);
+      }
+      .head {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--space-2);
+      }
+      .fl {
+        width: 100%;
+      }
+      .control {
+        min-width: 0;
+        max-width: 100%;
+        width: 100%;
+      }
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,

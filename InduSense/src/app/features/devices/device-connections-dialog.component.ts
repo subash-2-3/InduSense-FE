@@ -191,6 +191,11 @@ const PROTOCOL_OPTIONS: SelectOption[] = PROTOCOLS.map((p) => ({ value: p, label
       border-bottom: 1px solid var(--border-card);
     }
     .table th {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg-card);
+      box-shadow: 0 1px 0 var(--border-card);
       color: var(--text-secondary);
       font-size: var(--fs-xs);
       text-transform: uppercase;

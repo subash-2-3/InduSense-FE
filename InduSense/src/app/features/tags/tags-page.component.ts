@@ -24,6 +24,7 @@ import {
   ErrorStateComponent,
   IconComponent,
   ModalComponent,
+  PaginationComponent,
   SearchableSelectComponent,
   SelectOption,
   SkeletonComponent,
@@ -37,6 +38,7 @@ import {
   toggledStatus,
 } from '../../shared/utils/record-status';
 import { persistedSignal } from '../../shared/utils/session-draft';
+import { sortData, toggleSort, SortDirection } from '../../shared/utils/sort';
 import { DefaultTagsPickerComponent } from './default-tags-picker.component';
 import { TagFormDialogComponent } from './tag-form-dialog.component';
 import { tagTypeLabel } from './tag-rules';
@@ -56,6 +58,7 @@ type StatusChoice = 'visible' | RecordStatus;
     ErrorStateComponent,
     IconComponent,
     ModalComponent,
+    PaginationComponent,
     SearchableSelectComponent,
     SkeletonComponent,
     StatusPillComponent,
@@ -83,7 +86,7 @@ type StatusChoice = 'visible' | RecordStatus;
         </div>
       </header>
 
-      <app-card>
+      <app-card class="filters-card">
         <div class="filters" role="group" aria-label="Tag filters">
           <label class="fl fl--grow">
             <span>Search</span>
@@ -143,23 +146,175 @@ type StatusChoice = 'visible' | RecordStatus;
             />
           </div>
         } @else {
-          <div class="wrap">
+          <div class="wrap table-sticky-container">
             <table class="table">
               <thead>
                 <tr>
-                  <th scope="col">Tag</th>
-                  <th scope="col">Code</th>
-                  <th scope="col">Device</th>
-                  <th scope="col">Type</th>
-                  <th scope="col">Data type</th>
-                  <th scope="col">Unit</th>
-                  <th scope="col" class="num">Decimals</th>
-                  <th scope="col">Status</th>
+                  <th
+                    scope="col"
+                    role="button"
+                    class="th-sortable"
+                    (click)="setSort('tag_name')"
+                    tabindex="0"
+                    (keydown.enter)="setSort('tag_name')"
+                    (keydown.space)="$event.preventDefault(); setSort('tag_name')"
+                    aria-label="Sort by tag"
+                  >
+                    <span class="th-sort-content">
+                      Tag
+                      <app-icon
+                        [name]="sortKey() === 'tag_name' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'tag_name'"
+                        [class.sort-icon-muted]="sortKey() !== 'tag_name'"
+                      />
+                    </span>
+                  </th>
+                  <th
+                    scope="col"
+                    role="button"
+                    class="th-sortable"
+                    (click)="setSort('code')"
+                    tabindex="0"
+                    (keydown.enter)="setSort('code')"
+                    (keydown.space)="$event.preventDefault(); setSort('code')"
+                    aria-label="Sort by code"
+                  >
+                    <span class="th-sort-content">
+                      Code
+                      <app-icon
+                        [name]="sortKey() === 'code' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'code'"
+                        [class.sort-icon-muted]="sortKey() !== 'code'"
+                      />
+                    </span>
+                  </th>
+                  <th
+                    scope="col"
+                    role="button"
+                    class="th-sortable"
+                    (click)="setSort('device')"
+                    tabindex="0"
+                    (keydown.enter)="setSort('device')"
+                    (keydown.space)="$event.preventDefault(); setSort('device')"
+                    aria-label="Sort by device"
+                  >
+                    <span class="th-sort-content">
+                      Device
+                      <app-icon
+                        [name]="sortKey() === 'device' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'device'"
+                        [class.sort-icon-muted]="sortKey() !== 'device'"
+                      />
+                    </span>
+                  </th>
+                  <th
+                    scope="col"
+                    role="button"
+                    class="th-sortable"
+                    (click)="setSort('tag_type')"
+                    tabindex="0"
+                    (keydown.enter)="setSort('tag_type')"
+                    (keydown.space)="$event.preventDefault(); setSort('tag_type')"
+                    aria-label="Sort by type"
+                  >
+                    <span class="th-sort-content">
+                      Type
+                      <app-icon
+                        [name]="sortKey() === 'tag_type' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'tag_type'"
+                        [class.sort-icon-muted]="sortKey() !== 'tag_type'"
+                      />
+                    </span>
+                  </th>
+                  <th
+                    scope="col"
+                    role="button"
+                    class="th-sortable"
+                    (click)="setSort('data_type')"
+                    tabindex="0"
+                    (keydown.enter)="setSort('data_type')"
+                    (keydown.space)="$event.preventDefault(); setSort('data_type')"
+                    aria-label="Sort by data type"
+                  >
+                    <span class="th-sort-content">
+                      Data type
+                      <app-icon
+                        [name]="sortKey() === 'data_type' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'data_type'"
+                        [class.sort-icon-muted]="sortKey() !== 'data_type'"
+                      />
+                    </span>
+                  </th>
+                  <th
+                    scope="col"
+                    role="button"
+                    class="th-sortable"
+                    (click)="setSort('unit')"
+                    tabindex="0"
+                    (keydown.enter)="setSort('unit')"
+                    (keydown.space)="$event.preventDefault(); setSort('unit')"
+                    aria-label="Sort by unit"
+                  >
+                    <span class="th-sort-content">
+                      Unit
+                      <app-icon
+                        [name]="sortKey() === 'unit' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'unit'"
+                        [class.sort-icon-muted]="sortKey() !== 'unit'"
+                      />
+                    </span>
+                  </th>
+                  <th
+                    scope="col"
+                    role="button"
+                    class="num th-sortable"
+                    (click)="setSort('roundoff_digits')"
+                    tabindex="0"
+                    (keydown.enter)="setSort('roundoff_digits')"
+                    (keydown.space)="$event.preventDefault(); setSort('roundoff_digits')"
+                    aria-label="Sort by decimals"
+                  >
+                    <span class="th-sort-content">
+                      Decimals
+                      <app-icon
+                        [name]="sortKey() === 'roundoff_digits' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'roundoff_digits'"
+                        [class.sort-icon-muted]="sortKey() !== 'roundoff_digits'"
+                      />
+                    </span>
+                  </th>
+                  <th
+                    scope="col"
+                    role="button"
+                    class="th-sortable"
+                    (click)="setSort('status')"
+                    tabindex="0"
+                    (keydown.enter)="setSort('status')"
+                    (keydown.space)="$event.preventDefault(); setSort('status')"
+                    aria-label="Sort by status"
+                  >
+                    <span class="th-sort-content">
+                      Status
+                      <app-icon
+                        [name]="sortKey() === 'status' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'status'"
+                        [class.sort-icon-muted]="sortKey() !== 'status'"
+                      />
+                    </span>
+                  </th>
                   <th scope="col" class="num">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                @for (t of tags(); track t.id) {
+                @for (t of sortedTags(); track t.id) {
                   <tr>
                     <td>
                       <strong>{{ t.display_name || t.tag_name }}</strong>
@@ -236,29 +391,13 @@ type StatusChoice = 'visible' | RecordStatus;
             </table>
           </div>
           <div class="pager">
-            <span>{{ total() }} tags · page {{ page() }} of {{ totalPages() }}</span>
-            <div class="pager__buttons">
-              <button
-                appButton
-                variant="secondary"
-                size="sm"
-                type="button"
-                [disabled]="page() <= 1 || loading()"
-                (click)="setPage(page() - 1)"
-              >
-                <app-icon name="chevron-left" [size]="14" /> Previous
-              </button>
-              <button
-                appButton
-                variant="secondary"
-                size="sm"
-                type="button"
-                [disabled]="page() >= totalPages() || loading()"
-                (click)="setPage(page() + 1)"
-              >
-                Next <app-icon name="chevron-right" [size]="14" />
-              </button>
-            </div>
+            <app-pagination
+              [page]="page()"
+              [pageSize]="pageSize()"
+              [total]="total()"
+              (pageChange)="setPage($event)"
+              (pageSizeChange)="onPageSizeChange($event)"
+            />
           </div>
         }
       </app-card>
@@ -343,11 +482,32 @@ export class TagsPageComponent implements OnInit {
     return options;
   });
   protected readonly tags = signal<Tag[]>([]);
+  protected readonly sortKey = signal<string | null>('tag_name');
+  protected readonly sortDir = signal<SortDirection>('asc');
+  protected readonly sortedTags = computed(() =>
+    sortData(this.tags(), this.sortKey(), this.sortDir(), (item, key) => {
+      switch (key) {
+        case 'tag_name':
+          return item.display_name || item.tag_name || '';
+        case 'code':
+          return item.code ?? '';
+        case 'device':
+          return this.deviceName(item.device_id);
+        case 'tag_type':
+          return this.typeLabel(item.tag_type);
+        case 'roundoff_digits':
+          return item.roundoff_digits ?? -1;
+        default:
+          return undefined;
+      }
+    }),
+  );
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly total = signal(0);
   protected readonly totalPages = signal(1);
   protected readonly page = signal(1);
+  protected readonly pageSize = signal(TAGS_PAGE_SIZE);
 
   protected readonly search = signal('');
   protected readonly type = signal<TagType | null>(null);
@@ -381,6 +541,17 @@ export class TagsPageComponent implements OnInit {
     this.load();
   }
 
+  protected setSort(key: string): void {
+    const s = toggleSort(this.sortKey(), this.sortDir(), key);
+    this.sortKey.set(s.key);
+    this.sortDir.set(s.dir);
+  }
+
+  protected onPageSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.setPage(1);
+  }
+
   protected filters(): TagFilters {
     const status = this.status();
     return {
@@ -395,7 +566,7 @@ export class TagsPageComponent implements OnInit {
     this.loading.set(true);
     this.error.set(null);
     this.tagsApi
-      .list({ ...this.filters(), page: this.page(), page_size: TAGS_PAGE_SIZE })
+      .list({ ...this.filters(), page: this.page(), page_size: this.pageSize() })
       .subscribe({
         next: (result) => {
           this.tags.set(result.items);

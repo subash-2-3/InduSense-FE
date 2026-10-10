@@ -31,6 +31,7 @@ import {
   EmptyStateComponent,
   ErrorStateComponent,
   IconComponent,
+  PaginationComponent,
   SearchableSelectComponent,
   SelectOption,
   SkeletonComponent,
@@ -48,6 +49,7 @@ import { clearDraft, persistedSignal, readDraft, writeDraft } from '../../shared
 import { DeviceConnectionsDialogComponent } from './device-connections-dialog.component';
 import { DeviceTagsDialogComponent } from './device-tags-dialog.component';
 import { formatDateTime } from '../../shared/utils/format';
+import { sortData, toggleSort, SortDirection } from '../../shared/utils/sort';
 
 const DEVICE_DRAFT_KEY = 'indusense.draft.device';
 
@@ -83,6 +85,7 @@ interface DeviceFormModel {
     ErrorStateComponent,
     DrawerComponent,
     SearchableSelectComponent,
+    PaginationComponent,
     DeviceTagsDialogComponent,
     DeviceConnectionsDialogComponent,
   ],
@@ -163,21 +166,117 @@ interface DeviceFormModel {
             </app-empty-state>
           </div>
         } @else {
-          <div class="table-container">
+          <div class="table-container table-sticky-container">
             <table class="dev-table">
               <thead>
                 <tr>
-                  <th>Status</th>
-                  <th>Device Name / ID</th>
-                  <th>Source Protocol</th>
-                  <th>IP Address</th>
-                  <th>Location</th>
-                  <th>Last Seen</th>
+                  <th
+                    class="th-sortable"
+                    (click)="setSort('connection_state')"
+                    tabindex="0"
+                    (keydown.enter)="setSort('connection_state')"
+                    aria-label="Sort by status"
+                  >
+                    <span class="th-sort-content">
+                      Status
+                      <app-icon
+                        [name]="sortKey() === 'connection_state' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'connection_state'"
+                        [class.sort-icon-muted]="sortKey() !== 'connection_state'"
+                      />
+                    </span>
+                  </th>
+                  <th
+                    class="th-sortable"
+                    (click)="setSort('name')"
+                    tabindex="0"
+                    (keydown.enter)="setSort('name')"
+                    aria-label="Sort by device name"
+                  >
+                    <span class="th-sort-content">
+                      Device Name / ID
+                      <app-icon
+                        [name]="sortKey() === 'name' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'name'"
+                        [class.sort-icon-muted]="sortKey() !== 'name'"
+                      />
+                    </span>
+                  </th>
+                  <th
+                    class="th-sortable"
+                    (click)="setSort('source')"
+                    tabindex="0"
+                    (keydown.enter)="setSort('source')"
+                    aria-label="Sort by source protocol"
+                  >
+                    <span class="th-sort-content">
+                      Source Protocol
+                      <app-icon
+                        [name]="sortKey() === 'source' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'source'"
+                        [class.sort-icon-muted]="sortKey() !== 'source'"
+                      />
+                    </span>
+                  </th>
+                  <th
+                    class="th-sortable"
+                    (click)="setSort('ip_address')"
+                    tabindex="0"
+                    (keydown.enter)="setSort('ip_address')"
+                    aria-label="Sort by IP address"
+                  >
+                    <span class="th-sort-content">
+                      IP Address
+                      <app-icon
+                        [name]="sortKey() === 'ip_address' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'ip_address'"
+                        [class.sort-icon-muted]="sortKey() !== 'ip_address'"
+                      />
+                    </span>
+                  </th>
+                  <th
+                    class="th-sortable"
+                    (click)="setSort('location')"
+                    tabindex="0"
+                    (keydown.enter)="setSort('location')"
+                    aria-label="Sort by location"
+                  >
+                    <span class="th-sort-content">
+                      Location
+                      <app-icon
+                        [name]="sortKey() === 'location' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'location'"
+                        [class.sort-icon-muted]="sortKey() !== 'location'"
+                      />
+                    </span>
+                  </th>
+                  <th
+                    class="th-sortable"
+                    (click)="setSort('last_seen_at')"
+                    tabindex="0"
+                    (keydown.enter)="setSort('last_seen_at')"
+                    aria-label="Sort by last seen"
+                  >
+                    <span class="th-sort-content">
+                      Last Seen
+                      <app-icon
+                        [name]="sortKey() === 'last_seen_at' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'last_seen_at'"
+                        [class.sort-icon-muted]="sortKey() !== 'last_seen_at'"
+                      />
+                    </span>
+                  </th>
                   <th class="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                @for (device of devices(); track device.id) {
+                @for (device of sortedDevices(); track device.id) {
                   <tr>
                     <td>
                       <app-status-pill
@@ -279,32 +378,13 @@ interface DeviceFormModel {
           </div>
 
           <footer class="dev-footer">
-            <span class="dev-footer__total"
-              >Showing {{ devices().length }} of {{ totalCount() }}</span
-            >
-            <div class="dev-footer__pager">
-              <button
-                appButton
-                variant="ghost"
-                size="sm"
-                [disabled]="currentPage() <= 1 || loading()"
-                (click)="setPage(currentPage() - 1)"
-              >
-                <app-icon name="chevron-left" [size]="14" />
-                Prev
-              </button>
-              <span class="pager-text">Page {{ currentPage() }} of {{ totalPages() }}</span>
-              <button
-                appButton
-                variant="ghost"
-                size="sm"
-                [disabled]="currentPage() >= totalPages() || loading()"
-                (click)="setPage(currentPage() + 1)"
-              >
-                Next
-                <app-icon name="chevron-right" [size]="14" />
-              </button>
-            </div>
+            <app-pagination
+              [page]="currentPage()"
+              [pageSize]="pageSize()"
+              [total]="totalCount()"
+              (pageChange)="setPage($event)"
+              (pageSizeChange)="onPageSizeChange($event)"
+            />
           </footer>
         }
       </app-card>
@@ -451,16 +531,21 @@ interface DeviceFormModel {
       flex-direction: column;
       gap: var(--space-4);
       padding: var(--space-4);
-      max-width: 1400px;
-      margin: 0 auto;
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .dev-header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--bg-app);
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: var(--space-4);
       flex-wrap: wrap;
+      padding: var(--space-2) 0;
     }
 
     .dev-header__title {
@@ -483,11 +568,16 @@ interface DeviceFormModel {
     }
 
     .dev-toolbar {
+      position: sticky;
+      top: 56px;
+      z-index: 19;
+      background: var(--bg-app);
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: var(--space-3);
       flex-wrap: wrap;
+      padding: var(--space-2) 0;
     }
 
     .dev-search {
@@ -553,7 +643,9 @@ interface DeviceFormModel {
     }
 
     .table-container {
-      overflow-x: auto;
+      overflow: auto;
+      max-height: calc(100vh - 280px);
+      min-height: 240px;
     }
 
     .dev-table {
@@ -564,6 +656,11 @@ interface DeviceFormModel {
     }
 
     .dev-table th {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg-card);
+      box-shadow: 0 1px 0 var(--border-light);
       padding: 12px 16px;
       font-size: var(--text-xs);
       font-weight: 600;
@@ -571,7 +668,6 @@ interface DeviceFormModel {
       letter-spacing: 0.05em;
       color: var(--text-secondary);
       border-bottom: 1px solid var(--border-light);
-      background: rgba(255, 255, 255, 0.01);
     }
 
     .dev-table td {
@@ -726,6 +822,60 @@ interface DeviceFormModel {
         transform: rotate(360deg);
       }
     }
+
+    @media (max-width: 768px) {
+      .dev-page {
+        padding: var(--space-3);
+        gap: var(--space-3);
+      }
+      .dev-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-2);
+      }
+      .dev-header__actions {
+        width: 100%;
+        display: flex;
+        gap: var(--space-2);
+      }
+      .dev-header__actions button {
+        flex: 1;
+      }
+      .dev-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--space-2);
+      }
+      .dev-search {
+        max-width: 100%;
+        width: 100%;
+      }
+      .dev-stats {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-2);
+        flex-wrap: wrap;
+      }
+      .form-row {
+        flex-direction: column;
+        gap: 12px;
+      }
+      .modal-actions {
+        flex-direction: column-reverse;
+        width: 100%;
+      }
+      .modal-actions button {
+        width: 100%;
+      }
+      .dev-footer {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: var(--space-2);
+      }
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -733,6 +883,11 @@ export class DevicesPageComponent implements OnInit {
   private readonly devicesApi = inject(DevicesApi);
 
   readonly devices = signal<Device[]>([]);
+  readonly sortKey = signal<string | null>('name');
+  readonly sortDir = signal<SortDirection>('asc');
+  readonly sortedDevices = computed(() =>
+    sortData(this.devices(), this.sortKey(), this.sortDir()),
+  );
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
@@ -740,7 +895,7 @@ export class DevicesPageComponent implements OnInit {
   readonly currentPage = signal(1);
   readonly totalCount = signal(0);
   readonly totalPages = signal(1);
-  readonly pageSize = 20;
+  readonly pageSize = signal(20);
 
   private readonly toast = inject(ToastService);
 
@@ -809,6 +964,18 @@ export class DevicesPageComponent implements OnInit {
     }));
   }
 
+  setSort(key: string): void {
+    const s = toggleSort(this.sortKey(), this.sortDir(), key);
+    this.sortKey.set(s.key);
+    this.sortDir.set(s.dir);
+  }
+
+  onPageSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.currentPage.set(1);
+    this.loadDevices();
+  }
+
   loadDevices(): void {
     this.loading.set(true);
     this.error.set(null);
@@ -817,7 +984,7 @@ export class DevicesPageComponent implements OnInit {
       .list({
         status: this.statusView() === 'visible' ? VISIBLE_STATUSES : this.listStatus(),
         page: this.currentPage(),
-        page_size: this.pageSize,
+        page_size: this.pageSize(),
         search: this.searchTerm().trim() || undefined,
       })
       .subscribe({

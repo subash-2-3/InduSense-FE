@@ -160,7 +160,7 @@ export function lampChips(byState: Record<string, number>): (MachineLamp & { cou
 
           <div class="machine-grid">
             @for (m of d.machines; track m.machine_id) {
-              <app-card>
+              <app-card expandable="true">
                 <div class="machine" [attr.data-state]="m.state.status">
                   @let lamp = lampOf(m.state.status);
                   <div class="machine__head">
@@ -200,6 +200,12 @@ export function lampChips(byState: Record<string, number>): (MachineLamp & { cou
                     <div class="figure">
                       <dt>Availability</dt>
                       <dd>{{ percent(m.availability) }}</dd>
+                      <div class="avail-track">
+                        <div
+                          class="avail-fill"
+                          [style.width.%]="(m.availability ?? 0) * 100"
+                        ></div>
+                      </div>
                     </div>
                     <div class="figure">
                       <dt>Run time</dt>
@@ -314,23 +320,43 @@ export function lampChips(byState: Record<string, number>): (MachineLamp & { cou
         0 0 0 4px color-mix(in srgb, var(--lamp) 22%, transparent),
         0 0 14px color-mix(in srgb, var(--lamp) 55%, transparent);
     }
+    @keyframes lampPulse {
+      0%, 100% {
+        box-shadow:
+          0 0 0 4px color-mix(in srgb, var(--lamp) 24%, transparent),
+          0 0 12px color-mix(in srgb, var(--lamp) 50%, transparent);
+      }
+      50% {
+        box-shadow:
+          0 0 0 6px color-mix(in srgb, var(--lamp) 35%, transparent),
+          0 0 20px color-mix(in srgb, var(--lamp) 80%, transparent);
+      }
+    }
+    .lamp[data-tone='run'] .lamp__light {
+      animation: lampPulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    .lamp[data-tone='stop'] .lamp__light {
+      animation: lampPulse 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
     .lamp[data-tone='none'] .lamp__light {
       box-shadow: none;
     }
     .lamp--chip {
-      padding: 4px 10px;
+      padding: 5px 12px;
       border: 1px solid var(--border-card);
       border-radius: var(--radius-pill);
       background: var(--bg-card);
       font-size: var(--fs-sm);
       color: var(--text-primary);
+      box-shadow: var(--shadow-xs);
+      transition: all var(--transition-fast);
     }
     .lamp__count {
       font-family: var(--font-mono);
       font-weight: var(--fw-bold);
     }
     .lamp--label {
-      padding: 2px 12px;
+      padding: 3px 12px;
       border-radius: var(--radius-pill);
       background: color-mix(in srgb, var(--lamp) 16%, transparent);
       color: var(--lamp);
@@ -338,6 +364,7 @@ export function lampChips(byState: Record<string, number>): (MachineLamp & { cou
       font-weight: var(--fw-bold);
       letter-spacing: 0.04em;
       text-transform: uppercase;
+      box-shadow: 0 0 10px color-mix(in srgb, var(--lamp) 25%, transparent);
     }
     .machine__title {
       display: flex;
@@ -346,8 +373,8 @@ export function lampChips(byState: Record<string, number>): (MachineLamp & { cou
     }
     .kpis {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-      gap: var(--gap-grid);
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: var(--space-3);
     }
     .kpi {
       display: flex;
@@ -357,6 +384,12 @@ export function lampChips(byState: Record<string, number>): (MachineLamp & { cou
       background: var(--bg-card);
       border: 1px solid var(--border-card);
       border-radius: var(--radius-card);
+      box-shadow: var(--shadow-xs);
+      transition: all var(--transition-fast);
+      &:hover {
+        border-color: color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+        box-shadow: var(--shadow-sm);
+      }
     }
     .kpi__label,
     .figure dt {
@@ -388,13 +421,14 @@ export function lampChips(byState: Record<string, number>): (MachineLamp & { cou
     }
     .machine-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
-      gap: var(--gap-grid);
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+      gap: var(--space-4);
     }
     .machine {
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
+      position: relative;
     }
     .machine__head {
       display: flex;
@@ -420,10 +454,17 @@ export function lampChips(byState: Record<string, number>): (MachineLamp & { cou
       margin: 0;
     }
     .figure {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
       padding: var(--space-2) var(--space-3);
       background: var(--bg-topbar);
       border: 1px solid var(--border-card);
       border-radius: var(--radius-md);
+      transition: all var(--transition-fast);
+      &:hover {
+        border-color: color-mix(in srgb, var(--accent-cyan) 25%, transparent);
+      }
     }
     .figure dd {
       margin: 2px 0 0;
@@ -438,6 +479,20 @@ export function lampChips(byState: Record<string, number>): (MachineLamp & { cou
     .figure--big dd {
       font-size: var(--fs-xl);
     }
+    .avail-track {
+      width: 100%;
+      height: 4px;
+      margin-top: 6px;
+      border-radius: var(--radius-pill);
+      background: color-mix(in srgb, var(--border-light) 80%, transparent);
+      overflow: hidden;
+    }
+    .avail-fill {
+      height: 100%;
+      border-radius: var(--radius-pill);
+      background: linear-gradient(90deg, var(--accent-cyan), var(--status-running));
+      transition: width var(--transition-base);
+    }
     .unit {
       font-size: var(--fs-sm);
       color: var(--text-secondary);
@@ -447,11 +502,15 @@ export function lampChips(byState: Record<string, number>): (MachineLamp & { cou
       padding: var(--space-2) var(--space-3);
       border-radius: var(--radius-md);
       background: rgb(239 68 68 / 12%);
+      border: 1px solid rgb(239 68 68 / 20%);
       color: var(--status-fault-text);
       font-size: var(--fs-sm);
       text-decoration: none;
+      transition: all var(--transition-fast);
+      &:hover {
+        background: rgb(239 68 68 / 18%);
+      }
     }
-    .alarms:hover,
     .alarms:focus-visible {
       text-decoration: underline;
     }

@@ -175,7 +175,7 @@ describe('TagsPageComponent', () => {
 
   async function setup(
     tags: Tag[] = [
-      tag(),
+      tag({ tag_name: 'Active Power', display_name: 'Active Power' }),
       tag({
         id: 2,
         tag_name: 'GOOD',
@@ -254,7 +254,7 @@ describe('TagsPageComponent', () => {
     del.click();
     const req = http.expectOne((r) => r.method === 'DELETE' && r.url === '/api/v1/tags/1');
     req.flush(ok(tag({ status: 'delete' })));
-    expect(success).toHaveBeenCalledWith('Tag "Voltage" deleted.');
+    expect(success).toHaveBeenCalledWith('Tag "Active Power" deleted.');
     http.expectOne((r) => r.url === '/api/v1/tags').flush(page([]));
   });
 

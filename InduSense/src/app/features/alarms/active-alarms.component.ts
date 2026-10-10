@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  computed,
   effect,
   inject,
   input,
@@ -31,10 +32,13 @@ import {
   CardComponent,
   EmptyStateComponent,
   ErrorStateComponent,
+  IconComponent,
+  PaginationComponent,
   SkeletonComponent,
 } from '../../shared/ui';
 import { formatDateTime, formatDuration, formatRelativeTime } from '../../shared/utils/format';
 import { injectNow } from '../../shared/utils/now';
+import { SortDirection, sortData, toggleSort } from '../../shared/utils/sort';
 import { ActiveAlarmCountService } from './active-alarm-count.service';
 
 /** Active alarms refresh this often while the tab is visible. */
@@ -43,7 +47,14 @@ export const ACTIVE_REFRESH_MS = 10_000;
 /** Alarms currently active (set bits of each machine's alarm word). */
 @Component({
   selector: 'app-active-alarms',
-  imports: [CardComponent, EmptyStateComponent, ErrorStateComponent, SkeletonComponent],
+  imports: [
+    CardComponent,
+    EmptyStateComponent,
+    ErrorStateComponent,
+    SkeletonComponent,
+    IconComponent,
+    PaginationComponent,
+  ],
   template: `
     <div class="toolbar">
       <p class="muted" aria-live="polite">
@@ -54,27 +65,77 @@ export const ACTIVE_REFRESH_MS = 10_000;
         }
       </p>
     </div>
-    <app-card [padded]="false">
+    <app-card heading="Active Alarms" [padded]="false" expandable="true">
       @if (error(); as e) {
         <div class="pad">
           <app-error-state heading="Active alarms unavailable" [message]="e" (retry)="refresh()" />
         </div>
       } @else if (data(); as d) {
         @if (d.alarms.length) {
-          <div class="wrap">
+          <div class="wrap table-sticky-container">
             <table class="table">
               <thead>
                 <tr>
-                  <th scope="col" class="num">Bit No</th>
-                  <th scope="col">Alarm explanation</th>
-                  <th scope="col">Machine</th>
-                  <th scope="col">Active since</th>
+                  <th scope="col" class="num th-sortable" (click)="toggleSort('bit')" tabindex="0" (keydown.enter)="toggleSort('bit')">
+                    <span class="th-sort-content">
+                      Bit No
+                      <app-icon
+                        [name]="sortKey() === 'bit' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'bit'"
+                        [class.sort-icon-muted]="sortKey() !== 'bit'"
+                      />
+                    </span>
+                  </th>
+                  <th scope="col" class="th-sortable" (click)="toggleSort('name')" tabindex="0" (keydown.enter)="toggleSort('name')">
+                    <span class="th-sort-content">
+                      Alarm explanation
+                      <app-icon
+                        [name]="sortKey() === 'name' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'name'"
+                        [class.sort-icon-muted]="sortKey() !== 'name'"
+                      />
+                    </span>
+                  </th>
+                  <th scope="col" class="th-sortable" (click)="toggleSort('machine_name')" tabindex="0" (keydown.enter)="toggleSort('machine_name')">
+                    <span class="th-sort-content">
+                      Machine
+                      <app-icon
+                        [name]="sortKey() === 'machine_name' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'machine_name'"
+                        [class.sort-icon-muted]="sortKey() !== 'machine_name'"
+                      />
+                    </span>
+                  </th>
+                  <th scope="col" class="th-sortable" (click)="toggleSort('since')" tabindex="0" (keydown.enter)="toggleSort('since')">
+                    <span class="th-sort-content">
+                      Active since
+                      <app-icon
+                        [name]="sortKey() === 'since' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'since'"
+                        [class.sort-icon-muted]="sortKey() !== 'since'"
+                      />
+                    </span>
+                  </th>
                   <th scope="col" class="num">Duration</th>
-                  <th scope="col">Data</th>
+                  <th scope="col" class="th-sortable" (click)="toggleSort('stale')" tabindex="0" (keydown.enter)="toggleSort('stale')">
+                    <span class="th-sort-content">
+                      Data
+                      <app-icon
+                        [name]="sortKey() === 'stale' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'stale'"
+                        [class.sort-icon-muted]="sortKey() !== 'stale'"
+                      />
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                @for (a of d.alarms; track a.tag_id + '-' + a.bit) {
+                @for (a of pagedAlarms(); track a.tag_id + '-' + a.bit) {
                   <tr>
                     <td class="num mono">{{ a.bit }}</td>
                     <td>
@@ -113,6 +174,15 @@ export const ACTIVE_REFRESH_MS = 10_000;
               </tbody>
             </table>
           </div>
+          <div class="table-pagination">
+            <app-pagination
+              [page]="page()"
+              [pageSize]="pageSize()"
+              [total]="data()?.alarms?.length || 0"
+              (pageChange)="page.set($event)"
+              (pageSizeChange)="pageSize.set($event); page.set(1)"
+            />
+          </div>
         } @else {
           <div class="pad">
             <app-empty-state
@@ -148,6 +218,29 @@ export class ActiveAlarmsComponent {
 
   protected readonly data = signal<ActiveAlarms | null>(null);
   protected readonly error = signal<string | null>(null);
+  protected readonly page = signal(1);
+  protected readonly pageSize = signal(20);
+  protected readonly sortKey = signal<string | null>(null);
+  protected readonly sortDir = signal<SortDirection>('asc');
+
+  protected readonly sortedAlarms = computed(() => {
+    const alarms = this.data()?.alarms || [];
+    const key = this.sortKey();
+    if (!key) return alarms;
+    return sortData(alarms, (a: any) => a[key], this.sortDir());
+  });
+
+  protected readonly pagedAlarms = computed(() => {
+    const list = this.sortedAlarms();
+    const p = this.page();
+    const sz = this.pageSize();
+    return list.slice((p - 1) * sz, p * sz);
+  });
+
+  protected toggleSort(key: string): void {
+    toggleSort(this.sortKey, this.sortDir, key);
+  }
+
   private readonly machine$ = new Subject<number | null>();
   private readonly refresh$ = new Subject<void>();
 

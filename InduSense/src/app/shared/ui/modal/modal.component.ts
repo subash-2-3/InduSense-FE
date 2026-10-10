@@ -125,6 +125,22 @@ import { IconComponent } from '../icon/icon.component';
         transform: translateY(0) scale(1);
       }
     }
+
+    @media (max-width: 640px) {
+      .modal-backdrop {
+        padding: var(--space-2);
+      }
+      .modal-dialog {
+        max-height: calc(100vh - 16px);
+        border-radius: var(--radius-md, 8px);
+      }
+      .modal-header {
+        padding: var(--space-3) var(--space-4);
+      }
+      .modal-body {
+        padding: var(--space-4);
+      }
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

@@ -26,6 +26,7 @@ import {
   EmptyStateComponent,
   ErrorStateComponent,
   IconComponent,
+  PaginationComponent,
   SearchableSelectComponent,
   SelectOption,
   SkeletonComponent,
@@ -39,6 +40,7 @@ import {
   recordStatusTone,
   toggledStatus,
 } from '../../shared/utils/record-status';
+import { sortData, toggleSort, SortDirection } from '../../shared/utils/sort';
 
 type StatusView = 'visible' | RecordStatus;
 
@@ -91,6 +93,7 @@ function parseLimit(value: string): number | null | undefined {
     ErrorStateComponent,
     IconComponent,
     DrawerComponent,
+    PaginationComponent,
     SearchableSelectComponent,
     SkeletonComponent,
     StatusPillComponent,
@@ -123,6 +126,11 @@ export class CompaniesPageComponent implements OnInit {
     { value: 'delete', label: 'Deleted' },
   ];
 
+  protected readonly sortKey = signal<string | null>('name');
+  protected readonly sortDir = signal<SortDirection>('asc');
+  protected readonly page = signal(1);
+  protected readonly pageSize = signal(10);
+
   /** null = closed, 'new' = create, otherwise the company being edited. */
   protected readonly editing = signal<Company | 'new' | null>(null);
   protected readonly usage = signal<CompanyLimitUsage[]>([]);
@@ -136,6 +144,35 @@ export class CompaniesPageComponent implements OnInit {
       (c) => !term || c.name.toLowerCase().includes(term) || c.code.toLowerCase().includes(term),
     );
   });
+
+  protected readonly sorted = computed(() =>
+    sortData(this.filtered(), this.sortKey(), this.sortDir()),
+  );
+
+  protected readonly pagedCompanies = computed(() => {
+    const start = (this.page() - 1) * this.pageSize();
+    return this.sorted().slice(start, start + this.pageSize());
+  });
+
+  protected setSort(key: string): void {
+    const s = toggleSort(this.sortKey(), this.sortDir(), key);
+    this.sortKey.set(s.key);
+    this.sortDir.set(s.dir);
+  }
+
+  protected onPageChange(p: number): void {
+    this.page.set(p);
+  }
+
+  protected onPageSizeChange(s: number): void {
+    this.pageSize.set(s);
+    this.page.set(1);
+  }
+
+  protected onSearchChange(term: string): void {
+    this.search.set(term);
+    this.page.set(1);
+  }
 
   protected readonly modalTitle = computed(() => {
     const target = this.editing();

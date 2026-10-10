@@ -124,6 +124,19 @@ const WIDTHS: Record<DrawerSize, string> = {
         transform: translateX(0);
       }
     }
+    @media (max-width: 640px) {
+      .drawer-panel {
+        max-width: 100vw !important;
+        width: 100vw;
+        border-left: none;
+      }
+      .drawer-header {
+        padding: var(--space-3) var(--space-4);
+      }
+      .drawer-body {
+        padding: var(--space-4);
+      }
+    }
     @media (prefers-reduced-motion: reduce) {
       .drawer-panel {
         animation: none;
@@ -137,6 +150,7 @@ export class DrawerComponent {
   readonly title = input.required<string>();
   readonly subtitle = input<string>();
   readonly size = input<DrawerSize>('lg');
+  readonly closeOnOutsideClick = input(false, { transform: booleanAttribute });
 
   readonly close = output<void>();
 
@@ -162,14 +176,16 @@ export class DrawerComponent {
           ) ?? el?.querySelector<HTMLElement>('button')
         )?.focus();
 
-        const onPointerDown = (event: PointerEvent) => {
-          const panel = this.panel()?.nativeElement;
-          if (panel && !panel.contains(event.target as Node)) {
-            this.close.emit();
-          }
-        };
-        document.addEventListener('pointerdown', onPointerDown, true);
-        removeListener = () => document.removeEventListener('pointerdown', onPointerDown, true);
+        if (this.closeOnOutsideClick()) {
+          const onPointerDown = (event: PointerEvent) => {
+            const panel = this.panel()?.nativeElement;
+            if (panel && !panel.contains(event.target as Node)) {
+              this.close.emit();
+            }
+          };
+          document.addEventListener('pointerdown', onPointerDown, true);
+          removeListener = () => document.removeEventListener('pointerdown', onPointerDown, true);
+        }
       });
 
       onCleanup(() => {

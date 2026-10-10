@@ -9,6 +9,9 @@
   justify-content: space-between;
   gap: var(--space-2) var(--space-4);
   min-height: var(--toolbar-h);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-2);
 }
 
 .toolbar__start,
@@ -20,28 +23,32 @@
 }
 
 .toolbar__title {
+  margin: 0;
   margin-left: calc(-1 * var(--space-2));
-  font-size: inherit;
+  font-size: var(--fs-lg);
   font-weight: var(--fw-bold);
+  letter-spacing: -0.02em;
 }
 
 .toolbar__live {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 8px;
+  padding: 3px 10px;
   border-radius: var(--radius-pill);
   background: var(--status-running-soft);
-  border: 1px solid color-mix(in srgb, var(--status-running) 25%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-running) 30%, transparent);
   color: var(--status-running);
   font-size: var(--fs-xs);
   font-weight: var(--fw-semibold);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--status-running) 15%, transparent);
 }
 
 .toolbar__pulse {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--status-running);
   box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-running) 70%, transparent);
@@ -53,7 +60,7 @@
     box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-running) 70%, transparent);
   }
   70% {
-    box-shadow: 0 0 0 6px transparent;
+    box-shadow: 0 0 0 7px transparent;
   }
   100% {
     box-shadow: 0 0 0 0 transparent;
@@ -63,8 +70,8 @@
 .toolbar__updated {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
+  gap: 5px;
+  padding: 3px 10px;
   border-radius: var(--radius-sm);
   background: var(--bg-card);
   border: 1px solid var(--border-card);
@@ -75,8 +82,16 @@
   box-shadow: var(--shadow-xs);
 }
 
+.refresh {
+  transition: transform var(--transition-fast);
+
+  &:hover {
+    color: var(--accent-cyan);
+  }
+}
+
 .refresh--spinning app-icon {
-  animation: toolbar-spin 0.9s linear infinite;
+  animation: toolbar-spin 0.8s linear infinite;
 }
 
 @keyframes toolbar-spin {
@@ -86,6 +101,21 @@
 }
 
 @media (width < 640px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+
+  .toolbar__start {
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+
+  .toolbar__end {
+    justify-content: flex-end;
+  }
+
   .toolbar__label {
     display: none;
   }

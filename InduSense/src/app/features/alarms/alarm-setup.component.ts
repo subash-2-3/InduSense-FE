@@ -17,11 +17,14 @@ import {
   ButtonComponent,
   CardComponent,
   EmptyStateComponent,
+  IconComponent,
+  PaginationComponent,
   SearchableSelectComponent,
   SelectOption,
   SkeletonComponent,
 } from '../../shared/ui';
 import { ToastService } from '../../shared/ui/toast/toast.service';
+import { SortDirection, sortData, toggleSort } from '../../shared/utils/sort';
 
 export interface BitRow {
   bit: number;
@@ -69,6 +72,8 @@ export function isSet(word: number | null | undefined, bit: number): boolean {
     ButtonComponent,
     CardComponent,
     EmptyStateComponent,
+    IconComponent,
+    PaginationComponent,
     SearchableSelectComponent,
     SkeletonComponent,
   ],
@@ -123,19 +128,59 @@ export function isSet(word: number | null | undefined, bit: number): boolean {
         @if (loading()) {
           <div class="pad"><app-skeleton height="240px" /></div>
         } @else {
-          <div class="wrap">
+          <div class="wrap table-sticky-container">
             <table class="table">
               <thead>
                 <tr>
-                  <th scope="col" class="num">Bit No</th>
-                  <th scope="col">Alarm explanation</th>
-                  <th scope="col">Action / note (optional)</th>
-                  <th scope="col">Enabled</th>
+                  <th scope="col" class="num th-sortable" (click)="toggleSort('bit')" tabindex="0" (keydown.enter)="toggleSort('bit')">
+                    <span class="th-sort-content">
+                      Bit No
+                      <app-icon
+                        [name]="sortKey() === 'bit' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'bit'"
+                        [class.sort-icon-muted]="sortKey() !== 'bit'"
+                      />
+                    </span>
+                  </th>
+                  <th scope="col" class="th-sortable" (click)="toggleSort('name')" tabindex="0" (keydown.enter)="toggleSort('name')">
+                    <span class="th-sort-content">
+                      Alarm explanation
+                      <app-icon
+                        [name]="sortKey() === 'name' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'name'"
+                        [class.sort-icon-muted]="sortKey() !== 'name'"
+                      />
+                    </span>
+                  </th>
+                  <th scope="col" class="th-sortable" (click)="toggleSort('message')" tabindex="0" (keydown.enter)="toggleSort('message')">
+                    <span class="th-sort-content">
+                      Action / note (optional)
+                      <app-icon
+                        [name]="sortKey() === 'message' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'message'"
+                        [class.sort-icon-muted]="sortKey() !== 'message'"
+                      />
+                    </span>
+                  </th>
+                  <th scope="col" class="th-sortable" (click)="toggleSort('active')" tabindex="0" (keydown.enter)="toggleSort('active')">
+                    <span class="th-sort-content">
+                      Enabled
+                      <app-icon
+                        [name]="sortKey() === 'active' ? (sortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                        [size]="13"
+                        [class.sort-icon-active]="sortKey() === 'active'"
+                        [class.sort-icon-muted]="sortKey() !== 'active'"
+                      />
+                    </span>
+                  </th>
                   <th scope="col">Now</th>
                 </tr>
               </thead>
               <tbody>
-                @for (r of rows(); track r.bit) {
+                @for (r of pagedRows(); track r.bit) {
                   <tr [class.row--on]="on(r.bit)">
                     <td class="num mono">{{ r.bit }}</td>
                     <td>
@@ -153,6 +198,7 @@ export function isSet(word: number | null | undefined, bit: number): boolean {
                         class="control control--wide"
                         [attr.aria-label]="'Note of bit ' + r.bit"
                         maxlength="500"
+                        [placeholder]="'Note for bit ' + r.bit"
                         [readonly]="!canManage()"
                         [(ngModel)]="r.message"
                       />
@@ -176,6 +222,15 @@ export function isSet(word: number | null | undefined, bit: number): boolean {
                 }
               </tbody>
             </table>
+          </div>
+          <div class="table-pagination">
+            <app-pagination
+              [page]="page()"
+              [pageSize]="pageSize()"
+              [total]="rows().length"
+              (pageChange)="page.set($event)"
+              (pageSizeChange)="pageSize.set($event); page.set(1)"
+            />
           </div>
           <p class="muted pad">
             The alarm master: when bit N of the alarm word is set, Active alarms and History show
@@ -222,7 +277,29 @@ export class AlarmSetupComponent {
   protected readonly rows = signal<BitRow[]>(rowsFrom([]));
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
+  protected readonly page = signal(1);
+  protected readonly pageSize = signal(32);
+  protected readonly sortKey = signal<string | null>(null);
+  protected readonly sortDir = signal<SortDirection>('asc');
   private savedDefinitions: AlarmDefinition[] = [];
+
+  protected readonly sortedRows = computed(() => {
+    const r = this.rows();
+    const k = this.sortKey();
+    if (!k) return r;
+    return sortData(r, (row: any) => row[k], this.sortDir());
+  });
+
+  protected readonly pagedRows = computed(() => {
+    const list = this.sortedRows();
+    const p = this.page();
+    const sz = this.pageSize();
+    return list.slice((p - 1) * sz, p * sz);
+  });
+
+  protected toggleSort(key: string): void {
+    toggleSort(this.sortKey, this.sortDir, key);
+  }
 
   constructor() {
     effect(() => {

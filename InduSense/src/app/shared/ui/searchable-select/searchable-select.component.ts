@@ -290,8 +290,8 @@ export class SearchableSelectComponent implements ControlValueAccessor {
   readonly ariaLabel = input<string>();
   /** Show a top row that clears the selection (for optional / filter dropdowns). */
   readonly clearable = input(false, { transform: booleanAttribute });
-  /** Force the search box on/off; by default it appears once there are more than 6 options. */
-  readonly searchable = input<boolean | undefined>(undefined);
+  /** Force the search box on/off; defaults to true. */
+  readonly searchable = input(true, { transform: booleanAttribute });
   readonly invalid = input(false, { transform: booleanAttribute });
   readonly emptyLabel = input('No matches');
   readonly disabledInput = input(false, { transform: booleanAttribute, alias: 'disabled' });
@@ -312,9 +312,7 @@ export class SearchableSelectComponent implements ControlValueAccessor {
     () => this.options().find((opt) => this.same(opt.value, this.value())) ?? null,
   );
 
-  protected readonly showSearch = computed(() =>
-    this.searchable() ?? this.options().length > 6,
-  );
+  protected readonly showSearch = computed(() => this.searchable());
 
   protected readonly visible = computed(() => {
     const needle = this.query().trim().toLowerCase();

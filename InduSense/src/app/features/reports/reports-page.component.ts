@@ -1,5 +1,5 @@
-import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { CommonModule, DecimalPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 
 import { ReportsApi } from '../../core/api/resources/reports.api';
 import { DeviceHealthResponse, EnergyReportFilters, ReportResponse } from '../../core/models';
@@ -8,9 +8,11 @@ import {
   CardComponent,
   ErrorStateComponent,
   IconComponent,
+  PaginationComponent,
   SkeletonComponent,
   StatusPillComponent,
 } from '../../shared/ui';
+import { SortDirection, sortData, toggleSort } from '../../shared/utils/sort';
 
 type ReportTab = 'energy' | 'production' | 'device-health';
 
@@ -18,12 +20,14 @@ type ReportTab = 'energy' | 'production' | 'device-health';
   selector: 'app-reports-page',
   imports: [
     CommonModule,
+    DecimalPipe,
     CardComponent,
     ButtonComponent,
     IconComponent,
     StatusPillComponent,
     SkeletonComponent,
     ErrorStateComponent,
+    PaginationComponent,
   ],
   template: `
     <div class="reports-page">
@@ -70,7 +74,7 @@ type ReportTab = 'energy' | 'production' | 'device-health';
         </button>
       </div>
 
-      <app-card [padded]="false">
+      <app-card heading="Telemetry & Industrial Reports" [padded]="false" expandable="true">
         @if (loading()) {
           <div class="reports-skeleton">
             <app-skeleton height="80px" />
@@ -106,18 +110,58 @@ type ReportTab = 'energy' | 'production' | 'device-health';
                   </div>
                 }
 
-                <div class="table-container">
+                <div class="table-container table-sticky-container">
                   <table class="reports-table">
                     <thead>
                       <tr>
-                        <th>Date</th>
-                        <th>Asset / Group</th>
-                        <th>Type</th>
-                        <th>Energy Consumed</th>
+                        <th class="th-sortable" (click)="toggleEnergySort('date')" tabindex="0" (keydown.enter)="toggleEnergySort('date')">
+                          <span class="th-sort-content">
+                            Date
+                            <app-icon
+                              [name]="energySortKey() === 'date' ? (energySortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="energySortKey() === 'date'"
+                              [class.sort-icon-muted]="energySortKey() !== 'date'"
+                            />
+                          </span>
+                        </th>
+                        <th class="th-sortable" (click)="toggleEnergySort('group_name')" tabindex="0" (keydown.enter)="toggleEnergySort('group_name')">
+                          <span class="th-sort-content">
+                            Asset / Group
+                            <app-icon
+                              [name]="energySortKey() === 'group_name' ? (energySortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="energySortKey() === 'group_name'"
+                              [class.sort-icon-muted]="energySortKey() !== 'group_name'"
+                            />
+                          </span>
+                        </th>
+                        <th class="th-sortable" (click)="toggleEnergySort('group_type')" tabindex="0" (keydown.enter)="toggleEnergySort('group_type')">
+                          <span class="th-sort-content">
+                            Type
+                            <app-icon
+                              [name]="energySortKey() === 'group_type' ? (energySortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="energySortKey() === 'group_type'"
+                              [class.sort-icon-muted]="energySortKey() !== 'group_type'"
+                            />
+                          </span>
+                        </th>
+                        <th class="th-sortable" (click)="toggleEnergySort('energy')" tabindex="0" (keydown.enter)="toggleEnergySort('energy')">
+                          <span class="th-sort-content">
+                            Energy Consumed
+                            <app-icon
+                              [name]="energySortKey() === 'energy' ? (energySortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="energySortKey() === 'energy'"
+                              [class.sort-icon-muted]="energySortKey() !== 'energy'"
+                            />
+                          </span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      @for (row of energyData()?.data?.rows || []; track $index) {
+                      @for (row of sortedEnergyRows(); track $index) {
                         <tr>
                           <td>{{ row.date }}</td>
                           <td>{{ row.group_name }}</td>
@@ -131,6 +175,15 @@ type ReportTab = 'energy' | 'production' | 'device-health';
                       }
                     </tbody>
                   </table>
+                </div>
+                <div class="table-pagination">
+                  <app-pagination
+                    [page]="energyPage()"
+                    [pageSize]="energyPageSize()"
+                    [total]="energyData()?.pagination?.total ?? (energyData()?.data?.rows?.length || 0)"
+                    (pageChange)="onEnergyPageChange($event)"
+                    (pageSizeChange)="onEnergyPageSizeChange($event)"
+                  />
                 </div>
               </div>
             }
@@ -154,18 +207,58 @@ type ReportTab = 'energy' | 'production' | 'device-health';
                   </div>
                 }
 
-                <div class="table-container">
+                <div class="table-container table-sticky-container">
                   <table class="reports-table">
                     <thead>
                       <tr>
-                        <th>Date</th>
-                        <th>Machine</th>
-                        <th>Parts Produced</th>
-                        <th>Runtime (Hours)</th>
+                        <th class="th-sortable" (click)="toggleProductionSort('date')" tabindex="0" (keydown.enter)="toggleProductionSort('date')">
+                          <span class="th-sort-content">
+                            Date
+                            <app-icon
+                              [name]="productionSortKey() === 'date' ? (productionSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="productionSortKey() === 'date'"
+                              [class.sort-icon-muted]="productionSortKey() !== 'date'"
+                            />
+                          </span>
+                        </th>
+                        <th class="th-sortable" (click)="toggleProductionSort('machine_name')" tabindex="0" (keydown.enter)="toggleProductionSort('machine_name')">
+                          <span class="th-sort-content">
+                            Machine
+                            <app-icon
+                              [name]="productionSortKey() === 'machine_name' ? (productionSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="productionSortKey() === 'machine_name'"
+                              [class.sort-icon-muted]="productionSortKey() !== 'machine_name'"
+                            />
+                          </span>
+                        </th>
+                        <th class="th-sortable" (click)="toggleProductionSort('production')" tabindex="0" (keydown.enter)="toggleProductionSort('production')">
+                          <span class="th-sort-content">
+                            Parts Produced
+                            <app-icon
+                              [name]="productionSortKey() === 'production' ? (productionSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="productionSortKey() === 'production'"
+                              [class.sort-icon-muted]="productionSortKey() !== 'production'"
+                            />
+                          </span>
+                        </th>
+                        <th class="th-sortable" (click)="toggleProductionSort('runtime_seconds')" tabindex="0" (keydown.enter)="toggleProductionSort('runtime_seconds')">
+                          <span class="th-sort-content">
+                            Runtime (Hours)
+                            <app-icon
+                              [name]="productionSortKey() === 'runtime_seconds' ? (productionSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="productionSortKey() === 'runtime_seconds'"
+                              [class.sort-icon-muted]="productionSortKey() !== 'runtime_seconds'"
+                            />
+                          </span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      @for (row of productionData()?.data?.rows || []; track $index) {
+                      @for (row of sortedProductionRows(); track $index) {
                         <tr>
                           <td>{{ row.date }}</td>
                           <td>{{ row.machine_name }}</td>
@@ -179,6 +272,15 @@ type ReportTab = 'energy' | 'production' | 'device-health';
                       }
                     </tbody>
                   </table>
+                </div>
+                <div class="table-pagination">
+                  <app-pagination
+                    [page]="productionPage()"
+                    [pageSize]="productionPageSize()"
+                    [total]="productionData()?.pagination?.total ?? (productionData()?.data?.rows?.length || 0)"
+                    (pageChange)="onProductionPageChange($event)"
+                    (pageSizeChange)="onProductionPageSizeChange($event)"
+                  />
                 </div>
               </div>
             }
@@ -206,19 +308,59 @@ type ReportTab = 'energy' | 'production' | 'device-health';
                   </div>
                 }
 
-                <div class="table-container">
+                <div class="table-container table-sticky-container">
                   <table class="reports-table">
                     <thead>
                       <tr>
-                        <th>Status</th>
-                        <th>Device Name / ID</th>
-                        <th>Gateway</th>
+                        <th class="th-sortable" (click)="toggleHealthSort('connection_state')" tabindex="0" (keydown.enter)="toggleHealthSort('connection_state')">
+                          <span class="th-sort-content">
+                            Status
+                            <app-icon
+                              [name]="healthSortKey() === 'connection_state' ? (healthSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="healthSortKey() === 'connection_state'"
+                              [class.sort-icon-muted]="healthSortKey() !== 'connection_state'"
+                            />
+                          </span>
+                        </th>
+                        <th class="th-sortable" (click)="toggleHealthSort('name')" tabindex="0" (keydown.enter)="toggleHealthSort('name')">
+                          <span class="th-sort-content">
+                            Device Name / ID
+                            <app-icon
+                              [name]="healthSortKey() === 'name' ? (healthSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="healthSortKey() === 'name'"
+                              [class.sort-icon-muted]="healthSortKey() !== 'name'"
+                            />
+                          </span>
+                        </th>
+                        <th class="th-sortable" (click)="toggleHealthSort('gateway_name')" tabindex="0" (keydown.enter)="toggleHealthSort('gateway_name')">
+                          <span class="th-sort-content">
+                            Gateway
+                            <app-icon
+                              [name]="healthSortKey() === 'gateway_name' ? (healthSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="healthSortKey() === 'gateway_name'"
+                              [class.sort-icon-muted]="healthSortKey() !== 'gateway_name'"
+                            />
+                          </span>
+                        </th>
                         <th>Protocols</th>
-                        <th>Data Freshness</th>
+                        <th class="th-sortable" (click)="toggleHealthSort('data_stale')" tabindex="0" (keydown.enter)="toggleHealthSort('data_stale')">
+                          <span class="th-sort-content">
+                            Data Freshness
+                            <app-icon
+                              [name]="healthSortKey() === 'data_stale' ? (healthSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
+                              [size]="13"
+                              [class.sort-icon-active]="healthSortKey() === 'data_stale'"
+                              [class.sort-icon-muted]="healthSortKey() !== 'data_stale'"
+                            />
+                          </span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      @for (row of healthData()?.data?.rows || []; track row.device_id) {
+                      @for (row of sortedHealthRows(); track row.device_id) {
                         <tr>
                           <td>
                             <app-status-pill
@@ -247,6 +389,15 @@ type ReportTab = 'energy' | 'production' | 'device-health';
                     </tbody>
                   </table>
                 </div>
+                <div class="table-pagination">
+                  <app-pagination
+                    [page]="healthPage()"
+                    [pageSize]="healthPageSize()"
+                    [total]="healthData()?.pagination?.total ?? (healthData()?.data?.rows?.length || 0)"
+                    (pageChange)="onHealthPageChange($event)"
+                    (pageSizeChange)="onHealthPageSizeChange($event)"
+                  />
+                </div>
               </div>
             }
           }
@@ -260,15 +411,20 @@ type ReportTab = 'energy' | 'production' | 'device-health';
       flex-direction: column;
       gap: var(--space-4);
       padding: var(--space-4);
-      max-width: 1400px;
-      margin: 0 auto;
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .reports-header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--bg-app);
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: var(--space-4);
+      padding: var(--space-2) 0;
     }
 
     .reports-header__title {
@@ -285,10 +441,16 @@ type ReportTab = 'energy' | 'production' | 'device-health';
     }
 
     .tabs-bar {
+      position: sticky;
+      top: 56px;
+      z-index: 19;
+      background: var(--bg-app);
       display: flex;
       gap: var(--space-2);
       border-bottom: 1px solid var(--border-light);
-      padding-bottom: var(--space-2);
+      padding: var(--space-2) 0;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
     .tab-btn {
@@ -303,6 +465,8 @@ type ReportTab = 'energy' | 'production' | 'device-health';
       font-size: var(--text-sm);
       font-weight: 500;
       cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
       transition: all 0.2s ease;
     }
 
@@ -351,7 +515,13 @@ type ReportTab = 'energy' | 'production' | 'device-health';
     .text-red { color: var(--status-fault); }
 
     .table-container {
-      overflow-x: auto;
+      overflow: auto;
+      max-height: calc(100vh - 310px);
+      min-height: 240px;
+    }
+
+    .table-pagination {
+      border-top: 1px solid var(--border-light);
     }
 
     .reports-table {
@@ -362,6 +532,11 @@ type ReportTab = 'energy' | 'production' | 'device-health';
     }
 
     .reports-table th {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg-card);
+      box-shadow: 0 1px 0 var(--border-light);
       padding: 12px 16px;
       font-size: var(--text-xs);
       font-weight: 600;
@@ -369,7 +544,6 @@ type ReportTab = 'energy' | 'production' | 'device-health';
       letter-spacing: 0.05em;
       color: var(--text-secondary);
       border-bottom: 1px solid var(--border-light);
-      background: rgba(255, 255, 255, 0.01);
     }
 
     .reports-table td {
@@ -424,6 +598,36 @@ type ReportTab = 'energy' | 'production' | 'device-health';
         transform: rotate(360deg);
       }
     }
+
+    @media (max-width: 768px) {
+      .reports-page {
+        padding: var(--space-3);
+        gap: var(--space-3);
+      }
+      .reports-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-2);
+      }
+      .filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .filter-group {
+        width: 100%;
+        justify-content: space-between;
+      }
+      .kpi-strip {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        padding: 12px;
+      }
+    }
+    @media (max-width: 480px) {
+      .kpi-strip {
+        grid-template-columns: 1fr;
+      }
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -438,6 +642,42 @@ export class ReportsPageComponent implements OnInit {
   readonly productionData = signal<ReportResponse<any, any> | null>(null);
   readonly healthData = signal<DeviceHealthResponse | null>(null);
 
+  readonly energyPage = signal(1);
+  readonly energyPageSize = signal(25);
+  readonly energySortKey = signal<string | null>(null);
+  readonly energySortDir = signal<SortDirection>('asc');
+
+  readonly productionPage = signal(1);
+  readonly productionPageSize = signal(25);
+  readonly productionSortKey = signal<string | null>(null);
+  readonly productionSortDir = signal<SortDirection>('asc');
+
+  readonly healthPage = signal(1);
+  readonly healthPageSize = signal(25);
+  readonly healthSortKey = signal<string | null>(null);
+  readonly healthSortDir = signal<SortDirection>('asc');
+
+  readonly sortedEnergyRows = computed(() => {
+    const rows = this.energyData()?.data?.rows || [];
+    const key = this.energySortKey();
+    if (!key) return rows;
+    return sortData(rows, (r: any) => r[key], this.energySortDir());
+  });
+
+  readonly sortedProductionRows = computed(() => {
+    const rows = this.productionData()?.data?.rows || [];
+    const key = this.productionSortKey();
+    if (!key) return rows;
+    return sortData(rows, (r: any) => r[key], this.productionSortDir());
+  });
+
+  readonly sortedHealthRows = computed(() => {
+    const rows = this.healthData()?.data?.rows || [];
+    const key = this.healthSortKey();
+    if (!key) return rows;
+    return sortData(rows, (r: any) => r[key], this.healthSortDir());
+  });
+
   ngOnInit(): void {
     this.loadReport();
   }
@@ -447,48 +687,99 @@ export class ReportsPageComponent implements OnInit {
     this.loadReport();
   }
 
+  toggleEnergySort(key: string): void {
+    toggleSort(this.energySortKey, this.energySortDir, key);
+  }
+
+  toggleProductionSort(key: string): void {
+    toggleSort(this.productionSortKey, this.productionSortDir, key);
+  }
+
+  toggleHealthSort(key: string): void {
+    toggleSort(this.healthSortKey, this.healthSortDir, key);
+  }
+
+  onEnergyPageChange(page: number): void {
+    this.energyPage.set(page);
+    this.loadReport();
+  }
+
+  onEnergyPageSizeChange(size: number): void {
+    this.energyPageSize.set(size);
+    this.energyPage.set(1);
+    this.loadReport();
+  }
+
+  onProductionPageChange(page: number): void {
+    this.productionPage.set(page);
+    this.loadReport();
+  }
+
+  onProductionPageSizeChange(size: number): void {
+    this.productionPageSize.set(size);
+    this.productionPage.set(1);
+    this.loadReport();
+  }
+
+  onHealthPageChange(page: number): void {
+    this.healthPage.set(page);
+    this.loadReport();
+  }
+
+  onHealthPageSizeChange(size: number): void {
+    this.healthPageSize.set(size);
+    this.healthPage.set(1);
+    this.loadReport();
+  }
+
   loadReport(): void {
     this.loading.set(true);
     this.error.set(null);
 
     switch (this.activeTab()) {
       case 'energy':
-        this.reportsApi.energy({ page: 1, page_size: 25 }).subscribe({
-          next: (res) => {
-            this.energyData.set(res);
-            this.loading.set(false);
-          },
-          error: (err) => {
-            this.error.set(err?.message || 'Failed to load energy report.');
-            this.loading.set(false);
-          },
-        });
+        this.reportsApi
+          .energy({ page: this.energyPage(), page_size: this.energyPageSize() })
+          .subscribe({
+            next: (res) => {
+              this.energyData.set(res);
+              this.loading.set(false);
+            },
+            error: (err) => {
+              this.error.set(err?.message || 'Failed to load energy report.');
+              this.loading.set(false);
+            },
+          });
         break;
 
       case 'production':
-        this.reportsApi.production({ page: 1, page_size: 25 }).subscribe({
-          next: (res) => {
-            this.productionData.set(res);
-            this.loading.set(false);
-          },
-          error: (err) => {
-            this.error.set(err?.message || 'Failed to load production report.');
-            this.loading.set(false);
-          },
-        });
+        this.reportsApi
+          .production({ page: this.productionPage(), page_size: this.productionPageSize() })
+          .subscribe({
+            next: (res) => {
+              this.productionData.set(res);
+              this.loading.set(false);
+            },
+            error: (err) => {
+              this.error.set(err?.message || 'Failed to load production report.');
+              this.loading.set(false);
+            },
+          });
         break;
 
       case 'device-health':
-        this.reportsApi.deviceHealth({ page: 1, page_size: 25 }).subscribe({
-          next: (res) => {
-            this.healthData.set(res);
-            this.loading.set(false);
-          },
-          error: (err) => {
-            this.error.set(err?.message || 'Failed to load device health report.');
-            this.loading.set(false);
-          },
-        });
+        this.reportsApi
+          .deviceHealth({ page: this.healthPage(), page_size: this.healthPageSize() })
+          .subscribe({
+            next: (res) => {
+              this.healthData.set(res);
+              this.loading.set(false);
+            },
+            error: (err) => {
+              this.error.set(err?.message || 'Failed to load device health report.');
+              this.loading.set(false);
+            },
+          });
         break;
     }
   }
