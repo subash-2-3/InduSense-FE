@@ -1,3 +1,4 @@
+import { CursorPagination } from '../api/api-envelope';
 import { IsoDateTime } from './common';
 import { KpiValue, MachineState, Metadata, Quantity } from './dashboard';
 
@@ -207,6 +208,13 @@ export interface EnergyPage<R> {
   pagination: { page: number; page_size: number; total: number; total_pages: number };
 }
 
+/** `/reports/energy/details`: cursor paging (no total is counted). */
+export interface EnergyDetailsPage {
+  success: boolean;
+  data: { rows: DetailRow[]; metadata: Metadata };
+  pagination: CursorPagination;
+}
+
 export interface EnergyPageFilters extends EnergyRangeFilters {
   page?: number;
   page_size?: number;
@@ -214,6 +222,8 @@ export interface EnergyPageFilters extends EnergyRangeFilters {
 
 export interface EnergyDetailFilters extends EnergyPageFilters {
   tag_id?: number[];
+  /** Cursor mode: '' for the first page, then the previous page's `pagination.next_cursor`. */
+  cursor?: string;
 }
 
 export interface EnergyExportFilters extends EnergyRangeFilters {

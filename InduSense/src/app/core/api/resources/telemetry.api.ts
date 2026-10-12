@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { HistoryQuery, LatestQuery, LatestValue, TelemetryPoint } from '../../models';
-import { Page } from '../api-envelope';
+import { CursorPagination } from '../api-envelope';
 import { ApiService } from '../api.service';
 
 /** Timestamps are sent in ISO 8601 with an offset, as the API requires. */
@@ -11,6 +11,12 @@ export function toApiTime(value: Date | string | undefined): string | undefined 
     return undefined;
   }
   return value instanceof Date ? value.toISOString() : value;
+}
+
+export interface TelemetryHistoryPage {
+  success: true;
+  data: TelemetryPoint[];
+  pagination: CursorPagination;
 }
 
 /** `/telemetry` (requires `telemetry:view`). Read-only. */
@@ -26,9 +32,12 @@ export class TelemetryApi {
     });
   }
 
-  /** Telemetry history, one page at a time. */
-  history(query: HistoryQuery): Observable<Page<TelemetryPoint>> {
-    return this.api.getPage<TelemetryPoint>('/telemetry', {
+  /**
+   * Telemetry history, one page at a time. With `cursor` the server pages by position without counting
+   * the range (`pagination.total` is null; follow `next_cursor` while `has_more`).
+   */
+  history(query: HistoryQuery): Observable<TelemetryHistoryPage> {
+    return this.api.getRaw<TelemetryHistoryPage>('/telemetry', {
       device_id: query.deviceId,
       tag_id: query.tagIds,
       start_time: toApiTime(query.start),
@@ -37,6 +46,7 @@ export class TelemetryApi {
       order: query.order,
       page: query.page,
       page_size: query.pageSize,
+      cursor: query.cursor,
     });
   }
 }

@@ -1,8 +1,19 @@
 # InduSense Frontend
 
-Angular 21 frontend for InduSense: the **Device Summary** dashboard (7 widgets) with dark and light themes, sign-in, the application shell (top bar, sidebar, dashboard toolbar) and management pages for devices, assets (machines, meters, gateways), locations (plants, areas), reports and settings (users, roles, companies).
+Angular 21 frontend for InduSense, with dark and light themes:
+- the **Device Summary** dashboard (7 widgets);
+- the **Energy & OEE** dashboard: energy KPIs, live parameters, trends and distribution, plus machine
+  state, production and availability;
+- **Energy reports**, **Reports** and **Alarms** (active, history, alarm master);
+- machine controls;
+- management pages for devices, tags, assets (machines, meters, gateways), locations (plants, areas),
+  companies and settings (users, roles).
 
-**Status:** Everything talks to InduSense-BE: sign-in, permission-based navigation and route guards, live dashboard data (`ApiDashboardDataSource`) and the management pages. Mock data remains only for the development review scenarios below. Maps, Alarms, More, Quick Start and Help are "coming soon" placeholders.
+**Status:**
+- Everything talks to InduSense-BE: sign-in, permission-based navigation and route guards, and live
+  data on every page.
+- Mock data remains only for the development review scenarios below.
+- Maps, More, Quick Start and Help are "coming soon" placeholders.
 
 ## Quick start
 
@@ -27,6 +38,19 @@ To reach a local InduSense backend (InduSense-BE, `uvicorn app.main:app`), the d
 
 - **Login:** `/login`, with an InduSense-BE account (a running backend is required; see [Backend proxy](#backend-proxy-development)). For demo data and users, run `python scripts/seed_demo_data.py` in InduSense-BE. **Log out** is in the avatar menu.
 - **Dashboard:** `/dashboard` refreshes every 30 s (while the tab is visible). Use the refresh button to reload now.
+- **Pages** (each sidebar entry is shown only with its permission; the backend enforces the same):
+
+  | Route | Page | Permission |
+  |---|---|---|
+  | `/dashboard` | Device Summary dashboard | signed in |
+  | `/energy` | Energy & OEE: energy overview, live parameters, trends, distribution; machines with a Run / Idle / Stop light (`machine_status` 0 / 1 / 2), production, availability and active alarms; machine control dialog (Start/Stop and resets, sent as commands to the PLC through the DataLogger) | `dashboards:view` (controls: `devices:control`) |
+  | `/energy/reports` | Energy reports: summary, cumulative readings, detailed readings (raw samples, cursor paging: Previous / Next), CSV / Excel export | `reports:view` |
+  | `/reports` | energy, production and device-health reports | `reports:view` |
+  | `/alarms` | active alarms (with the alarm master's message per bit), history with export, **Alarm master** (names and messages of the bits of each alarm word) | `alarms:view` (master edits: `alarms:manage`) |
+  | `/tags` | tags of every device: type (EMS/OEE), round-off, add default tags from the catalog, edit, delete | `tags:view` |
+  | `/devices`, `/assets`, `/locations` | devices (connections, tags), machines / meters / gateways (tag mappings), plants and areas | the entity's `:view` |
+  | `/companies` | companies, modules and limits (platform administrators) | `tenant:all` |
+  | `/settings` | users and roles | `users:view` / `roles:view` |
 - **Review scenarios (development builds only):** add `?scenario=` to the dashboard URL, or use the "Preview data" links under the toolbar:
 
   | Scenario | Behaviour |
@@ -82,9 +106,9 @@ src/
   app/
     core/
       api/                      ApiService (URLs, envelopes, paging, errors), ApiError,
-                                apiCredentialsInterceptor, resources/ (DevicesApi, MachinesApi,
-                                MetersApi, GatewaysApi, LocationsApi, TagsApi, TelemetryApi,
-                                DashboardsApi, ReportsApi, UsersApi, RolesApi, CompaniesApi, …)
+                                apiCredentialsInterceptor, resources/ (devices, plant-assets,
+                                locations, tags, telemetry, dashboards, energy, reports, alarms,
+                                commands, admin: users / roles / companies)
       models/                   backend response models (field-for-field with InduSense-BE schemas)
       auth/                     AuthService (sign-in, session restore, refresh on 401), auth and
                                 CSRF interceptors, route guards, permission codes
@@ -107,7 +131,11 @@ src/
                                 built by a pure *.options.ts function)
         device-summary-page/    the dashboard page (grid + toolbar)
       devices/, assets/,        management pages (list, create, edit, deactivate)
-      locations/, settings/
+      locations/, settings/,
+      companies/, tags/
+      energy/                   Energy & OEE dashboard (+ machines section), energy reports, filters
+      machines/                 machine control dialog (commands to the PLC)
+      alarms/                   active alarms, history, alarm master (setup); sidebar badge count
       reports/                  energy, production and device-health reports
       placeholder/              "coming soon" page for sections not built yet
 ```
@@ -146,7 +174,17 @@ Everything under `src/app/core/api/`:
   - `retryAfterSeconds` (429) and `requestId` (`X-Request-ID`).
   - FastAPI's default `{ detail }` shapes and non-JSON gateway pages are normalised too.
 - **`apiCredentialsInterceptor`** sends cookies (`withCredentials`) on API requests only.
-- **Resource services** provide typed access per endpoint group: `DevicesApi` (`list`, `listAll`, `count`, `get`), `MachinesApi` and `GatewaysApi` (`list`, `listAll`, `get`), `LocationsApi` (plants and areas), `TagsApi` (`findByName` prefers an exact `tag_name`, then `display_name`), and `TelemetryApi` (`latest`, `history`, with ISO time ranges).
+- **Resource services** provide typed access per endpoint group:
+  - `DevicesApi` (`list`, `listAll`, `count`, `get`);
+  - `MachinesApi` and `GatewaysApi` (`list`, `listAll`, `get`);
+  - `LocationsApi` (plants and areas);
+  - `TagsApi` (`findByName` prefers an exact `tag_name`, then `display_name`);
+  - `TelemetryApi` (`latest`, `history`, with ISO time ranges);
+  - `EnergyApi`, `DashboardsApi`, `ReportsApi`, `AlarmsApi`, `CommandsApi` and the admin APIs.
+- **Raw telemetry lists use cursor paging.** `TelemetryApi.history({ cursor })` and
+  `EnergyApi.reportDetails({ cursor })` take `''` for the first page, then the previous response's
+  `pagination.next_cursor` while `has_more` (`CursorPagination` in `api-envelope.ts`). The backend
+  counts no total for them, so those screens show Previous / Next instead of page numbers.
 - **Toasts** (`shared/ui/toast`):
   - **Errors** of changes are handled in one place. `errorToastInterceptor` toasts every failed POST/PUT/PATCH/DELETE with the backend's message: the first rejected field for validation errors, and a reference id for unexpected server errors. Screens only reset their own state.
   - Not toasted by the interceptor: failed page loads (GET), which show in the page as an error state with Retry; `/auth/*`, where the login form shows errors inline; and 401, where the auth interceptor ends the session with its own message.
@@ -192,14 +230,17 @@ Sign-in uses the backend's browser session (`POST /api/v1/auth/session`). The ac
 
 ## Testing
 
-`npm test` runs the Vitest unit tests (jsdom).
+`npm test` runs the Vitest unit tests (jsdom): 65 files, 363 tests at the last run.
 
 - **Pure functions:** chart options, sorting, formatting, status mapping and mock data consistency.
 - **Components:** widgets, layout, login, dropdown keyboard behaviour.
 - **Store:** polling, visibility pause, overlap protection, stale data and paging races, tested with fake timers.
 - **API layer** (`HttpTestingController`): URL and query building, envelope unwrapping, `getAllPages` (ordering, concurrency, caps, failures), `204` handling, the credentials interceptor, every resource endpoint, and error normalisation using error bodies captured from the real backend.
+- **Pages:** energy dashboard and reports (including cursor paging of detailed readings), machines section and machine control, alarms, tags, devices, assets, companies and settings.
 
 ## Next steps
 
-- The dashboard aggregates raw lists in the browser. InduSense-BE's `/dashboards/*` endpoints (wrapped by `DashboardsApi`, not used yet) compute KPIs, trends and machine status on the server from tag mappings, and scale better.
-- The management pages (`devices`, `assets`, `locations`, `settings`, `reports`) have no unit tests yet.
+- The Device Summary dashboard still aggregates raw lists in the browser. InduSense-BE's `/dashboards/*` endpoints (wrapped by `DashboardsApi`; the Energy & OEE page already uses the server-side ones) compute KPIs, trends and machine status on the server, and scale better.
+- `locations` and `reports` pages have no unit tests yet.
+- Maps, More, Quick Start and Help are placeholders.
+- There is no "forgot password" screen. The backend endpoints exist, but no email is sent yet.

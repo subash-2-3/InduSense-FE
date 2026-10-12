@@ -47,4 +47,6 @@ export interface HistoryQuery {
   page?: number;
   /** Up to TELEMETRY_MAX_PAGE_SIZE (1000). */
   pageSize?: number;
+  /** Cursor mode (recommended): '' for the first page, then `pagination.next_cursor`; `page` is ignored. */
+  cursor?: string;
 }

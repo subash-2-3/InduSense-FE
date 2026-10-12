@@ -15,7 +15,7 @@ import { ApiError } from '../../core/api/api-error';
 import { EnergyApi } from '../../core/api/resources/energy.api';
 import {
   CumulativeRow,
-  DetailRow,
+  EnergyDetailsPage,
   EnergyExportFormat,
   EnergyExportReport,
   EnergyPage,
@@ -438,7 +438,7 @@ const GROUPS: readonly { key: keyof EnergyReportSummary; label: string }[] = [
                       </tbody>
                     </table>
                   </div>
-                  <ng-container *ngTemplateOutlet="pager; context: { $implicit: d }" />
+                  <ng-container *ngTemplateOutlet="cursorPager; context: { $implicit: d }" />
                 } @else {
                   <app-empty-state
                     heading="No readings"
@@ -451,6 +451,34 @@ const GROUPS: readonly { key: keyof EnergyReportSummary; label: string }[] = [
         }
       }
     </div>
+
+    <!-- Detailed readings: cursor paging (the server does not count millions of raw samples). -->
+    <ng-template #cursorPager let-p>
+      <div class="table-pagination">
+        <div class="cursor-pager">
+          <span class="cursor-pager__info">
+            Rows <strong>{{ detailFirstRow() }}</strong>–<strong>{{ detailFirstRow() + p.data.rows.length - 1 }}</strong>
+            · page {{ detailCursors().length }}
+          </span>
+          <label class="cursor-pager__size">
+            Rows per page
+            <select [value]="pageSize()" (change)="onPageSizeChange(+$any($event.target).value)">
+              @for (opt of pageSizes; track opt) {
+                <option [value]="opt" [selected]="opt === pageSize()">{{ opt }}</option>
+              }
+            </select>
+          </label>
+          <button appButton variant="ghost" size="sm" type="button" [disabled]="detailCursors().length <= 1"
+                  aria-label="Previous page" (click)="previousDetails()">
+            <app-icon name="chevron-left" [size]="14" /> Previous
+          </button>
+          <button appButton variant="ghost" size="sm" type="button" [disabled]="!p.pagination.has_more"
+                  aria-label="Next page" (click)="nextDetails(p.pagination.next_cursor)">
+            Next <app-icon name="chevron-right" [size]="14" />
+          </button>
+        </div>
+      </div>
+    </ng-template>
 
     <ng-template #pager let-p>
       <div class="table-pagination">
@@ -485,7 +513,11 @@ export class EnergyReportsPageComponent {
 
   protected readonly summary = signal<EnergyReportSummary | null>(null);
   protected readonly cumulative = signal<EnergyPage<CumulativeRow> | null>(null);
-  protected readonly details = signal<EnergyPage<DetailRow> | null>(null);
+  protected readonly details = signal<EnergyDetailsPage | null>(null);
+  /** Cursors of the detail pages visited so far: the last one is the current page ('' = first). */
+  protected readonly detailCursors = signal<string[]>(['']);
+  protected readonly detailFirstRow = computed(() => (this.detailCursors().length - 1) * this.pageSize() + 1);
+  protected readonly pageSizes = [25, 50, 100];
 
   protected readonly cumulativeSortKey = signal<string | null>(null);
   protected readonly cumulativeSortDir = signal<SortDirection>('asc');
@@ -549,12 +581,28 @@ export class EnergyReportsPageComponent {
 
   protected onPageSizeChange(size: number): void {
     this.pageSize.set(size);
+    this.detailCursors.set(['']);
     this.go(1);
+  }
+
+  protected nextDetails(cursor: string | null): void {
+    if (cursor) {
+      this.detailCursors.update((c) => [...c, cursor]);
+      this.load();
+    }
+  }
+
+  protected previousDetails(): void {
+    if (this.detailCursors().length > 1) {
+      this.detailCursors.update((c) => c.slice(0, -1));
+      this.load();
+    }
   }
 
   protected onFilters(state: EnergyFilterState): void {
     this.filters.set(state);
     this.page.set(1);
+    this.detailCursors.set(['']);
     this.summary.set(null);
     this.cumulative.set(null);
     this.details.set(null);
@@ -564,6 +612,7 @@ export class EnergyReportsPageComponent {
   protected setTab(tab: Tab): void {
     this.tab.set(tab);
     this.page.set(1);
+    this.detailCursors.set(['']);
     this.load();
   }
 
@@ -598,7 +647,9 @@ export class EnergyReportsPageComponent {
         ? this.api.reportSummary(query).pipe(tap((s) => this.summary.set(s)))
         : this.tab() === 'cumulative'
           ? this.api.reportCumulative(paged).pipe(tap((c) => this.cumulative.set(c)))
-          : this.api.reportDetails(paged).pipe(tap((d) => this.details.set(d)));
+          : this.api
+              .reportDetails({ ...query, page_size: this.pageSize(), cursor: this.detailCursors().at(-1) ?? '' })
+              .pipe(tap((d) => this.details.set(d)));
     return call.pipe(
       catchError((e) => {
         this.error.set(ApiError.from(e).message);

@@ -3,8 +3,8 @@ import { Observable } from 'rxjs';
 
 import {
   CumulativeRow,
-  DetailRow,
   EnergyDetailFilters,
+  EnergyDetailsPage,
   EnergyDistribution,
   EnergyExportFilters,
   EnergyFilters,
@@ -63,8 +63,9 @@ export class EnergyApi {
     );
   }
 
-  reportDetails(filters: EnergyDetailFilters = {}): Observable<EnergyPage<DetailRow>> {
-    return this.api.getRaw<EnergyPage<DetailRow>>('/reports/energy/details', queryOf(filters));
+  /** Raw readings, newest first. Pass `cursor: ''` and then each `next_cursor` (no total is counted). */
+  reportDetails(filters: EnergyDetailFilters = {}): Observable<EnergyDetailsPage> {
+    return this.api.getRaw<EnergyDetailsPage>('/reports/energy/details', queryOf(filters));
   }
 
   /** The filtered report as a CSV or Excel file (every row, not one page). */

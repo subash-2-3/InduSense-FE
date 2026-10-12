@@ -290,6 +290,47 @@ describe('EnergyReportsPageComponent', () => {
     expect(el.querySelector('tbody')?.textContent).toContain('70 kWh');
   });
 
+  it('pages the detailed readings with cursors, without asking for a total', async () => {
+    const { el, fixture } = await setup();
+    const reading = (value: number) => ({
+      ts: META.from, plant_name: 'PN-1', area_name: null, asset_type: 'meter', asset_name: 'EM-1',
+      device_name: 'D1', parameter: 'Energy', metric: 'ENERGY', value, unit: 'kWh', roundoff_digits: null,
+      quality: 'GOOD',
+    });
+    const page = (value: number, next: string | null) => ({
+      success: true,
+      data: { rows: [reading(value)], metadata: META },
+      pagination: { page: null, page_size: 25, total: null, total_pages: null, next_cursor: next, has_more: !!next },
+    });
+    const pager = (label: string) =>
+      [...el.querySelectorAll<HTMLButtonElement>('.cursor-pager button')].find((b) => b.textContent?.includes(label))!;
+    const details = () => http.expectOne((r) => r.url === '/api/v1/reports/energy/details');
+
+    el.querySelectorAll<HTMLButtonElement>('.tab')[2].click();
+    let req = details();
+    expect(req.request.params.get('cursor')).toBe(''); // cursor mode, first page
+    expect(req.request.params.has('page')).toBe(false);
+    req.flush(page(1, 'c2'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(pager('Previous').disabled).toBe(true);
+    expect(el.querySelector('.cursor-pager__info')?.textContent).toContain('page 1');
+
+    pager('Next').click();
+    req = details();
+    expect(req.request.params.get('cursor')).toBe('c2');
+    req.flush(page(2, null));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(pager('Next').disabled).toBe(true); // last page
+    expect(el.querySelector('.cursor-pager__info')?.textContent).toContain('Rows 26');
+
+    pager('Previous').click();
+    req = details();
+    expect(req.request.params.get('cursor')).toBe('');
+    req.flush(page(1, 'c2'));
+  });
+
   it('exports the current report as a file', async () => {
     const { el, fixture } = await setup();
     const success = vi.spyOn(TestBed.inject(ToastService), 'success');
