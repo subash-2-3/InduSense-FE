@@ -688,7 +688,7 @@ function blankUserForm(): UserForm {
           <div class="form-group">
             <span class="form-label">Roles * ({{ userForm.roles.size }} selected)</span>
             <div class="perms-picker">
-              @for (r of roles(); track r.id) {
+              @for (r of assignableRoles(); track r.id) {
                 <label class="perm-checkbox-item">
                   <input
                     type="checkbox"
@@ -1448,6 +1448,14 @@ export class SettingsPageComponent implements OnInit {
   private readonly locationsApi = inject(LocationsApi);
   protected readonly isPlatformAdmin = computed(() =>
     this.auth.hasPermission(Permission.TenantAll),
+  );
+  /**
+   * Roles the current user may assign: every permission of the role must be one they already hold
+   * (mirrors the API's `_assignable_roles`). A company administrator, lacking `tenant:all`, never
+   * sees SUPER_ADMIN — so they cannot grant super-admin access when creating or editing a user.
+   */
+  protected readonly assignableRoles = computed<Role[]>(() =>
+    this.roles().filter((role) => role.permissions.every((code) => this.auth.hasPermission(code))),
   );
   readonly companies = signal<Company[]>([]);
   readonly plants = signal<Plant[]>([]);

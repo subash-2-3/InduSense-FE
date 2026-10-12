@@ -244,6 +244,29 @@
   cursor: pointer;
 }
 
+.form__alert {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--status-fault);
+  border-radius: var(--radius-sm);
+  background: var(--status-fault-soft);
+  color: var(--status-fault-text);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--space-3);
+}
+
+.field--invalid {
+  border-color: var(--status-fault) !important;
+}
+
+.field-error {
+  color: var(--status-fault-text);
+  font-size: var(--fs-xs);
+  margin-top: 2px;
+}
+
 .form__actions {
   display: flex;
   justify-content: flex-end;
