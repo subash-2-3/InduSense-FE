@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 
 import { fakeUser, provideFakeAuth } from '../../core/auth/testing';
-import { User } from '../../core/models';
+import { Role, User } from '../../core/models';
 import { SettingsPageComponent } from './settings-page.component';
 
 const single = <T>(data: T) => ({ success: true, data });
@@ -11,6 +11,17 @@ const page = <T>(data: T[]) => ({
   success: true,
   data,
   pagination: { page: 1, page_size: 100, total: data.length, total_pages: 1 },
+});
+
+const role = (id: number, code: string, name: string, permissions: string[]): Role => ({
+  id,
+  code,
+  name,
+  description: null,
+  is_system: true,
+  permissions,
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
 });
 
 const VIEWER: User = {
@@ -55,6 +66,36 @@ describe('SettingsPageComponent (users)', () => {
   }
 
   afterEach(() => http.verify());
+
+  it('offers only assignable roles when creating a user (no SUPER_ADMIN for a company admin)', async () => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideFakeAuth(fakeUser())],
+    });
+    http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(SettingsPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/v1/roles').flush(
+      single([
+        role(1, 'SUPER_ADMIN', 'Super administrator', ['tenant:all']),
+        role(2, 'VIEWER', 'Viewer', ['machines:view', 'telemetry:view']),
+      ]),
+    );
+    http.expectOne('/api/v1/permissions').flush(single([]));
+    http.expectOne((r) => r.url === '/api/v1/plants').flush(page([]));
+    http.expectOne((r) => r.url === '/api/v1/users').flush(page([]));
+    await fixture.whenStable();
+
+    (fixture.componentInstance as unknown as { openCreateUserModal(): void }).openCreateUserModal();
+    fixture.detectChanges();
+
+    const roleLabels = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll('.perms-picker .perm-checkbox-item span'),
+    ]
+      .map((s) => s.textContent ?? '')
+      .filter((t) => t.includes('('));
+    expect(roleLabels.some((t) => t.includes('VIEWER'))).toBe(true);
+    expect(roleLabels.some((t) => t.includes('SUPER_ADMIN'))).toBe(false);
+  });
 
   it('sends only what changed: roles and plant access, not the unchanged name', async () => {
     const page = await setup();

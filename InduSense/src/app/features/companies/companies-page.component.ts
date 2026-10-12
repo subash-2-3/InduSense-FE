@@ -9,6 +9,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { Observable, concat, forkJoin, last, noop, of } from 'rxjs';
 
+import { ApiError } from '../../core/api/api-error';
 import { CompaniesApi } from '../../core/api/resources/admin.api';
 import {
   Company,
@@ -43,6 +44,24 @@ import {
 import { sortData, toggleSort, SortDirection } from '../../shared/utils/sort';
 
 type StatusView = 'visible' | RecordStatus;
+
+export const COMMON_TIMEZONES: readonly SelectOption[] = [
+  { value: 'UTC', label: 'UTC' },
+  { value: 'Asia/Kolkata', label: 'Asia/Kolkata (IST +05:30)' },
+  { value: 'Asia/Dubai', label: 'Asia/Dubai (GST +04:00)' },
+  { value: 'Asia/Singapore', label: 'Asia/Singapore (SGT +08:00)' },
+  { value: 'Asia/Tokyo', label: 'Asia/Tokyo (JST +09:00)' },
+  { value: 'Asia/Shanghai', label: 'Asia/Shanghai (CST +08:00)' },
+  { value: 'Asia/Bangkok', label: 'Asia/Bangkok (ICT +07:00)' },
+  { value: 'Europe/London', label: 'Europe/London (GMT/BST)' },
+  { value: 'Europe/Paris', label: 'Europe/Paris (CET/CEST)' },
+  { value: 'Europe/Berlin', label: 'Europe/Berlin (CET/CEST)' },
+  { value: 'America/New_York', label: 'America/New_York (EST/EDT)' },
+  { value: 'America/Chicago', label: 'America/Chicago (CST/CDT)' },
+  { value: 'America/Denver', label: 'America/Denver (MST/MDT)' },
+  { value: 'America/Los_Angeles', label: 'America/Los_Angeles (PST/PDT)' },
+  { value: 'Australia/Sydney', label: 'Australia/Sydney (AEST/AEDT)' },
+];
 
 /** One editable company: its fields, limits (blank = unlimited) and enabled modules. */
 interface CompanyForm {
@@ -130,6 +149,9 @@ export class CompaniesPageComponent implements OnInit {
   protected readonly sortDir = signal<SortDirection>('asc');
   protected readonly page = signal(1);
   protected readonly pageSize = signal(10);
+  protected readonly timezones = COMMON_TIMEZONES;
+  protected readonly formError = signal<string | null>(null);
+  protected readonly fieldErrors = signal<Record<string, string>>({});
 
   /** null = closed, 'new' = create, otherwise the company being edited. */
   protected readonly editing = signal<Company | 'new' | null>(null);
@@ -216,6 +238,8 @@ export class CompaniesPageComponent implements OnInit {
 
   protected openCreate(): void {
     this.form = this.blankForm();
+    this.formError.set(null);
+    this.fieldErrors.set({});
     this.original = null;
     this.usage.set([]);
     this.editing.set('new');
@@ -223,6 +247,8 @@ export class CompaniesPageComponent implements OnInit {
 
   protected openEdit(company: Company): void {
     this.form = { ...this.blankForm(), ...company, address: company.address ?? '' };
+    this.formError.set(null);
+    this.fieldErrors.set({});
     this.original = null;
     this.usage.set([]);
     this.editing.set(company);
@@ -247,6 +273,8 @@ export class CompaniesPageComponent implements OnInit {
   }
 
   protected close(): void {
+    this.formError.set(null);
+    this.fieldErrors.set({});
     this.editing.set(null);
   }
 
@@ -267,9 +295,13 @@ export class CompaniesPageComponent implements OnInit {
     const name = this.form.name.trim();
     if (!target || !name || (target === 'new' && !this.form.code.trim())) return;
     if (this.invalidLimits().length) {
-      this.toast.error('Limits must be whole numbers of 0 or more (leave blank for unlimited).');
+      const msg = 'Limits must be whole numbers of 0 or more (leave blank for unlimited).';
+      this.formError.set(msg);
+      this.toast.error(msg);
       return;
     }
+    this.formError.set(null);
+    this.fieldErrors.set({});
     this.saving.set(true);
     const request = target === 'new' ? this.createRequest() : this.updateRequest(target);
     request.subscribe({
@@ -281,8 +313,18 @@ export class CompaniesPageComponent implements OnInit {
         this.close();
         this.load();
       },
-      error: () => {
+      error: (err: unknown) => {
         this.saving.set(false);
+        const apiErr = ApiError.from(err);
+        const fieldMap: Record<string, string> = {};
+        for (const detail of apiErr.details) {
+          const field = (detail.field ?? '').split('.').pop();
+          if (field) {
+            fieldMap[field] = detail.message;
+          }
+        }
+        this.fieldErrors.set(fieldMap);
+        this.formError.set(apiErr.message || 'Failed to save company.');
       },
     });
   }

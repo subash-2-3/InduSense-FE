@@ -10,11 +10,24 @@ const NO_REFRESH = [SESSION_PATHS.create, SESSION_PATHS.refresh, SESSION_PATHS.l
 
 export function apiPath(url: string, apiBaseUrl: string): string | null {
   const base = apiBaseUrl.replace(/\/+$/, '');
-  if (url !== base && !url.startsWith(`${base}/`)) {
+  let normalizedUrl = url;
+  if ((url.startsWith('http://') || url.startsWith('https://')) && base.startsWith('/')) {
+    try {
+      const parsed = new URL(url);
+      if (typeof window !== 'undefined' && parsed.origin === window.location.origin) {
+        normalizedUrl = parsed.pathname;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  if (normalizedUrl !== base && !normalizedUrl.startsWith(`${base}/`)) {
     return null;
   }
-  return url.slice(base.length).split('?')[0] || '/';
+  return normalizedUrl.slice(base.length).split('?')[0] || '/';
 }
+
+
 
 const isUnauthorized = (error: unknown) =>
   error instanceof HttpErrorResponse && error.status === 401;

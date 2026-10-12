@@ -224,25 +224,62 @@
 
 <app-drawer [open]="editing() !== null" [title]="modalTitle()" size="2xl" (close)="close()">
   <form class="form" (ngSubmit)="save()">
+    @if (formError()) {
+      <div class="form__alert" role="alert">
+        <app-icon name="alert-triangle" [size]="18" />
+        <span>{{ formError() }}</span>
+      </div>
+    }
+
     <div class="form__grid">
       @if (editing() === 'new') {
         <label class="form__field">
           <span>Code *</span>
-          <input class="field" name="code" required maxlength="64" [(ngModel)]="form.code" />
+          <input
+            class="field"
+            [class.field--invalid]="fieldErrors()['code']"
+            name="code"
+            required
+            maxlength="64"
+            [(ngModel)]="form.code"
+          />
+          @if (fieldErrors()['code']) {
+            <span class="field-error">{{ fieldErrors()['code'] }}</span>
+          }
         </label>
       }
       <label class="form__field">
         <span>Name *</span>
-        <input class="field" name="name" required maxlength="200" [(ngModel)]="form.name" />
+        <input
+          class="field"
+          [class.field--invalid]="fieldErrors()['name']"
+          name="name"
+          required
+          maxlength="200"
+          [(ngModel)]="form.name"
+        />
+        @if (fieldErrors()['name']) {
+          <span class="field-error">{{ fieldErrors()['name'] }}</span>
+        }
       </label>
       <label class="form__field">
         <span>Timezone (IANA)</span>
         <input
           class="field"
+          [class.field--invalid]="fieldErrors()['timezone']"
           name="timezone"
-          placeholder="e.g. Asia/Kolkata"
+          list="iana-timezones"
+          placeholder="e.g. Asia/Kolkata or UTC"
           [(ngModel)]="form.timezone"
         />
+        <datalist id="iana-timezones">
+          @for (tz of timezones; track tz.value) {
+            <option [value]="tz.value">{{ tz.label }}</option>
+          }
+        </datalist>
+        @if (fieldErrors()['timezone']) {
+          <span class="field-error">{{ fieldErrors()['timezone'] }}</span>
+        }
       </label>
       <label class="form__field form__field--wide">
         <span>Address</span>

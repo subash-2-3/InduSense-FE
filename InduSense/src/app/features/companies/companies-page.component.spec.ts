@@ -138,4 +138,95 @@ describe('CompaniesPageComponent', () => {
       'This company has reached its maximum plant limit (5).',
     );
   });
+
+  it('displays validation error banner and field errors in drawer on 422 invalid timezone', async () => {
+    const { page: cmp } = await setup();
+    const p = cmp as unknown as {
+      openCreate(): void;
+      save(): void;
+      saving: () => boolean;
+      formError: () => string | null;
+      fieldErrors: () => Record<string, string>;
+      form: { code: string; name: string; timezone: string };
+    };
+    p.openCreate();
+    p.form.code = 'NEW-CO';
+    p.form.name = 'New Co';
+    p.form.timezone = 'InvalidZone';
+    p.save();
+
+    http.expectOne((r) => r.method === 'POST' && r.url === '/api/v1/companies').flush(
+      {
+        success: false,
+        code: 'VALIDATION_ERROR',
+        message: 'Request validation failed',
+        details: [
+          {
+            field: 'body.timezone',
+            message: "Value error, must be an IANA timezone name, e.g. 'Asia/Kolkata' or 'UTC'",
+          },
+        ],
+      },
+      { status: 422, statusText: 'Unprocessable Entity' },
+    );
+
+    expect(p.saving()).toBe(false);
+    expect(p.formError()).toBe('Request validation failed');
+    expect(p.fieldErrors()['timezone']).toContain('must be an IANA timezone name');
+  });
+
+  it('displays conflict message in drawer on 409 duplicate company', async () => {
+    const { page: cmp } = await setup();
+    const p = cmp as unknown as {
+      openCreate(): void;
+      save(): void;
+      saving: () => boolean;
+      formError: () => string | null;
+      form: { code: string; name: string };
+    };
+    p.openCreate();
+    p.form.code = 'ACME';
+    p.form.name = 'Acme';
+    p.save();
+
+    http.expectOne((r) => r.method === 'POST' && r.url === '/api/v1/companies').flush(
+      {
+        success: false,
+        code: 'COMPANY_CODE_TAKEN',
+        message: 'A company with this code already exists',
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
+
+    expect(p.saving()).toBe(false);
+    expect(p.formError()).toBe('A company with this code already exists');
+  });
+
+  it('displays server error message in drawer on 500 error', async () => {
+    const { page: cmp } = await setup();
+    const p = cmp as unknown as {
+      openCreate(): void;
+      save(): void;
+      saving: () => boolean;
+      formError: () => string | null;
+      form: { code: string; name: string };
+    };
+    p.openCreate();
+    p.form.code = 'CRASH-CO';
+    p.form.name = 'Crash Co';
+    p.save();
+
+    http.expectOne((r) => r.method === 'POST' && r.url === '/api/v1/companies').flush(
+      {
+        success: false,
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+      },
+      { status: 500, statusText: 'Internal Server Error' },
+    );
+
+    expect(p.saving()).toBe(false);
+    expect(p.formError()).toBe('An unexpected error occurred');
+  });
 });
+
