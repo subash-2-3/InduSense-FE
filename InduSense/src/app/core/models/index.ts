@@ -10,3 +10,4 @@ export * from './admin';
 export * from './energy';
 export * from './alarm';
 export * from './command';
+export * from './machine-report';

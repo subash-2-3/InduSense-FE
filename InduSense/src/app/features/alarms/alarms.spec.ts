@@ -153,10 +153,21 @@ describe('ActiveAlarmsComponent', () => {
 });
 
 describe('AlarmHistoryComponent', () => {
-  it('loads the last 7 days, filters by bit and exports', async () => {
+  it('loads the last 7 days, filters by an alarm of the alarm master and exports', async () => {
     const http = setup();
     const fixture = TestBed.createComponent(AlarmHistoryComponent);
     fixture.detectChanges();
+    // The alarm list comes from the alarm master: every alarm word's active bit names.
+    http.expectOne((r) => r.url === '/api/v1/alarms/tags').flush(ok([TAG]));
+    http
+      .expectOne((r) => r.url === '/api/v1/alarms/tags/7/definitions')
+      .flush(
+        ok([
+          { ...DEF, id: 2, bit: 10, name: 'Door open', message: null },
+          DEF,
+          { ...DEF, id: 3, bit: 5, name: 'Spare', status: 'inactive' },
+        ]),
+      );
     const first = http.expectOne((r) => r.url === '/api/v1/alarms/history');
     expect(first.request.params.has('from')).toBe(true);
     expect(first.request.params.get('page')).toBe('1');
@@ -194,17 +205,18 @@ describe('AlarmHistoryComponent', () => {
     expect(el.querySelector('tbody')?.textContent).toContain('still active');
     expect(el.querySelector('tbody')?.textContent).toContain('2m 05s');
 
-    // The bit filter is a searchable-select (2nd one): open it and pick "Bit 0".
-    // No detectChanges after the pick — a trailing CD would flush the component's
-    // bit-dependent reload effect and double the request (pre-existing component behaviour).
-    const bitSelect = el.querySelectorAll<HTMLElement>('app-searchable-select')[1];
-    bitSelect.querySelector<HTMLButtonElement>('.ss__trigger')!.click();
+    // The alarm filter (2nd searchable-select) lists alarm names, not bits; inactive ones are left out.
+    const alarmSelect = el.querySelectorAll<HTMLElement>('app-searchable-select')[1];
+    alarmSelect.querySelector<HTMLButtonElement>('.ss__trigger')!.click();
     fixture.detectChanges();
-    [...bitSelect.querySelectorAll<HTMLButtonElement>('.ss__option')]
-      .find((b) => b.textContent?.trim() === 'Bit 0')!
-      .click();
+    const options = [...alarmSelect.querySelectorAll<HTMLButtonElement>('.ss__option')];
+    const labels = options.map((o) => o.textContent?.trim());
+    expect(labels).toEqual(expect.arrayContaining(['Door open', 'Emergency stop']));
+    expect(labels.some((l) => l === 'Spare' || l?.startsWith('Bit '))).toBe(false);
+    options.find((o) => o.textContent?.trim() === 'Emergency stop')!.click();
+    fixture.detectChanges(); // one history request only: the reload reacts to the machine, not the filter
     const filtered = http.expectOne((r) => r.url === '/api/v1/alarms/history');
-    expect(filtered.request.params.get('bit')).toBe('0');
+    expect(filtered.request.params.get('bit')).toBe('0'); // filtered by that alarm's bit
     filtered.flush({
       success: true,
       data: { rows: [], metadata: { notes: [] } },

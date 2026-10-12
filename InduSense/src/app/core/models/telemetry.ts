@@ -50,3 +50,21 @@ export interface HistoryQuery {
   /** Cursor mode (recommended): '' for the first page, then `pagination.next_cursor`; `page` is ignored. */
   cursor?: string;
 }
+
+/** A tag column of a horizontal readings table (tags with the same name and unit share it). */
+export interface WideColumn {
+  key: string;
+  label: string;
+  unit: string | null;
+  /** label with the unit, e.g. "Run Seconds (s)". */
+  header: string;
+  metric: string | null;
+  roundoff_digits: number | null;
+}
+
+export interface WideCell {
+  value: number | null;
+  /** Run-status cells: the state with its value, e.g. "RUNNING (0)". */
+  text: string | null;
+  quality: string | null;
+}

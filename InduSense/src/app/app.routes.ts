@@ -90,6 +90,16 @@ export const routes: Routes = [
             (m) => m.EnergyReportsPageComponent,
           ),
       },
+      {
+        path: 'energy/machine-reports',
+        title: 'Machine Reports · InduSense',
+        data: { section: 'Energy' },
+        canActivate: [permissionGuard(Permission.ReportsView)],
+        loadComponent: () =>
+          import('./features/energy/machine-reports-page.component').then(
+            (m) => m.MachineReportsPageComponent,
+          ),
+      },
       comingSoon('maps', 'Maps', 'map'),
       {
         path: 'reports',

@@ -1,6 +1,7 @@
 import { CursorPagination } from '../api/api-envelope';
 import { IsoDateTime } from './common';
 import { KpiValue, MachineState, Metadata, Quantity } from './dashboard';
+import { WideCell, WideColumn } from './telemetry';
 
 /** InduSense-BE `app/schemas/energy.py`: `/dashboards/energy/*` and `/reports/energy/*`. */
 
@@ -270,4 +271,21 @@ export interface MachinesOverview {
   summary: MachinesSummary;
   machines: MachineCard[];
   metadata: Metadata;
+}
+
+/** Detailed readings, one row per meter/machine per second (the default `layout=wide`). */
+export interface EnergyWideRow {
+  ts: IsoDateTime;
+  plant_name: string | null;
+  area_name: string | null;
+  asset_type: EnergyAssetType;
+  asset_name: string;
+  device_name: string | null;
+  cells: Record<string, WideCell>;
+}
+
+export interface EnergyWideDetailsPage {
+  success: boolean;
+  data: { columns: WideColumn[]; rows: EnergyWideRow[]; metadata: Metadata };
+  pagination: CursorPagination;
 }

@@ -15,13 +15,15 @@ import { ApiError } from '../../core/api/api-error';
 import { EnergyApi } from '../../core/api/resources/energy.api';
 import {
   CumulativeRow,
-  EnergyDetailsPage,
+  EnergyWideDetailsPage,
   EnergyExportFormat,
   EnergyExportReport,
   EnergyPage,
   EnergyReportSummary,
   GroupSummaryRow,
   Metadata,
+  WideCell,
+  WideColumn,
 } from '../../core/models';
 import {
   ButtonComponent,
@@ -83,6 +85,9 @@ const GROUPS: readonly { key: keyof EnergyReportSummary; label: string }[] = [
         <div class="energy__actions">
           <a appButton variant="ghost" routerLink="/energy"
             ><app-icon name="gauge" [size]="14" /> Energy dashboard</a
+          >
+          <a appButton variant="ghost" routerLink="/energy/machine-reports"
+            ><app-icon name="line-chart" [size]="14" /> Machine reports</a
           >
           <button
             appButton
@@ -352,87 +357,32 @@ const GROUPS: readonly { key: keyof EnergyReportSummary; label: string }[] = [
                     <table class="table">
                       <thead>
                         <tr>
-                          <th scope="col" class="th-sortable" (click)="toggleDetailsSort('ts')" tabindex="0" (keydown.enter)="toggleDetailsSort('ts')">
-                            <span class="th-sort-content">
-                              Time
-                              <app-icon
-                                [name]="detailsSortKey() === 'ts' ? (detailsSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
-                                [size]="13"
-                                [class.sort-icon-active]="detailsSortKey() === 'ts'"
-                                [class.sort-icon-muted]="detailsSortKey() !== 'ts'"
-                              />
-                            </span>
-                          </th>
-                          <th scope="col" class="th-sortable" (click)="toggleDetailsSort('asset_name')" tabindex="0" (keydown.enter)="toggleDetailsSort('asset_name')">
-                            <span class="th-sort-content">
-                              Asset
-                              <app-icon
-                                [name]="detailsSortKey() === 'asset_name' ? (detailsSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
-                                [size]="13"
-                                [class.sort-icon-active]="detailsSortKey() === 'asset_name'"
-                                [class.sort-icon-muted]="detailsSortKey() !== 'asset_name'"
-                              />
-                            </span>
-                          </th>
-                          <th scope="col" class="th-sortable" (click)="toggleDetailsSort('plant_name')" tabindex="0" (keydown.enter)="toggleDetailsSort('plant_name')">
-                            <span class="th-sort-content">
-                              Location
-                              <app-icon
-                                [name]="detailsSortKey() === 'plant_name' ? (detailsSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
-                                [size]="13"
-                                [class.sort-icon-active]="detailsSortKey() === 'plant_name'"
-                                [class.sort-icon-muted]="detailsSortKey() !== 'plant_name'"
-                              />
-                            </span>
-                          </th>
-                          <th scope="col" class="th-sortable" (click)="toggleDetailsSort('device_name')" tabindex="0" (keydown.enter)="toggleDetailsSort('device_name')">
-                            <span class="th-sort-content">
-                              Device
-                              <app-icon
-                                [name]="detailsSortKey() === 'device_name' ? (detailsSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
-                                [size]="13"
-                                [class.sort-icon-active]="detailsSortKey() === 'device_name'"
-                                [class.sort-icon-muted]="detailsSortKey() !== 'device_name'"
-                              />
-                            </span>
-                          </th>
-                          <th scope="col" class="th-sortable" (click)="toggleDetailsSort('parameter')" tabindex="0" (keydown.enter)="toggleDetailsSort('parameter')">
-                            <span class="th-sort-content">
-                              Parameter
-                              <app-icon
-                                [name]="detailsSortKey() === 'parameter' ? (detailsSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
-                                [size]="13"
-                                [class.sort-icon-active]="detailsSortKey() === 'parameter'"
-                                [class.sort-icon-muted]="detailsSortKey() !== 'parameter'"
-                              />
-                            </span>
-                          </th>
-                          <th scope="col" class="num th-sortable" (click)="toggleDetailsSort('value')" tabindex="0" (keydown.enter)="toggleDetailsSort('value')">
-                            <span class="th-sort-content">
-                              Value
-                              <app-icon
-                                [name]="detailsSortKey() === 'value' ? (detailsSortDir() === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrow-up-down'"
-                                [size]="13"
-                                [class.sort-icon-active]="detailsSortKey() === 'value'"
-                                [class.sort-icon-muted]="detailsSortKey() !== 'value'"
-                              />
-                            </span>
-                          </th>
-                          <th scope="col">Quality</th>
+                          <th scope="col">Time</th>
+                          <th scope="col">Asset</th>
+                          <th scope="col">Location</th>
+                          <th scope="col">Device</th>
+                          @for (c of d.data.columns; track c.key) {
+                            <th scope="col" class="num">{{ c.header }}</th>
+                          }
                         </tr>
                       </thead>
                       <tbody>
-                        @for (r of sortedDetailRows(); track $index) {
+                        @for (r of d.data.rows; track $index) {
                           <tr>
                             <td class="mono">{{ dateTime(r.ts) }}</td>
                             <td>{{ r.asset_name }}</td>
                             <td>{{ r.plant_name }}{{ r.area_name ? ' · ' + r.area_name : '' }}</td>
                             <td>{{ r.device_name ?? '—' }}</td>
-                            <td>{{ r.parameter }}</td>
-                            <td class="num mono">
-                              {{ value(r.value, r.unit, r.roundoff_digits) }}
-                            </td>
-                            <td>{{ r.quality ?? '—' }}</td>
+                            @for (c of d.data.columns; track c.key) {
+                              @let cell = r.cells[c.key];
+                              <td
+                                class="num mono"
+                                [class.cell--bad]="isBad(cell)"
+                                [attr.title]="isBad(cell) ? 'Quality: ' + cell.quality : null"
+                              >
+                                {{ cellText(cell, c) }}
+                              </td>
+                            }
                           </tr>
                         }
                       </tbody>
@@ -442,7 +392,7 @@ const GROUPS: readonly { key: keyof EnergyReportSummary; label: string }[] = [
                 } @else {
                   <app-empty-state
                     heading="No readings"
-                    message="No samples of energy parameters in this period."
+                    [message]="d.data.metadata.notes[0] || 'No samples of energy parameters in this period.'"
                   />
                 }
               </app-card>
@@ -513,7 +463,7 @@ export class EnergyReportsPageComponent {
 
   protected readonly summary = signal<EnergyReportSummary | null>(null);
   protected readonly cumulative = signal<EnergyPage<CumulativeRow> | null>(null);
-  protected readonly details = signal<EnergyDetailsPage | null>(null);
+  protected readonly details = signal<EnergyWideDetailsPage | null>(null);
   /** Cursors of the detail pages visited so far: the last one is the current page ('' = first). */
   protected readonly detailCursors = signal<string[]>(['']);
   protected readonly detailFirstRow = computed(() => (this.detailCursors().length - 1) * this.pageSize() + 1);
@@ -529,15 +479,6 @@ export class EnergyReportsPageComponent {
     return sortData(rows, (r: any) => r[k], this.cumulativeSortDir());
   });
 
-  protected readonly detailsSortKey = signal<string | null>(null);
-  protected readonly detailsSortDir = signal<SortDirection>('asc');
-
-  protected readonly sortedDetailRows = computed(() => {
-    const rows = this.details()?.data.rows || [];
-    const k = this.detailsSortKey();
-    if (!k) return rows;
-    return sortData(rows, (r: any) => r[k], this.detailsSortDir());
-  });
 
   protected readonly hasData = computed(() => {
     switch (this.tab()) {
@@ -575,9 +516,6 @@ export class EnergyReportsPageComponent {
     toggleSort(this.cumulativeSortKey, this.cumulativeSortDir, key);
   }
 
-  protected toggleDetailsSort(key: string): void {
-    toggleSort(this.detailsSortKey, this.detailsSortDir, key);
-  }
 
   protected onPageSizeChange(size: number): void {
     this.pageSize.set(size);
@@ -681,6 +619,17 @@ export class EnergyReportsPageComponent {
 
   protected groupRows(s: EnergyReportSummary, key: keyof EnergyReportSummary): GroupSummaryRow[] {
     return s[key] as GroupSummaryRow[];
+  }
+
+  /** A reading in the horizontal table: the state text of run-status cells, else the number. */
+  protected cellText(cell: WideCell | undefined, column: WideColumn): string {
+    if (!cell) return '';
+    if (cell.text) return cell.text;
+    return cell.value == null ? '—' : formatValue(cell.value, null, column.roundoff_digits);
+  }
+
+  protected isBad(cell: WideCell | undefined): boolean {
+    return !!cell?.quality && cell.quality.toUpperCase() !== 'GOOD';
   }
 
   protected kpi = formatKpi;

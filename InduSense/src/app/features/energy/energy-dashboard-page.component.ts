@@ -177,6 +177,9 @@ function message(error: unknown): string {
             <a appButton variant="secondary" routerLink="/energy/reports">
               <app-icon name="line-chart" [size]="14" /> Energy reports
             </a>
+            <a appButton variant="secondary" routerLink="/energy/machine-reports">
+              <app-icon name="line-chart" [size]="14" /> Machine reports
+            </a>
           }
           <button appButton variant="secondary" (click)="refresh()" [loading]="rangeLoading()">
             <app-icon name="refresh" [size]="14" /> Refresh

@@ -44,7 +44,8 @@ To reach a local InduSense backend (InduSense-BE, `uvicorn app.main:app`), the d
   |---|---|---|
   | `/dashboard` | Device Summary dashboard | signed in |
   | `/energy` | Energy & OEE: energy overview, live parameters, trends, distribution; machines with a Run / Idle / Stop light (`machine_status` 0 / 1 / 2), production, availability and active alarms; machine control dialog (Start/Stop and resets, sent as commands to the PLC through the DataLogger) | `dashboards:view` (controls: `devices:control`) |
-  | `/energy/reports` | Energy reports: summary, cumulative readings, detailed readings (raw samples, cursor paging: Previous / Next), CSV / Excel export | `reports:view` |
+  | `/energy/machine-reports` | Machine reports: summary (production, run / idle / stop / no-data time, availability, alarms per machine, area and plant), cumulative counter readings with reset detection, detailed readings with one row per machine per moment and one column per tag, status as "RUNNING (0)" (cursor paging), CSV / Excel export | `reports:view` |
+  | `/energy/reports` | Energy reports: summary, cumulative readings, detailed readings (one row per meter per moment, one column per parameter; cursor paging: Previous / Next), CSV / Excel export | `reports:view` |
   | `/reports` | energy, production and device-health reports | `reports:view` |
   | `/alarms` | active alarms (with the alarm master's message per bit), history with export, **Alarm master** (names and messages of the bits of each alarm word) | `alarms:view` (master edits: `alarms:manage`) |
   | `/tags` | tags of every device: type (EMS/OEE), round-off, add default tags from the catalog, edit, delete | `tags:view` |

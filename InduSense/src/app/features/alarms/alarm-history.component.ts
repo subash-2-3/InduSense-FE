@@ -1,11 +1,20 @@
 import { DOCUMENT } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { finalize } from 'rxjs';
+import { catchError, finalize, forkJoin, of, switchMap } from 'rxjs';
 
 import { ApiError } from '../../core/api/api-error';
 import { AlarmsApi } from '../../core/api/resources/alarms.api';
-import { AlarmHistoryFilters, AlarmHistoryPage } from '../../core/models';
+import { AlarmDefinition, AlarmHistoryFilters, AlarmHistoryPage } from '../../core/models';
 import {
   ButtonComponent,
   CardComponent,
@@ -87,12 +96,12 @@ export const HISTORY_PAGE_SIZE = 25;
           </button>
         }
         <label class="fl">
-          <span>Bit</span>
+          <span>Alarm</span>
           <app-searchable-select
-            ariaLabel="Bit"
-            placeholder="All bits"
+            ariaLabel="Alarm"
+            [placeholder]="alarmOptions().length ? 'All alarms' : 'No alarms in the alarm master'"
             clearable
-            [options]="bitOptions"
+            [options]="alarmOptions()"
             [ngModel]="bit()"
             (ngModelChange)="setBit($event)"
           />
@@ -270,11 +279,12 @@ export class AlarmHistoryComponent {
   private readonly document = inject(DOCUMENT);
 
   protected readonly ranges = RANGE_OPTIONS;
-  protected readonly bits = Array.from({ length: 32 }, (_, i) => i);
-  protected readonly bitOptions: SelectOption[] = this.bits.map((b) => ({
-    value: b,
-    label: `Bit ${b}`,
-  }));
+  /**
+   * The alarms of the alarm master (active bit names of the machines' alarm words), by name. The
+   * value is the bit, which is what the history is filtered by; a bit named differently on two
+   * alarm words shows both names.
+   */
+  protected readonly alarmOptions = signal<SelectOption[]>([]);
   protected readonly preset = signal<RangePreset>('week');
   protected readonly customFrom = signal(toLocalInput(new Date(Date.now() - 24 * 3600 * 1000)));
   protected readonly customTo = signal(toLocalInput(new Date()));
@@ -296,10 +306,43 @@ export class AlarmHistoryComponent {
   });
 
   constructor() {
+    // Reacts to the machine only: go() reads other signals (period, alarm), which must not re-run this.
     effect(() => {
       this.machineId();
-      this.go(1);
+      untracked(() => {
+        this.loadAlarmOptions();
+        this.go(1);
+      });
     });
+  }
+
+  private loadAlarmOptions(): void {
+    this.api
+      .tags({ machine_id: this.machineId() ?? undefined })
+      .pipe(
+        switchMap((tags) =>
+          tags.length ? forkJoin(tags.map((t) => this.api.definitions(t.tag_id))) : of([]),
+        ),
+        catchError(() => of([] as AlarmDefinition[][])),
+      )
+      .subscribe((lists) => {
+        const names = new Map<number, Set<string>>();
+        for (const def of lists.flat()) {
+          if (def.status !== 'active') continue;
+          if (!names.has(def.bit)) names.set(def.bit, new Set());
+          names.get(def.bit)!.add(def.name);
+        }
+        this.alarmOptions.set(
+          [...names.entries()]
+            .map(([bit, set]) => ({ value: bit, label: [...set].join(' / ') }))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+        );
+        // The chosen alarm is not an alarm of this selection any more: show every alarm again.
+        const bit = this.bit();
+        if (bit !== null && !names.has(bit)) {
+          this.setBit(null);
+        }
+      });
   }
 
   protected toggleSort(key: string): void {

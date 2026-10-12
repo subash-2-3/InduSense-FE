@@ -292,14 +292,18 @@ describe('EnergyReportsPageComponent', () => {
 
   it('pages the detailed readings with cursors, without asking for a total', async () => {
     const { el, fixture } = await setup();
+    const COLUMNS = [
+      { key: 'c0', label: 'Voltage', unit: 'V', header: 'Voltage (V)', metric: 'VOLTAGE', roundoff_digits: 1 },
+      { key: 'c1', label: 'kwh', unit: 'kWh', header: 'kwh (kWh)', metric: 'ENERGY', roundoff_digits: null },
+    ];
     const reading = (value: number) => ({
       ts: META.from, plant_name: 'PN-1', area_name: null, asset_type: 'meter', asset_name: 'EM-1',
-      device_name: 'D1', parameter: 'Energy', metric: 'ENERGY', value, unit: 'kWh', roundoff_digits: null,
-      quality: 'GOOD',
+      device_name: 'D1',
+      cells: { c0: { value: 230.04, text: null, quality: 'GOOD' }, c1: { value, text: null, quality: 'BAD' } },
     });
     const page = (value: number, next: string | null) => ({
       success: true,
-      data: { rows: [reading(value)], metadata: META },
+      data: { columns: COLUMNS, rows: [reading(value)], metadata: META },
       pagination: { page: null, page_size: 25, total: null, total_pages: null, next_cursor: next, has_more: !!next },
     });
     const pager = (label: string) =>
@@ -315,6 +319,12 @@ describe('EnergyReportsPageComponent', () => {
     fixture.detectChanges();
     expect(pager('Previous').disabled).toBe(true);
     expect(el.querySelector('.cursor-pager__info')?.textContent).toContain('page 1');
+    // One row per meter per moment, one column per parameter (unit in the header).
+    const headers = [...el.querySelectorAll('thead th')].map((th) => th.textContent?.trim());
+    expect(headers).toEqual(['Time', 'Asset', 'Location', 'Device', 'Voltage (V)', 'kwh (kWh)']);
+    const cells = el.querySelectorAll('tbody td');
+    expect(cells[4].textContent?.trim()).toBe('230.0'); // the tag's round-off (1 decimal)
+    expect(cells[5].classList.contains('cell--bad')).toBe(true); // quality BAD: greyed, quality in the tooltip
 
     pager('Next').click();
     req = details();

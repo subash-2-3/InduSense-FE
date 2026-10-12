@@ -11,14 +11,14 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { of } from 'rxjs';
+import { Observable, of } from 'rxjs';
 
 import { CompaniesApi } from '../../core/api/resources/admin.api';
 import { LocationsApi } from '../../core/api/resources/locations.api';
-import { MetersApi } from '../../core/api/resources/plant-assets.api';
+import { MachinesApi, MetersApi } from '../../core/api/resources/plant-assets.api';
 import { AuthService } from '../../core/auth/auth.service';
 import { Permission } from '../../core/auth/permissions';
-import { Area, Company, EnergyFilters, Meter, Plant } from '../../core/models';
+import { Area, Company, EnergyFilters, Plant } from '../../core/models';
 import { SearchableSelectComponent, SelectOption } from '../../shared/ui';
 import { RANGE_OPTIONS, RangePreset, customRangeError, toLocalInput } from './energy-range';
 
@@ -28,8 +28,17 @@ export interface EnergyFilterState {
   custom: { from?: string; to?: string };
 }
 
+/** A meter or machine in the asset picker. */
+interface PickableAsset {
+  id: number;
+  name: string;
+  company_id: number;
+  plant_id: number;
+  area_id: number | null;
+}
+
 /**
- * Scope and time filters of the energy pages. Lists come from the existing plants/areas/meters
+ * Scope and time filters of the energy pages (and, with assetKind="machine", the machine reports). Lists come from the existing plants/areas/meters
  * endpoints (already limited to the caller's company and plants); the company picker only appears
  * for platform administrators.
  */
@@ -78,11 +87,11 @@ export interface EnergyFilterState {
         />
       </label>
       <label class="field">
-        <span class="field__label">Meter</span>
+        <span class="field__label">{{ assetKind() === 'machine' ? 'Machine' : 'Meter' }}</span>
         <app-searchable-select
           class="field__control field__control--select"
-          ariaLabel="Meter"
-          placeholder="All meters"
+          [ariaLabel]="assetKind() === 'machine' ? 'Machine' : 'Meter'"
+          [placeholder]="assetKind() === 'machine' ? 'All machines' : 'All meters'"
           clearable
           [options]="meterOptions()"
           [ngModel]="meterId()"
@@ -239,10 +248,13 @@ export class EnergyFiltersComponent implements OnInit {
   /** Initial period. */
   readonly initialPreset = input<RangePreset>('today');
   readonly showRange = input(true);
+  /** What the asset picker lists: meters (energy pages) or machines (machine reports). */
+  readonly assetKind = input<'meter' | 'machine'>('meter');
   readonly changed = output<EnergyFilterState>();
 
   private readonly locations = inject(LocationsApi);
   private readonly metersApi = inject(MetersApi);
+  private readonly machinesApi = inject(MachinesApi);
   private readonly companiesApi = inject(CompaniesApi);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
@@ -255,7 +267,7 @@ export class EnergyFiltersComponent implements OnInit {
   protected readonly companies = signal<Company[]>([]);
   protected readonly plants = signal<Plant[]>([]);
   protected readonly areas = signal<Area[]>([]);
-  protected readonly meters = signal<Meter[]>([]);
+  protected readonly meters = signal<PickableAsset[]>([]);
 
   protected readonly companyId = signal<number | null>(null);
   protected readonly plantId = signal<number | null>(null);
@@ -311,10 +323,11 @@ export class EnergyFiltersComponent implements OnInit {
       .listAllPlants()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(keep((p) => this.plants.set(p)));
-    this.metersApi
-      .listAll()
+    const assets: Observable<PickableAsset[]> =
+      this.assetKind() === 'machine' ? this.machinesApi.listAll() : this.metersApi.listAll();
+    assets
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(keep((m) => this.meters.set(m)));
+      .subscribe(keep((m: PickableAsset[]) => this.meters.set(m)));
     this.emit();
   }
 
@@ -361,7 +374,10 @@ export class EnergyFiltersComponent implements OnInit {
     if (this.companyId()) scope.company_id = this.companyId()!;
     if (this.plantId()) scope.plant_id = this.plantId()!;
     if (this.areaId()) scope.area_id = this.areaId()!;
-    if (this.meterId()) scope.meter_id = this.meterId()!;
+    if (this.meterId()) {
+      if (this.assetKind() === 'machine') scope.machine_id = this.meterId()!;
+      else scope.meter_id = this.meterId()!;
+    }
     this.changed.emit({
       scope,
       preset: this.preset(),
