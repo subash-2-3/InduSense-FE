@@ -6,7 +6,7 @@ Angular 21 frontend for InduSense, with dark and light themes:
   state, production and availability;
 - **Energy reports**, **Reports** and **Alarms** (active, history, alarm master);
 - machine controls;
-- management pages for devices, tags, assets (machines, meters, gateways), locations (plants, areas),
+- management pages for devices, tags, assets (machines, meters, gateways), business units, locations (plants, areas),
   companies and settings (users, roles).
 
 **Status:**
@@ -50,6 +50,7 @@ To reach a local InduSense backend (InduSense-BE, `uvicorn app.main:app`), the d
   | `/alarms` | active alarms (with the alarm master's message per bit), history with export, **Alarm master** (names and messages of the bits of each alarm word) | `alarms:view` (master edits: `alarms:manage`) |
   | `/tags` | tags of every device: type (EMS/OEE), round-off, add default tags from the catalog, edit, delete | `tags:view` |
   | `/devices`, `/assets`, `/locations` | devices (connections, tags), machines / meters / gateways (tag mappings), plants and areas | the entity's `:view` |
+  | `/business-units` | business units / branches (Company → Business Unit → Plant → Area): code, name, plant count, status; create, edit, activate/deactivate, delete (only when empty), restore. The plant form picks a plant's business unit and plant cards show it. The Energy & OEE dashboard, Energy Reports, Machine Reports (exports included) and the Reports page filter by business unit, which narrows their plant and asset pickers | `business_units:view` (changes: `business_units:create/update/delete`) |
   | `/companies` | companies, modules and limits (platform administrators) | `tenant:all` |
   | `/settings` | users and roles | `users:view` / `roles:view` |
 - **Review scenarios (development builds only):** add `?scenario=` to the dashboard URL, or use the "Preview data" links under the toolbar:
@@ -178,7 +179,7 @@ Everything under `src/app/core/api/`:
 - **Resource services** provide typed access per endpoint group:
   - `DevicesApi` (`list`, `listAll`, `count`, `get`);
   - `MachinesApi` and `GatewaysApi` (`list`, `listAll`, `get`);
-  - `LocationsApi` (plants and areas);
+  - `LocationsApi` (plants and areas) and `BusinessUnitsApi` (`/business-units`);
   - `TagsApi` (`findByName` prefers an exact `tag_name`, then `display_name`);
   - `TelemetryApi` (`latest`, `history`, with ISO time ranges);
   - `EnergyApi`, `DashboardsApi`, `ReportsApi`, `AlarmsApi`, `CommandsApi` and the admin APIs.
@@ -231,7 +232,7 @@ Sign-in uses the backend's browser session (`POST /api/v1/auth/session`). The ac
 
 ## Testing
 
-`npm test` runs the Vitest unit tests (jsdom): 65 files, 363 tests at the last run.
+`npm test` runs the Vitest unit tests (jsdom): 70 files, 384 tests at the last run.
 
 - **Pure functions:** chart options, sorting, formatting, status mapping and mock data consistency.
 - **Components:** widgets, layout, login, dropdown keyboard behaviour.
@@ -242,6 +243,7 @@ Sign-in uses the backend's browser session (`POST /api/v1/auth/session`). The ac
 ## Next steps
 
 - The Device Summary dashboard still aggregates raw lists in the browser. InduSense-BE's `/dashboards/*` endpoints (wrapped by `DashboardsApi`; the Energy & OEE page already uses the server-side ones) compute KPIs, trends and machine status on the server, and scale better.
-- `locations` and `reports` pages have no unit tests yet.
+- The `reports` page has no unit tests yet; the `locations` page only for business units.
+- The Device Summary dashboard has no location filter (no plant or business unit): it summarizes the whole fleet.
 - Maps, More, Quick Start and Help are placeholders.
 - There is no "forgot password" screen. The backend endpoints exist, but no email is sent yet.

@@ -1,14 +1,27 @@
 import { CommonModule, DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 
+import { BusinessUnitsApi } from '../../core/api/resources/business-units.api';
+import { LocationsApi } from '../../core/api/resources/locations.api';
 import { ReportsApi } from '../../core/api/resources/reports.api';
-import { DeviceHealthResponse, EnergyReportFilters, ReportResponse } from '../../core/models';
+import { AuthService } from '../../core/auth/auth.service';
+import { Permission } from '../../core/auth/permissions';
+import {
+  BusinessUnit,
+  DeviceHealthResponse,
+  EnergyReportFilters,
+  Plant,
+  ReportResponse,
+} from '../../core/models';
 import {
   ButtonComponent,
   CardComponent,
   ErrorStateComponent,
   IconComponent,
   PaginationComponent,
+  SearchableSelectComponent,
+  SelectOption,
   SkeletonComponent,
   StatusPillComponent,
 } from '../../shared/ui';
@@ -21,6 +34,8 @@ type ReportTab = 'energy' | 'production' | 'device-health';
   imports: [
     CommonModule,
     DecimalPipe,
+    FormsModule,
+    SearchableSelectComponent,
     CardComponent,
     ButtonComponent,
     IconComponent,
@@ -72,6 +87,33 @@ type ReportTab = 'energy' | 'production' | 'device-health';
           <app-icon name="router" [size]="16" />
           Device & Logger Health
         </button>
+      </div>
+
+      <div class="report-filters" role="group" aria-label="Report filters">
+        @if (canFilterUnits()) {
+          <label class="report-filters__field">
+            <span class="report-filters__label">Business Unit</span>
+            <app-searchable-select
+              ariaLabel="Business unit"
+              placeholder="All business units"
+              clearable
+              [options]="unitOptions()"
+              [ngModel]="unitId()"
+              (ngModelChange)="setUnit($event)"
+            />
+          </label>
+        }
+        <label class="report-filters__field">
+          <span class="report-filters__label">Plant</span>
+          <app-searchable-select
+            ariaLabel="Plant"
+            placeholder="All plants"
+            clearable
+            [options]="plantOptions()"
+            [ngModel]="plantId()"
+            (ngModelChange)="setPlant($event)"
+          />
+        </label>
       </div>
 
       <app-card heading="Telemetry & Industrial Reports" [padded]="false" expandable="true">
@@ -440,6 +482,25 @@ type ReportTab = 'energy' | 'production' | 'device-health';
       margin: 4px 0 0;
     }
 
+    .report-filters {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: var(--space-3);
+    }
+    .report-filters__field {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      min-width: 180px;
+    }
+    .report-filters__label {
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-semibold);
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
     .tabs-bar {
       position: sticky;
       top: 56px;
@@ -633,6 +694,31 @@ type ReportTab = 'energy' | 'production' | 'device-health';
 })
 export class ReportsPageComponent implements OnInit {
   private readonly reportsApi = inject(ReportsApi);
+  private readonly unitsApi = inject(BusinessUnitsApi);
+  private readonly locationsApi = inject(LocationsApi);
+  private readonly auth = inject(AuthService);
+
+  protected readonly canFilterUnits = computed(() =>
+    this.auth.hasPermission(Permission.BusinessUnitsView),
+  );
+  readonly units = signal<BusinessUnit[]>([]);
+  readonly plants = signal<Plant[]>([]);
+  readonly unitId = signal<number | null>(null);
+  readonly plantId = signal<number | null>(null);
+  protected readonly unitOptions = computed<SelectOption[]>(() =>
+    this.units().map((u) => ({ value: u.id, label: u.name })),
+  );
+  protected readonly plantOptions = computed<SelectOption[]>(() => {
+    const unit = this.unitId();
+    return this.plants()
+      .filter((p) => !unit || p.business_unit_id === unit)
+      .map((p) => ({ value: p.id, label: p.name }));
+  });
+  /** Scope sent with every report: only the set filters. */
+  private readonly scope = computed(() => ({
+    ...(this.unitId() ? { business_unit_id: this.unitId()! } : {}),
+    ...(this.plantId() ? { plant_id: this.plantId()! } : {}),
+  }));
 
   readonly activeTab = signal<ReportTab>('energy');
   readonly loading = signal(true);
@@ -679,7 +765,33 @@ export class ReportsPageComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    // Lists the user may not read just stay empty; the reports still load.
+    if (this.canFilterUnits()) {
+      this.unitsApi.listAll().subscribe({ next: (u) => this.units.set(u), error: () => this.units.set([]) });
+    }
+    this.locationsApi
+      .listAllPlants()
+      .subscribe({ next: (p) => this.plants.set(p), error: () => this.plants.set([]) });
     this.loadReport();
+  }
+
+  setUnit(id: number | null): void {
+    this.unitId.set(id);
+    this.plantId.set(null);
+    this.resetPages();
+    this.loadReport();
+  }
+
+  setPlant(id: number | null): void {
+    this.plantId.set(id);
+    this.resetPages();
+    this.loadReport();
+  }
+
+  private resetPages(): void {
+    this.energyPage.set(1);
+    this.productionPage.set(1);
+    this.healthPage.set(1);
   }
 
   setTab(tab: ReportTab): void {
@@ -739,7 +851,7 @@ export class ReportsPageComponent implements OnInit {
     switch (this.activeTab()) {
       case 'energy':
         this.reportsApi
-          .energy({ page: this.energyPage(), page_size: this.energyPageSize() })
+          .energy({ ...this.scope(), page: this.energyPage(), page_size: this.energyPageSize() })
           .subscribe({
             next: (res) => {
               this.energyData.set(res);
@@ -754,7 +866,11 @@ export class ReportsPageComponent implements OnInit {
 
       case 'production':
         this.reportsApi
-          .production({ page: this.productionPage(), page_size: this.productionPageSize() })
+          .production({
+            ...this.scope(),
+            page: this.productionPage(),
+            page_size: this.productionPageSize(),
+          })
           .subscribe({
             next: (res) => {
               this.productionData.set(res);
@@ -769,7 +885,7 @@ export class ReportsPageComponent implements OnInit {
 
       case 'device-health':
         this.reportsApi
-          .deviceHealth({ page: this.healthPage(), page_size: this.healthPageSize() })
+          .deviceHealth({ ...this.scope(), page: this.healthPage(), page_size: this.healthPageSize() })
           .subscribe({
             next: (res) => {
               this.healthData.set(res);

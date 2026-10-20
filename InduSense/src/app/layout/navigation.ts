@@ -27,6 +27,12 @@ export const PRIMARY_NAV: readonly NavItem[] = [
   },
   { label: 'Tags', path: '/tags', icon: 'inbox', permission: Permission.TagsView },
   { label: 'Assets', path: '/assets', icon: 'lightbulb', permission: Permission.MachinesView },
+  {
+    label: 'Business Units',
+    path: '/business-units',
+    icon: 'package',
+    permission: Permission.BusinessUnitsView,
+  },
   { label: 'Locations', path: '/locations', icon: 'map-pin', permission: Permission.PlantsView },
   { label: 'Energy & OEE', path: '/energy', icon: 'zap', permission: Permission.DashboardsView },
   // { label: 'Maps', path: '/maps', icon: 'map', permission: Permission.PlantsView },

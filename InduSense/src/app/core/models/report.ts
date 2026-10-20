@@ -11,6 +11,7 @@ export interface BaseReportFilters {
   from?: IsoDateTime;
   to?: IsoDateTime;
   interval?: ReportInterval;
+  business_unit_id?: number;
   plant_id?: number;
   area_id?: number;
   machine_id?: number;
@@ -202,6 +203,7 @@ export interface DeviceHealthResponse {
 }
 
 export interface DeviceHealthFilters {
+  business_unit_id?: number;
   plant_id?: number;
   gateway_id?: number;
   status?: StatusFilter | null;

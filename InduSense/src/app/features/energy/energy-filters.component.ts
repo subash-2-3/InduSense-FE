@@ -14,11 +14,12 @@ import { FormsModule } from '@angular/forms';
 import { Observable, of } from 'rxjs';
 
 import { CompaniesApi } from '../../core/api/resources/admin.api';
+import { BusinessUnitsApi } from '../../core/api/resources/business-units.api';
 import { LocationsApi } from '../../core/api/resources/locations.api';
 import { MachinesApi, MetersApi } from '../../core/api/resources/plant-assets.api';
 import { AuthService } from '../../core/auth/auth.service';
 import { Permission } from '../../core/auth/permissions';
-import { Area, Company, EnergyFilters, Plant } from '../../core/models';
+import { Area, BusinessUnit, Company, EnergyFilters, Plant } from '../../core/models';
 import { SearchableSelectComponent, SelectOption } from '../../shared/ui';
 import { RANGE_OPTIONS, RangePreset, customRangeError, toLocalInput } from './energy-range';
 
@@ -40,7 +41,7 @@ interface PickableAsset {
 /**
  * Scope and time filters of the energy pages (and, with assetKind="machine", the machine reports). Lists come from the existing plants/areas/meters
  * endpoints (already limited to the caller's company and plants); the company picker only appears
- * for platform administrators.
+ * for platform administrators, the business unit picker for users holding `business_units:view`.
  */
 @Component({
   selector: 'app-energy-filters',
@@ -58,6 +59,20 @@ interface PickableAsset {
             [options]="companyOptions()"
             [ngModel]="companyId()"
             (ngModelChange)="setCompany($event)"
+          />
+        </label>
+      }
+      @if (canFilterUnits()) {
+        <label class="field">
+          <span class="field__label">Business Unit</span>
+          <app-searchable-select
+            class="field__control field__control--select"
+            ariaLabel="Business unit"
+            placeholder="All business units"
+            clearable
+            [options]="unitOptions()"
+            [ngModel]="unitId()"
+            (ngModelChange)="setUnit($event)"
           />
         </label>
       }
@@ -256,6 +271,7 @@ export class EnergyFiltersComponent implements OnInit {
   private readonly metersApi = inject(MetersApi);
   private readonly machinesApi = inject(MachinesApi);
   private readonly companiesApi = inject(CompaniesApi);
+  private readonly unitsApi = inject(BusinessUnitsApi);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -264,12 +280,18 @@ export class EnergyFiltersComponent implements OnInit {
     () => this.auth.hasPermission(Permission.TenantAll) && this.auth.user()?.company_id == null,
   );
 
+  protected readonly canFilterUnits = computed(() =>
+    this.auth.hasPermission(Permission.BusinessUnitsView),
+  );
+
   protected readonly companies = signal<Company[]>([]);
+  protected readonly units = signal<BusinessUnit[]>([]);
   protected readonly plants = signal<Plant[]>([]);
   protected readonly areas = signal<Area[]>([]);
   protected readonly meters = signal<PickableAsset[]>([]);
 
   protected readonly companyId = signal<number | null>(null);
+  protected readonly unitId = signal<number | null>(null);
   protected readonly plantId = signal<number | null>(null);
   protected readonly areaId = signal<number | null>(null);
   protected readonly meterId = signal<number | null>(null);
@@ -280,15 +302,23 @@ export class EnergyFiltersComponent implements OnInit {
     customRangeError({ from: this.customFrom(), to: this.customTo() }),
   );
 
-  protected readonly visiblePlants = computed(() => {
+  protected readonly visibleUnits = computed(() => {
     const company = this.companyId();
-    return company ? this.plants().filter((p) => p.company_id === company) : this.plants();
+    return company ? this.units().filter((u) => u.company_id === company) : this.units();
+  });
+  protected readonly visiblePlants = computed(() => {
+    const [company, unit] = [this.companyId(), this.unitId()];
+    return this.plants().filter(
+      (p) => (!company || p.company_id === company) && (!unit || p.business_unit_id === unit),
+    );
   });
   protected readonly visibleMeters = computed(() => {
     const [company, plant, area] = [this.companyId(), this.plantId(), this.areaId()];
+    const unitPlants = this.unitId() ? new Set(this.visiblePlants().map((p) => p.id)) : null;
     return this.meters().filter(
       (m) =>
         (!company || m.company_id === company) &&
+        (!unitPlants || unitPlants.has(m.plant_id)) &&
         (!plant || m.plant_id === plant) &&
         (!area || m.area_id === area),
     );
@@ -296,6 +326,9 @@ export class EnergyFiltersComponent implements OnInit {
 
   protected readonly companyOptions = computed<SelectOption[]>(() =>
     this.companies().map((c) => ({ value: c.id, label: c.name })),
+  );
+  protected readonly unitOptions = computed<SelectOption[]>(() =>
+    this.visibleUnits().map((u) => ({ value: u.id, label: u.name })),
   );
   protected readonly plantOptions = computed<SelectOption[]>(() =>
     this.visiblePlants().map((p) => ({ value: p.id, label: p.name })),
@@ -319,6 +352,12 @@ export class EnergyFiltersComponent implements OnInit {
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(keep((c) => this.companies.set(c)));
     }
+    if (this.canFilterUnits()) {
+      this.unitsApi
+        .listAll()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(keep((u) => this.units.set(u)));
+    }
     this.locations
       .listAllPlants()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -333,6 +372,16 @@ export class EnergyFiltersComponent implements OnInit {
 
   protected setCompany(id: number | null): void {
     this.companyId.set(id);
+    this.unitId.set(null);
+    this.plantId.set(null);
+    this.areaId.set(null);
+    this.meterId.set(null);
+    this.areas.set([]);
+    this.emit();
+  }
+
+  protected setUnit(id: number | null): void {
+    this.unitId.set(id);
     this.plantId.set(null);
     this.areaId.set(null);
     this.meterId.set(null);
@@ -372,6 +421,7 @@ export class EnergyFiltersComponent implements OnInit {
   protected emit(): void {
     const scope: EnergyFilters = {};
     if (this.companyId()) scope.company_id = this.companyId()!;
+    if (this.unitId()) scope.business_unit_id = this.unitId()!;
     if (this.plantId()) scope.plant_id = this.plantId()!;
     if (this.areaId()) scope.area_id = this.areaId()!;
     if (this.meterId()) {

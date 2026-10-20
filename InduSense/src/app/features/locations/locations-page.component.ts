@@ -11,6 +11,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { catchError, forkJoin, noop, of } from 'rxjs';
 
+import { BusinessUnitsApi } from '../../core/api/resources/business-units.api';
 import { LocationsApi } from '../../core/api/resources/locations.api';
 import { CompaniesApi } from '../../core/api/resources/admin.api';
 import { AuthService } from '../../core/auth/auth.service';
@@ -18,6 +19,7 @@ import { Permission } from '../../core/auth/permissions';
 import {
   Area,
   AreaCreate,
+  BusinessUnit,
   Company,
   Plant,
   PlantCreate,
@@ -57,6 +59,7 @@ const LOCATION_STATUS_OPTIONS: SelectOption[] = [
 
 interface PlantFormModel {
   company_id: number | null;
+  business_unit_id: number | null;
   name: string;
   code: string;
   timezone: string;
@@ -185,6 +188,12 @@ interface AreaDraft {
               </div>
 
               <div class="plant-card__meta">
+                @if (unitName(plant); as unit) {
+                  <div class="plant-card__meta-item">
+                    <app-icon name="package" [size]="14" />
+                    <span>Business unit: {{ unit }}</span>
+                  </div>
+                }
                 <div class="plant-card__meta-item">
                   <app-icon name="clock" [size]="14" />
                   <span>Timezone: {{ plant.timezone || 'UTC' }}</span>
@@ -317,8 +326,23 @@ interface AreaDraft {
                 ariaLabel="Company"
                 placeholder="Select the company"
                 [options]="companyOptions()"
-                [(ngModel)]="plantForm.company_id"
+                [ngModel]="plantForm.company_id"
+                (ngModelChange)="setPlantCompany($event)"
                 name="company_id"
+              />
+            </div>
+          }
+          @if (canViewUnits()) {
+            <div class="form-group">
+              <label class="form-label" for="plantUnit">Business Unit</label>
+              <app-searchable-select
+                id="plantUnit"
+                ariaLabel="Business unit"
+                placeholder="None"
+                clearable
+                [options]="unitOptions()"
+                [(ngModel)]="plantForm.business_unit_id"
+                name="business_unit_id"
               />
             </div>
           }
@@ -840,6 +864,7 @@ interface AreaDraft {
 })
 export class LocationsPageComponent implements OnInit {
   private readonly locationsApi = inject(LocationsApi);
+  private readonly businessUnitsApi = inject(BusinessUnitsApi);
 
   readonly plants = signal<Plant[]>([]);
   readonly areas = signal<Area[]>([]);
@@ -856,6 +881,18 @@ export class LocationsPageComponent implements OnInit {
     this.auth.hasPermission(Permission.TenantAll),
   );
   protected readonly companies = signal<Company[]>([]);
+  /** Business units of the visible plants' companies (for names and the plant form). */
+  protected readonly businessUnits = signal<BusinessUnit[]>([]);
+  protected readonly canViewUnits = computed(() =>
+    this.auth.hasPermission(Permission.BusinessUnitsView),
+  );
+  /** Active units of the plant's company: a plant can only be placed in its own company's unit. */
+  protected readonly unitOptions = computed<SelectOption[]>(() => {
+    const company = this.plantForm$().company_id;
+    return this.businessUnits()
+      .filter((u) => u.status === 'active' && (company == null || u.company_id === company))
+      .map((u) => ({ value: u.id, label: `${u.name} (${u.code})` }));
+  });
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly statusLabel = recordStatusLabel;
@@ -869,6 +906,8 @@ export class LocationsPageComponent implements OnInit {
   readonly plantModalOpen = persistedSignal('indusense.locations.plantCreating', false);
   readonly editingPlantId = signal<number | null>(null);
   plantForm: PlantFormModel = this.blankPlantForm();
+  /** Tracks the company chosen in the plant form, so the unit list follows it. */
+  private readonly plantForm$ = signal<{ company_id: number | null }>({ company_id: null });
 
   readonly areaModalOpen = persistedSignal('indusense.locations.areaCreating', false);
   readonly selectedPlantForArea = signal<Plant | null>(null);
@@ -895,7 +934,7 @@ export class LocationsPageComponent implements OnInit {
   ngOnInit(): void {
     this.destroyRef.onDestroy(() => this.persistDrafts());
     if (this.plantModalOpen() && !this.editingPlantId()) {
-      this.plantForm = readDraft<PlantFormModel>(PLANT_DRAFT_KEY) ?? this.blankPlantForm();
+      this.plantForm = { ...this.blankPlantForm(), ...readDraft<PlantFormModel>(PLANT_DRAFT_KEY) };
     }
     this.loadData();
     if (this.isPlatformAdmin()) {
@@ -956,6 +995,12 @@ export class LocationsPageComponent implements OnInit {
   loadData(): void {
     this.loading.set(true);
     this.error.set(null);
+    if (this.canViewUnits()) {
+      this.businessUnitsApi.listAll({ status: VISIBLE_STATUSES }).subscribe({
+        next: (units) => this.businessUnits.set(units),
+        error: () => this.businessUnits.set([]), // plants still load without unit names
+      });
+    }
 
     forkJoin({
       plants: this.locationsApi
@@ -982,13 +1027,29 @@ export class LocationsPageComponent implements OnInit {
     });
   }
 
+  /** Changing the company of a new plant clears a business unit of another company. */
+  setPlantCompany(companyId: number | null): void {
+    this.plantForm.company_id = companyId;
+    const unit = this.businessUnits().find((u) => u.id === this.plantForm.business_unit_id);
+    if (unit && unit.company_id !== companyId) this.plantForm.business_unit_id = null;
+    this.plantForm$.set({ company_id: companyId });
+  }
+
+  /** The plant's business unit name, if it has one the user can see. */
+  unitName(plant: Plant): string | null {
+    if (plant.business_unit_id == null) return null;
+    const unit = this.businessUnits().find((u) => u.id === plant.business_unit_id);
+    return unit ? `${unit.name} (${unit.code})` : null;
+  }
+
   getPlantAreas(plantId: number): Area[] {
     return this.areas().filter((a) => a.plant_id === plantId);
   }
 
   openCreatePlantModal(): void {
     this.editingPlantId.set(null);
-    this.plantForm = readDraft<PlantFormModel>(PLANT_DRAFT_KEY) ?? this.blankPlantForm();
+    this.plantForm = { ...this.blankPlantForm(), ...readDraft<PlantFormModel>(PLANT_DRAFT_KEY) };
+    this.plantForm$.set({ company_id: this.plantForm.company_id });
     this.plantModalOpen.set(true);
   }
 
@@ -996,11 +1057,13 @@ export class LocationsPageComponent implements OnInit {
     this.editingPlantId.set(plant.id);
     this.plantForm = {
       company_id: plant.company_id,
+      business_unit_id: plant.business_unit_id,
       name: plant.name,
       code: plant.code,
       timezone: plant.timezone || '',
       address: plant.address || '',
     };
+    this.plantForm$.set({ company_id: plant.company_id });
     this.plantModalOpen.set(true);
   }
 
@@ -1019,6 +1082,7 @@ export class LocationsPageComponent implements OnInit {
         // Blank clears the value (timezone: the company's is used).
         timezone: this.plantForm.timezone.trim() || null,
         address: this.plantForm.address.trim() || null,
+        ...(this.canViewUnits() ? { business_unit_id: this.plantForm.business_unit_id ?? null } : {}),
       };
       this.locationsApi.updatePlant(editingId, payload).subscribe({
         next: (updated) => {
@@ -1038,6 +1102,7 @@ export class LocationsPageComponent implements OnInit {
         timezone: this.plantForm.timezone.trim() || null,
         address: this.plantForm.address.trim() || null,
         company_id: this.isPlatformAdmin() ? this.plantForm.company_id : undefined,
+        business_unit_id: this.plantForm.business_unit_id ?? null,
       };
       this.locationsApi.createPlant(payload).subscribe({
         next: (created) => {
@@ -1166,7 +1231,7 @@ export class LocationsPageComponent implements OnInit {
   }
 
   private blankPlantForm(): PlantFormModel {
-    return { company_id: null, name: '', code: '', timezone: '', address: '' };
+    return { company_id: null, business_unit_id: null, name: '', code: '', timezone: '', address: '' };
   }
 
   deleteArea(areaId: number, areaName: string): void {

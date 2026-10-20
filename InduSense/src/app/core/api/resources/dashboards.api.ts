@@ -12,6 +12,7 @@ import {
 import { ApiService, queryOf } from '../api.service';
 
 export interface OverviewDashboardFilters extends DashboardTimeFilters {
+  business_unit_id?: number;
   plant_id?: number;
 }
 

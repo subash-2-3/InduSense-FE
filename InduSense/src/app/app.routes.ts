@@ -62,6 +62,16 @@ export const routes: Routes = [
           import('./features/assets/assets-page.component').then((m) => m.AssetsPageComponent),
       },
       {
+        path: 'business-units',
+        title: 'Business Units · InduSense',
+        data: { section: 'Business Units' },
+        canActivate: [permissionGuard(Permission.BusinessUnitsView)],
+        loadComponent: () =>
+          import('./features/locations/business-units-page.component').then(
+            (m) => m.BusinessUnitsPageComponent,
+          ),
+      },
+      {
         path: 'locations',
         title: 'Locations · InduSense',
         data: { section: 'Locations' },

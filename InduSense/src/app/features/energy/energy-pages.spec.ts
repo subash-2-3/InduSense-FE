@@ -69,6 +69,7 @@ const KPIS = {
 };
 
 function flushFilterLists(http: HttpTestingController): void {
+  http.expectOne((r) => r.url === '/api/v1/business-units').flush(list([]));
   http.expectOne((r) => r.url === '/api/v1/plants').flush(list([]));
   http.expectOne((r) => r.url === '/api/v1/meters').flush(list([]));
 }

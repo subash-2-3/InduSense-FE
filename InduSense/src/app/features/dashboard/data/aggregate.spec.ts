@@ -185,6 +185,7 @@ describe('aggregate helpers', () => {
           id: 100,
           company_id: 1,
           code: 'P-01',
+          business_unit_id: null,
           name: 'Chennai Plant',
           address: null,
           timezone: null,

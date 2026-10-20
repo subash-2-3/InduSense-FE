@@ -54,6 +54,7 @@ describe('MachineReportsPageComponent', () => {
     const fixture = TestBed.createComponent(MachineReportsPageComponent);
     fixture.detectChanges();
     // The filters list machines (not meters) on this page.
+    http.expectOne((r) => r.url === '/api/v1/business-units').flush(list([]));
     http.expectOne((r) => r.url === '/api/v1/plants').flush(list([]));
     http.expectOne((r) => r.url === '/api/v1/machines').flush(list([]));
     const summary = http.expectOne((r) => r.url === '/api/v1/reports/machines/summary');

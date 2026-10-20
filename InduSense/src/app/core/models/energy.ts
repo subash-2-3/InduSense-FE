@@ -17,6 +17,8 @@ export type EnergyAssetStatus = 'ONLINE' | 'OFFLINE' | 'NO_DATA';
 /** Scope filters shared by every energy endpoint. `company_id` only matters for platform administrators. */
 export interface EnergyFilters {
   company_id?: number;
+  /** Only the plants of this business unit (needs `business_units:view`). */
+  business_unit_id?: number;
   plant_id?: number;
   area_id?: number;
   machine_id?: number;
