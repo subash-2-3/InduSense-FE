@@ -5,14 +5,15 @@ import { filter, map, startWith } from 'rxjs';
 
 import { AppHeaderComponent } from '../app-header/app-header.component';
 import { AppSidebarComponent } from '../app-sidebar/app-sidebar.component';
+import { OfflineBannerComponent } from '../offline-banner/offline-banner.component';
 
 /**
- * Application shell: top bar, sidebar rail and the routed page.
+ * Application shell: top bar, sidebar rail, connectivity banner and the routed page.
  * Below 768px the sidebar becomes an off-canvas drawer opened from the header.
  */
 @Component({
   selector: 'app-main-layout',
-  imports: [AppHeaderComponent, AppSidebarComponent, RouterOutlet],
+  imports: [AppHeaderComponent, AppSidebarComponent, OfflineBannerComponent, RouterOutlet],
   templateUrl: './main-layout.component.html',
   styleUrl: './main-layout.component.scss',
   host: { '(document:keydown.escape)': 'closeNav()' },

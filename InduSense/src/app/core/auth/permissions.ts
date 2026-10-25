@@ -21,6 +21,7 @@ export const Permission = {
   TelemetryView: 'telemetry:view',
   ReportsView: 'reports:view',
   DashboardsView: 'dashboards:view',
+  LoggersView: 'loggers:view',
   AlarmsView: 'alarms:view',
   AlarmsManage: 'alarms:manage',
 } as const;

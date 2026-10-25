@@ -6,6 +6,7 @@ import {
 } from '@angular/common/http';
 import {
   ApplicationConfig,
+  ErrorHandler,
   inject,
   provideAppInitializer,
   provideBrowserGlobalErrorListeners,
@@ -16,6 +17,8 @@ import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from 
 import { routes } from './app.routes';
 import { apiCredentialsInterceptor } from './core/api/api-credentials.interceptor';
 import { errorToastInterceptor } from './core/api/error-toast.interceptor';
+import { connectivityInterceptor } from './core/connectivity/connectivity.interceptor';
+import { GlobalErrorHandler } from './core/errors/global-error-handler';
 import { authInterceptor } from './core/auth/auth.interceptor';
 import { AuthService } from './core/auth/auth.service';
 import { csrfInterceptor } from './core/auth/csrf.interceptor';
@@ -24,19 +27,22 @@ import { csrfInterceptor } from './core/auth/csrf.interceptor';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
+    // Unhandled errors end in a recovery panel instead of a half-rendered page.
+    { provide: ErrorHandler, useClass: GlobalErrorHandler },
     provideRouter(
       routes,
       withComponentInputBinding(),
       withInMemoryScrolling({ scrollPositionRestoration: 'top' }),
     ),
     provideClientHydration(withEventReplay()),
-    // Order matters: the error toast interceptor wraps the auth interceptor, so it sees the final
-    // outcome after a session refresh; the CSRF interceptor runs after the auth interceptor, so a
+    // Order matters: the connectivity and error toast interceptors wrap the auth interceptor, so they
+    // see the final outcome after a session refresh; the CSRF interceptor runs after the auth interceptor, so a
     // request replayed after a refresh carries the rotated CSRF token. Angular's own XSRF support is off.
     provideHttpClient(
       withFetch(),
       withInterceptors([
         apiCredentialsInterceptor,
+        connectivityInterceptor,
         errorToastInterceptor,
         authInterceptor,
         csrfInterceptor,

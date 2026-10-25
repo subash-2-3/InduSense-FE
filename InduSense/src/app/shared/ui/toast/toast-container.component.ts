@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { IconComponent } from '../icon/icon.component';
 import { ToastService } from './toast.service';
 
-/** Renders the ToastService queue in the bottom-right corner. Placed once, in the app root. */
+/** Renders the ToastService queue at the top center of every screen. Placed once, in the app root. */
 @Component({
   selector: 'app-toast-container',
   imports: [IconComponent],
@@ -31,15 +31,18 @@ import { ToastService } from './toast.service';
     }
   `,
   styles: `
+    /* Top center, just below the top bar so it never covers the header controls. */
     :host {
       position: fixed;
-      right: var(--space-4);
-      bottom: var(--space-4);
+      top: calc(var(--topbar-h) + var(--space-3));
+      left: 50%;
       z-index: var(--z-toast);
       display: flex;
       flex-direction: column;
+      align-items: center;
       gap: var(--space-2);
-      width: min(380px, calc(100vw - 2 * var(--space-4)));
+      width: min(480px, calc(100vw - 2 * var(--space-4)));
+      transform: translateX(-50%);
       pointer-events: none;
     }
 
@@ -48,6 +51,8 @@ import { ToastService } from './toast.service';
 
       display: flex;
       align-items: flex-start;
+      max-width: 100%;
+      animation: toast-in 160ms ease-out;
       gap: var(--space-2);
       padding: var(--space-3);
       border: 1px solid var(--border-light);
@@ -63,6 +68,19 @@ import { ToastService } from './toast.service';
 
     .toast--error {
       --toast-color: var(--status-fault);
+    }
+
+    @keyframes toast-in {
+      from {
+        opacity: 0;
+        transform: translateY(-8px);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .toast {
+        animation: none;
+      }
     }
 
     .toast__icon {

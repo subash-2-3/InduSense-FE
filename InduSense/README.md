@@ -192,6 +192,40 @@ Everything under `src/app/core/api/`:
   - Not toasted by the interceptor: failed page loads (GET), which show in the page as an error state with Retry; `/auth/*`, where the login form shows errors inline; and 401, where the auth interceptor ends the session with its own message.
   - **Successes** are toasted by the screen (`ToastService.success`) with the record's name. The backend's success envelope (`{ success, data }`) carries no message.
 
+### Application states and resilience
+
+- **`AsyncState<T>`** (`shared/utils/async-state.ts`): one value with `data`, `loading`, `error`
+  (`ApiError`), `stale` and `lastUpdated`, instead of separate flags. `loadingState`, `successState`
+  and `errorState` move between states; a failed refresh keeps the last data and marks it `stale`.
+  `toAsyncState(previous)` turns a request into loading → success / error without ever erroring the
+  stream, and `viewOf(state, isEmpty)` picks `loading` / `error` / `empty` / `ready` for the template.
+- **`ConnectivityService`** (`core/connectivity/`), worst first:
+  - **network**: the browser's `online` / `offline` events;
+  - **API server**: `connectivityInterceptor` reports status 0, 502, 503 and 504 (any other answer means
+    reachable). While it is down the service probes `/auth/me` outside the interceptor chain with
+    backoff (2, 4, 8, 16, then every 30 s); "Retry now" probes at once, and so does going online;
+  - **live data stream**: the browser has no broker connection; the DataLogger holds the MQTT / Modbus
+    link. For users with `loggers:view`, `/loggers` is polled (30 s; 10 s while a logger is down; not
+    while the tab is hidden), and a logger with `source_connected: false` or health `STALE` degrades
+    the stream.
+  - `restored$` fires when a level recovers, so views in an error state reload on their own.
+- **`OfflineBannerComponent`** (`layout/offline-banner/`): sticky at the top of the page content. It shows
+  the worst problem only: offline (critical), server unreachable (critical, with a countdown, the
+  attempt count and Retry now), or a DataLogger that lost its broker / device connection (warning,
+  with the check count). After a recovery it says so for 4 seconds.
+- **`GlobalErrorHandler`** (`core/errors/`): unhandled errors (including window `error` and
+  `unhandledrejection`, via `provideBrowserGlobalErrorListeners`) are logged and open a non-modal
+  recovery panel with Reload page / Dismiss. A failed lazy chunk after a deployment says "A new
+  version is available". Failed HTTP calls are left to the pages and interceptors.
+- **`MeterWidgetComponent`** (`features/energy/meter-widget.component.ts`): a self-contained meter card
+  (`/dashboards/meters/{id}`) with its own loading skeleton, live readings (voltage, current, kW,
+  power factor, kWh, each marked live / stale / missing), empty state with "Reset range" and error
+  state with Retry. A failure stays inside the card; a failed refresh keeps the last readings, marked
+  out of date. It refreshes every `refreshSeconds` (default 30), pauses while offline or the server is
+  down, and reloads when connectivity returns:
+  `<app-meter-widget [meterId]="id" [range]="{ from, to }" (resetRange)="resetRange()" />`.
+  No page uses it yet: the Energy & OEE dashboard loads every meter's live values in one request.
+
 ### Authentication
 
 Sign-in uses the backend's browser session (`POST /api/v1/auth/session`). The access and refresh tokens are HttpOnly cookies, so no script, including this app, can read them. The app stores nothing about the session.
@@ -232,11 +266,12 @@ Sign-in uses the backend's browser session (`POST /api/v1/auth/session`). The ac
 
 ## Testing
 
-`npm test` runs the Vitest unit tests (jsdom): 70 files, 384 tests at the last run.
+`npm test` runs the Vitest unit tests (jsdom): 75 files, 412 tests at the last run.
 
 - **Pure functions:** chart options, sorting, formatting, status mapping and mock data consistency.
 - **Components:** widgets, layout, login, dropdown keyboard behaviour.
 - **Store:** polling, visibility pause, overlap protection, stale data and paging races, tested with fake timers.
+- **Resilience:** `AsyncState` transitions, connectivity backoff, DataLogger stream checks and the interceptor, the offline banner, the global error handler and recovery panel, and the meter widget's four states (with fake timers).
 - **API layer** (`HttpTestingController`): URL and query building, envelope unwrapping, `getAllPages` (ordering, concurrency, caps, failures), `204` handling, the credentials interceptor, every resource endpoint, and error normalisation using error bodies captured from the real backend.
 - **Pages:** energy dashboard and reports (including cursor paging of detailed readings), machines section and machine control, alarms, tags, devices, assets, companies and settings.
 
