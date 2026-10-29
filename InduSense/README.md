@@ -98,6 +98,7 @@ Or create a `.env` in `InduSense-FE/InduSense` based on [.env.example](.env.exam
   ```
 
   Requests for other hosts are rejected with 400.
+- **Server hardening (`server.ts`):** `x-powered-by` is disabled, and standard security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`) are injected by default on all responses.
 
 ## Architecture
 
@@ -266,19 +267,18 @@ Sign-in uses the backend's browser session (`POST /api/v1/auth/session`). The ac
 
 ## Testing
 
-`npm test` runs the Vitest unit tests (jsdom): 75 files, 412 tests at the last run.
+`npm test` runs the Vitest unit tests (jsdom): **89 test specification suites** covering:
 
 - **Pure functions:** chart options, sorting, formatting, status mapping and mock data consistency.
-- **Components:** widgets, layout, login, dropdown keyboard behaviour.
+- **Components:** widgets, layout, login, dropdown keyboard behaviour, offline banner, and error recovery panel.
 - **Store:** polling, visibility pause, overlap protection, stale data and paging races, tested with fake timers.
 - **Resilience:** `AsyncState` transitions, connectivity backoff, DataLogger stream checks and the interceptor, the offline banner, the global error handler and recovery panel, and the meter widget's four states (with fake timers).
 - **API layer** (`HttpTestingController`): URL and query building, envelope unwrapping, `getAllPages` (ordering, concurrency, caps, failures), `204` handling, the credentials interceptor, every resource endpoint, and error normalisation using error bodies captured from the real backend.
-- **Pages:** energy dashboard and reports (including cursor paging of detailed readings), machines section and machine control, alarms, tags, devices, assets, companies and settings.
+- **Pages & Features:** energy dashboard and reports (including cursor paging of detailed readings), machine reports (detailed wide readings and exports), business units CRUD & navigation, locations, reports page, machines section and machine control, alarms, tags, devices, assets, companies and settings.
 
 ## Next steps
 
 - The Device Summary dashboard still aggregates raw lists in the browser. InduSense-BE's `/dashboards/*` endpoints (wrapped by `DashboardsApi`; the Energy & OEE page already uses the server-side ones) compute KPIs, trends and machine status on the server, and scale better.
-- The `reports` page has no unit tests yet; the `locations` page only for business units.
 - The Device Summary dashboard has no location filter (no plant or business unit): it summarizes the whole fleet.
 - Maps, More, Quick Start and Help are placeholders.
 - There is no "forgot password" screen. The backend endpoints exist, but no email is sent yet.
